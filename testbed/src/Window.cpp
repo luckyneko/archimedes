@@ -104,7 +104,9 @@ Window::Window(WindowDelegatePtr delegate, acm::Instance instance, const std::st
 	// ACM SwapChain
 	if(ok)
 	{
-		impl->swapChain = acm::SwapChain(impl->device, impl->surface, settings.selectedFormat, settings.selectedPresentMode);
+		int fbWidth = 0, fbHeight = 0;
+		glfwGetFramebufferSize(impl->window, &fbWidth, &fbHeight);
+		impl->swapChain = acm::SwapChain(impl->device, impl->surface, settings.selectedFormat, settings.selectedPresentMode, VkExtent2D{ uint32_t(fbWidth), uint32_t(fbHeight) });
 		ok = impl->swapChain.valid();
 		spdlog::info("CreateACMSwapChain: {0}", ok ? "ok" : "FAIL");
 	}

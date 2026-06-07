@@ -4,6 +4,7 @@
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmSurface.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
 
 struct acm::SwapChain::impl
 {
@@ -22,7 +23,7 @@ struct acm::SwapChain::impl
     }
 };
 
-acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFormatKHR format, VkPresentModeKHR presentMode)
+acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFormatKHR format, VkPresentModeKHR presentMode, VkExtent2D desiredExtent)
 : m()
 {
     auto impl = std::make_shared<acm::SwapChain::impl>();
@@ -31,7 +32,18 @@ acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFor
     impl->mode = presentMode;
 
     const auto& capabilities = surface.getGPUSupport()[impl->device.getGPU().index].capabilities;
-    impl->extents = capabilities.currentExtent;
+    // A currentExtent of UINT32_MAX means the surface (e.g. a headless surface,
+    // or some platforms) defers the size to the application: clamp the requested
+    // extent to the surface's allowed range. Otherwise the surface dictates it.
+    if (capabilities.currentExtent.width != UINT32_MAX)
+    {
+        impl->extents = capabilities.currentExtent;
+    }
+    else
+    {
+        impl->extents.width = std::clamp(desiredExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        impl->extents.height = std::clamp(desiredExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    }
     uint32_t imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
         imageCount = capabilities.maxImageCount;

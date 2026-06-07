@@ -14,6 +14,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(ARCHIMEDES_BUILD_TESTBED "Build the testbed executable" ${NOT_SUBPROJECT})
+option(ARCHIMEDES_BUILD_TESTING "Build the unit/integration tests" ${NOT_SUBPROJECT})
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -52,4 +53,10 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES})
 
 if(ARCHIMEDES_BUILD_TESTBED)
     add_subdirectory(testbed)
+endif()
+
+if(ARCHIMEDES_BUILD_TESTING)
+    enable_testing() # must be at the project root for ctest to find tests
+    include(addcatch2)
+    add_subdirectory(test)
 endif()

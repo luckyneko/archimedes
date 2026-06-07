@@ -11,9 +11,10 @@ Early-stage. The repo builds the core **static library** (`libarchimedes.a`)
 plus an optional **`testbed/` executable** that drives the API against a real
 GLFW window. The testbed creates instance → surface → device → swapchain and
 **renders a triangle** (pipeline + SPIR-V shaders + per-frame sync + present)
-on a live MoltenVK driver — verified end-to-end on Apple Silicon. There are
-still **no unit tests**, and no swapchain-recreation path (the window is fixed
-size; see Known rough edges).
+on a live MoltenVK driver — verified end-to-end on Apple Silicon. A Catch2
+test suite covers handle semantics + headless instance/device creation. There
+is no swapchain-recreation path yet (the window is fixed size; see Known rough
+edges).
 
 ## Architecture
 
@@ -103,7 +104,11 @@ modules under [cmake/](cmake/), mirroring the pattern used in the sibling
   Offline GLSL→SPIR-V compiler: prefers system `glslc`/`glslangValidator`, else
   builds glslang's standalone from source (`ENABLE_OPT=OFF`, so no SPIRV-Tools).
   Defines the `vk_target_shaders(<target> <sources…>)` helper, which compiles to
-  `<bindir>/shaders/*.spv`.
+  `<bindir>/shaders/*.spv`. Note: it deliberately does **not** cache its
+  compiler choice behind a guard around the vendored `add_subdirectory` — that
+  target must be re-created every configure.
+- **Catch2** (tests only) — [cmake/addcatch2.cmake](cmake/addcatch2.cmake)
+  (copied from thorax). Provides `Catch2::Catch2WithMain` + `catch_discover_tests`.
 
 ### Why the library links only the Vulkan *headers*
 
@@ -170,6 +175,26 @@ Shaders live in [testbed/shaders/](testbed/shaders/) and are compiled by
 `vk_target_shaders` to `build/testbed/shaders/*.spv`; the app finds them via the
 `TESTBED_SHADER_DIR` define wired in [testbed/CMakeLists.txt](testbed/CMakeLists.txt).
 
+## Tests ([test/](test/))
+
+Catch2 suite, gated by `ARCHIMEDES_BUILD_TESTING` (default ON top-level). The
+library is a thin wrapper over `vk*`, so coverage splits in two:
+
+- **Pure unit** (`[acm]`, `[handle]`, `[version]`) — handle validity/reset/share
+  semantics and `Version`. No driver needed.
+- **Integration** (`[gpu]`) — all headless via a **headless surface**
+  (`vkCreateHeadlessSurfaceEXT` — no window): `acm::Instance`/`Device` creation +
+  GPU enumeration, `acm::Surface` per-GPU support, and `acm::SwapChain` extent
+  clamping. `test/CMakeLists.txt` points `VK_ICD_FILENAMES` at the vendored
+  MoltenVK ICD (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not
+  fails) when no driver / extension / capability is present, so a GPU-less CI
+  stays green. (Note: ctest reports a Catch2 `SKIP` as "Passed"; run the binary
+  with the ICD env to confirm assertions actually execute.)
+
+Shared `[gpu]` scaffolding (headless-surface + graphics-GPU selection) lives in
+[test/vk_test_helpers.h](test/vk_test_helpers.h) — reuse it, don't re-roll it.
+Add new tests in place; do not duplicate the production path.
+
 ## Build & verify
 
 Out-of-source only (the top-level `CMakeLists.txt` hard-errors on in-source):
@@ -192,8 +217,14 @@ staged MoltenVK ICD):
 ./build/run_testbed.sh
 ```
 
-`-DARCHIMEDES_BUILD_TESTBED=OFF` builds only the library (headers only, no
-loader/MoltenVK/GLFW downloads).
+Run the tests with ctest from the build dir:
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+`-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` build only
+the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 ## Conventions
 
@@ -219,5 +250,6 @@ loader/MoltenVK/GLFW downloads).
   acquire/present return values are currently ignored.
 - The triangle pipeline uses `VK_CULL_MODE_NONE` so winding can't hide it (a
   smoke-test choice, not a considered default).
-- No unit tests yet; correctness is verified only by building + running the
-  testbed against the live MoltenVK driver.
+- Test coverage is still shallow: handle semantics + headless instance / device
+  / surface / swapchain only. No render-pass/pipeline/render-loop tests, and the
+  `[gpu]` tests need a Metal-capable driver (they SKIP otherwise).

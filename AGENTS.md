@@ -39,8 +39,8 @@ If overlapping code exists, modify, move, or delete it. Do not create another pa
 
 ## Testing and integration
 
-- There is **no test harness or runnable target yet** — today verification means the static library *compiles cleanly*, and (once the deferred MoltenVK runtime stack exists) that code *runs against a live driver*. Do not claim rendering behavior works without having run it.
-- When a test/example/run target is added, exercise the production implementation through the closest practical real caller — test behavior real callers depend on, not scaffolding or implementation details — and add or update coverage for every change.
+- Verification today: the library compiles cleanly, the **Catch2 suite** (`ctest`) passes, and the **testbed** runs/renders against the live MoltenVK driver. Do not claim rendering behavior works without having run it.
+- Exercise the production implementation through the closest practical real caller — test behavior real callers depend on, not scaffolding or implementation details — and add or update coverage for every change. The lib is a thin `vk*` wrapper, so most meaningful coverage is integration-level (`[gpu]` tests needing a live driver); keep those `SKIP`-aware so a GPU-less CI stays green.
 - Do not edit a failing test just to pass. If the test is genuinely wrong, say why before changing it.
 - Do not leave features, prototypes, or test-only implementations disconnected from the system they were built for. If a demo or prototype helped develop the code, integrate it into the production path or delete it so it cannot be mistaken for the real thing.
 - Before claiming completion, state which production file/function owns the behavior and which command (configure, build, or run) proves that path is exercised.
