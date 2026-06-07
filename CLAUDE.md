@@ -9,10 +9,11 @@ specific.
 
 Early-stage. The repo builds the core **static library** (`libarchimedes.a`)
 plus an optional **`testbed/` executable** that drives the API against a real
-GLFW window. Stage (a) is done: the testbed creates instance → surface →
-device → swapchain on a live MoltenVK driver (verified on Apple Silicon) but
-**does not render yet** — the `WindowDelegate` render hooks are stubs awaiting
-stage (b) (pipeline + shaders + a triangle). There are still **no unit tests**.
+GLFW window. The testbed creates instance → surface → device → swapchain and
+**renders a triangle** (pipeline + SPIR-V shaders + per-frame sync + present)
+on a live MoltenVK driver — verified end-to-end on Apple Silicon. There are
+still **no unit tests**, and no swapchain-recreation path (the window is fixed
+size; see Known rough edges).
 
 ## Architecture
 
@@ -98,6 +99,11 @@ modules under [cmake/](cmake/), mirroring the pattern used in the sibling
   `acm_stage_vulkan_runtime(<target>)`.
 - **GLFW** (testbed only) — [cmake/addGLFW.cmake](cmake/addGLFW.cmake). Windowing
   + Vulkan surface; exposes `glfw`.
+- **glslang** (testbed only) — [cmake/addGlslang.cmake](cmake/addGlslang.cmake).
+  Offline GLSL→SPIR-V compiler: prefers system `glslc`/`glslangValidator`, else
+  builds glslang's standalone from source (`ENABLE_OPT=OFF`, so no SPIRV-Tools).
+  Defines the `vk_target_shaders(<target> <sources…>)` helper, which compiles to
+  `<bindir>/shaders/*.spv`.
 
 ### Why the library links only the Vulkan *headers*
 
@@ -154,9 +160,15 @@ reusable framework and swappable test content:
   — the interface a demo implements: `onSelectSwapChainSettings` (pick
   GPU/queue/format), `onInit`/`onShutdown`/`onUpdate`/`onRender`.
 - **`MainDelegate`** ([testbed/src/MainDelegate.cpp](testbed/src/MainDelegate.cpp))
-  — the current demo. Stage (a): selection only + stub render hooks. Stage (b)
-  will grow it into pipeline + triangle. Evolve this in place — do not fork a
-  parallel delegate.
+  — the current demo: builds a graphics pipeline from the `triangle.{vert,frag}`
+  shaders (loaded from the `TESTBED_SHADER_DIR` compile-definition path), records
+  one command buffer per swapchain render target, and draws/presents a triangle
+  with `MAX_FRAMES_IN_FLIGHT = 2` per-frame sync. Evolve this in place for new
+  demos — do not fork a parallel delegate.
+
+Shaders live in [testbed/shaders/](testbed/shaders/) and are compiled by
+`vk_target_shaders` to `build/testbed/shaders/*.spv`; the app finds them via the
+`TESTBED_SHADER_DIR` define wired in [testbed/CMakeLists.txt](testbed/CMakeLists.txt).
 
 ## Build & verify
 
@@ -169,7 +181,7 @@ cmake --build build
 
 First configure downloads spdlog + Vulkan-Headers and, when the testbed is
 enabled (`ARCHIMEDES_BUILD_TESTBED`, default ON for top-level builds), GLFW +
-Vulkan-Loader + MoltenVK into `thirdparty/` (git-ignored). `CMAKE_BUILD_TYPE`
+Vulkan-Loader + MoltenVK + glslang into `thirdparty/` (git-ignored). `CMAKE_BUILD_TYPE`
 defaults to `Release`; `Debug` (NDEBUG unset) additionally compiles the Vulkan
 validation-layer / debug-messenger paths in [acmInstance.cpp](src/acmInstance.cpp).
 
@@ -202,5 +214,10 @@ loader/MoltenVK/GLFW downloads).
   bogus non-null pointer; harmless only because `queueFamilyIndexCount == 0`.
 - [acmImage.cpp](src/acmImage.cpp): the image-creating constructor is commented
   out; `Image` only wraps borrowed swapchain images today.
-- No tests, examples, or run target exist; correctness beyond "it compiles"
-  is unverified against a live driver.
+- **No swapchain recreation.** The testbed window is forced non-resizable; a
+  minimized/out-of-date swapchain (`VK_ERROR_OUT_OF_DATE_KHR`) is not handled —
+  acquire/present return values are currently ignored.
+- The triangle pipeline uses `VK_CULL_MODE_NONE` so winding can't hide it (a
+  smoke-test choice, not a considered default).
+- No unit tests yet; correctness is verified only by building + running the
+  testbed against the live MoltenVK driver.

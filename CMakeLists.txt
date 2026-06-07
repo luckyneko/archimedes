@@ -23,33 +23,9 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # Vendored dependencies (download into thirdparty/ on demand; git-ignored).
+# Shader compilation (addGlslang) + the Vulkan runtime live with the testbed.
 include(addspdlog)
 include(addVulkan)
-
-# glslc is only needed once we have shaders to compile; absent today.
-find_program(GLSLC glslc)
-
-function(vk_target_shaders TARGET)
-    if(NOT ARGN)
-        return()
-    endif()
-
-    foreach(SHADER_IN ${ARGN})
-        get_filename_component(FILE_NAME ${SHADER_IN} NAME)
-        set(SHADER_OUT ${CMAKE_CURRENT_BINARY_DIR}/shaders/${FILE_NAME}.spv)
-        add_custom_command(
-            OUTPUT ${SHADER_OUT}
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders/"
-            COMMAND ${GLSLC} -Werror ${CMAKE_SOURCE_DIR}/${SHADER_IN} -o ${SHADER_OUT}
-            DEPENDS ${CMAKE_SOURCE_DIR}/${SHADER_IN}
-            COMMENT "Compiling shader ${SHADER_OUT}"
-        )
-        list(APPEND COMPILED_SHADERS ${SHADER_OUT})
-    endforeach()
-
-    add_custom_target(${TARGET}_shaders DEPENDS ${COMPILED_SHADERS})
-    add_dependencies(${TARGET} ${TARGET}_shaders)
-endfunction()
 
 set(SOURCE_FILES
     src/acmDevice.cpp

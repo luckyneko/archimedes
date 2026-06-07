@@ -53,6 +53,8 @@ Window::Window(WindowDelegatePtr delegate, acm::Instance instance, const std::st
 			spdlog::error("glfwVulkanSupported: no Vulkan loader/ICD found");
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+		// No swapchain-recreation path yet, so keep the surface size fixed.
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 		impl->window = glfwCreateWindow(width, height, name.c_str(), nullptr, nullptr);
 		ok = ok && (impl->window != nullptr);
 		if(!ok)
