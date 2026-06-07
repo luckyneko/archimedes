@@ -7,10 +7,12 @@ specific.
 
 ## Status
 
-Early-stage. Today the repo builds a single **static library** (`libarchimedes.a`)
-wrapping the core Vulkan objects. There is **no executable, test, or shader
-target yet**, and no code path has been run end-to-end against a live driver.
-"Done" for the current milestone means *compiles cleanly*, not *renders*.
+Early-stage. The repo builds the core **static library** (`libarchimedes.a`)
+plus an optional **`testbed/` executable** that drives the API against a real
+GLFW window. Stage (a) is done: the testbed creates instance → surface →
+device → swapchain on a live MoltenVK driver (verified on Apple Silicon) but
+**does not render yet** — the `WindowDelegate` render hooks are stubs awaiting
+stage (b) (pipeline + shaders + a triangle). There are still **no unit tests**.
 
 ## Architecture
 
@@ -85,24 +87,43 @@ modules under [cmake/](cmake/), mirroring the pattern used in the sibling
 
 - **spdlog** — [cmake/addspdlog.cmake](cmake/addspdlog.cmake) (copied from
   thorax). Provides `spdlog::spdlog`. Logging surface used throughout.
-- **Vulkan** — [cmake/addVulkan.cmake](cmake/addVulkan.cmake). Prefers a real
-  SDK via `find_package(Vulkan)`; otherwise vendors **Vulkan-Headers** (pinned
-  via `VULKAN_HEADERS_VER`) and exposes `Vulkan::Headers`.
+- **Vulkan headers** — [cmake/addVulkan.cmake](cmake/addVulkan.cmake). Prefers a
+  real SDK via `find_package(Vulkan)`; otherwise vendors **Vulkan-Headers**
+  (pinned via `VULKAN_HEADERS_VER`) and exposes `Vulkan::Headers`. This is all
+  the **library** needs.
+- **Vulkan runtime** (testbed only) —
+  [cmake/addVulkanRuntime.cmake](cmake/addVulkanRuntime.cmake). Builds
+  **Vulkan-Loader** from source against the vendored headers (→ `Vulkan::Loader`)
+  and downloads a prebuilt **MoltenVK** ICD. Provides
+  `acm_stage_vulkan_runtime(<target>)`.
+- **GLFW** (testbed only) — [cmake/addGLFW.cmake](cmake/addGLFW.cmake). Windowing
+  + Vulkan surface; exposes `glfw`.
 
-### Why only the Vulkan *headers*
+### Why the library links only the Vulkan *headers*
 
 "Vulkan" is several separate components. A **static library only needs the
-headers to compile** — the loader (`Vulkan::Vulkan`), the MoltenVK ICD, and the
-validation layers are link/run-time concerns of an eventual executable, not of
-this archive. So the lib links `Vulkan::Headers` (include-only).
+headers to compile** — the loader, the MoltenVK ICD, and the validation layers
+are link/run-time concerns of an executable, not of this archive. So
+`libarchimedes` links `Vulkan::Headers` (include-only) and leaves its `vk*`
+symbols unresolved; the **testbed** links `Vulkan::Loader` to resolve them.
 
-The loader + MoltenVK + layers are intentionally **deferred**. When an
-executable/test target that creates a real `VkInstance` is added, extend the
-clearly marked deferred section at the bottom of
-[cmake/addVulkan.cmake](cmake/addVulkan.cmake) to vendor a prebuilt loader +
-MoltenVK ICD (+ layers in debug), stage their `*_icd.json` / layer manifests
-into `build/`, and export `VK_ICD_FILENAMES` / `VK_LAYER_PATH` for runs — still
-without a system install.
+### Testbed runtime (fully vendored, no system install)
+
+[cmake/addVulkanRuntime.cmake](cmake/addVulkanRuntime.cmake) realizes the
+"no system install" goal end to end:
+
+- **Loader**: built from the pinned `Vulkan-Loader` source (codegen off, so no
+  Python). Its second Apple-only `vulkan-framework` target is set
+  `EXCLUDE_FROM_ALL` since we only link the `vulkan` dylib.
+- **MoltenVK**: the prebuilt `MoltenVK-macos.tar` release; `libMoltenVK.dylib` +
+  `MoltenVK_icd.json` (relative `./libMoltenVK.dylib`, `is_portability_driver`).
+- **`acm_stage_vulkan_runtime(<target>)`**: POST_BUILD-copies the ICD + dylib to
+  `<bindir>/vulkan/`, and generates `build/run_<target>.sh` that exports
+  `VK_ICD_FILENAMES` (and `VK_LAYER_PATH` *only if* `$VULKAN_SDK` is present —
+  macOS ships validation layers only via the LunarG SDK, so they stay optional).
+- GLFW is bound to our vendored loader via
+  `glfwInitVulkanLoader(vkGetInstanceProcAddr)` (so it doesn't dlopen a system
+  libvulkan).
 
 ## MoltenVK / portability
 
@@ -121,6 +142,22 @@ already accounts for the two non-obvious requirements; preserve them:
 
 Both are guarded on availability, so they are no-ops on conformant drivers.
 
+## Testbed ([testbed/](testbed/))
+
+A runnable harness, ported from the `urdr` project's pattern, split into a
+reusable framework and swappable test content:
+
+- **`Window`** ([testbed/src/Window.cpp](testbed/src/Window.cpp)) — owns the GLFW
+  window and the `acm::Surface`/`Device`/`SwapChain` lifecycle (same
+  handle/all-or-nothing shape as `acm::`), driving a delegate per frame.
+- **`WindowDelegate`** ([testbed/src/WindowDelegate.h](testbed/src/WindowDelegate.h))
+  — the interface a demo implements: `onSelectSwapChainSettings` (pick
+  GPU/queue/format), `onInit`/`onShutdown`/`onUpdate`/`onRender`.
+- **`MainDelegate`** ([testbed/src/MainDelegate.cpp](testbed/src/MainDelegate.cpp))
+  — the current demo. Stage (a): selection only + stub render hooks. Stage (b)
+  will grow it into pipeline + triangle. Evolve this in place — do not fork a
+  parallel delegate.
+
 ## Build & verify
 
 Out-of-source only (the top-level `CMakeLists.txt` hard-errors on in-source):
@@ -130,13 +167,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-First configure downloads spdlog and Vulkan-Headers into `thirdparty/`.
-`CMAKE_BUILD_TYPE` defaults to `Release`; `Debug` (NDEBUG unset) additionally
-compiles the Vulkan validation-layer / debug-messenger paths in
-[acmInstance.cpp](src/acmInstance.cpp).
+First configure downloads spdlog + Vulkan-Headers and, when the testbed is
+enabled (`ARCHIMEDES_BUILD_TESTBED`, default ON for top-level builds), GLFW +
+Vulkan-Loader + MoltenVK into `thirdparty/` (git-ignored). `CMAKE_BUILD_TYPE`
+defaults to `Release`; `Debug` (NDEBUG unset) additionally compiles the Vulkan
+validation-layer / debug-messenger paths in [acmInstance.cpp](src/acmInstance.cpp).
 
-Building anything that actually *runs* Vulkan requires the deferred MoltenVK
-runtime stack described above — not available yet.
+Run the testbed via the generated launcher (it sets `VK_ICD_FILENAMES` to the
+staged MoltenVK ICD):
+
+```sh
+./build/run_testbed.sh
+```
+
+`-DARCHIMEDES_BUILD_TESTBED=OFF` builds only the library (headers only, no
+loader/MoltenVK/GLFW downloads).
 
 ## Conventions
 

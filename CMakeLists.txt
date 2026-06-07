@@ -1,11 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(archimedes LANGUAGES CXX VERSION 0.1.0)
+# Detect top-level vs. bundled-as-a-subproject before our own project() call.
+if(NOT DEFINED PROJECT_NAME)
+    set(NOT_SUBPROJECT ON)
+endif()
+
+# C is enabled for the vendored Vulkan-Loader / GLFW sources (testbed only).
+project(archimedes LANGUAGES CXX C VERSION 0.1.0)
 
 # Default build release
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose Release or Debug" FORCE)
 endif()
+
+option(ARCHIMEDES_BUILD_TESTBED "Build the testbed executable" ${NOT_SUBPROJECT})
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -65,3 +73,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES})
+
+if(ARCHIMEDES_BUILD_TESTBED)
+    add_subdirectory(testbed)
+endif()

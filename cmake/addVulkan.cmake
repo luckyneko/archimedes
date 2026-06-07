@@ -59,18 +59,8 @@ else ()
 endif ()
 
 # -------------------------------------------------------------------------
-# DEFERRED — runtime stack (loader + MoltenVK ICD + validation layers).
-#
-# Not needed to compile the static library. Wire this up when archimedes
-# gains an executable / test target that actually creates a VkInstance:
-#
-#   * Vulkan-Loader   -> build from source or link a prebuilt libvulkan,
-#                        giving the Vulkan::Vulkan target to link against.
-#   * MoltenVK        -> download the prebuilt release (libMoltenVK.dylib +
-#                        MoltenVK_icd.json), stage both into build/, and
-#                        export VK_ICD_FILENAMES=<build>/MoltenVK_icd.json.
-#   * Validation      -> download prebuilt layers (debug only) and export
-#                        VK_LAYER_PATH=<build>/explicit_layer.d.
-#
-# All of the above stays inside thirdparty/ + build/ — no system install.
+# The runtime stack (loader + MoltenVK ICD) needed by a runnable target lives
+# in cmake/addVulkanRuntime.cmake — it provides Vulkan::Loader and the
+# acm_stage_vulkan_runtime() helper. The static library needs none of it;
+# only an executable that creates a VkInstance does (see testbed/).
 # -------------------------------------------------------------------------
