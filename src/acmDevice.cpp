@@ -1,5 +1,6 @@
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmInstance.h"
+#include <vulkan/vulkan.h>
 #include <cstring>
 #include <vector>
 
@@ -11,10 +12,28 @@ struct acm::Device::impl
     VkDevice device{ VK_NULL_HANDLE };
     VkQueue queue{ VK_NULL_HANDLE };
 
+    uint64_t currentFrame{ 0 };
+    struct Pending
+    {
+        uint64_t frame{ 0 };
+        std::function<void()> destroy;
+    };
+    std::vector<Pending> graveyard;
+
     ~impl()
     {
         if(device)
+        {
+            // The device is going away; nothing can still be in flight after we
+            // wait, so flush every remaining deferred destroy before the device
+            // itself. The lambdas only capture raw handles, so the live VkDevice
+            // is valid right up until vkDestroyDevice below.
+            vkDeviceWaitIdle(device);
+            for(auto& entry : graveyard)
+                entry.destroy();
+            graveyard.clear();
             vkDestroyDevice(device, nullptr);
+        }
     }
 };
 
@@ -92,4 +111,37 @@ VkDevice acm::Device::vkDevice()
 VkQueue acm::Device::vkQueue()
 {
     return m->queue;
+}
+
+void acm::Device::beginFrame()
+{
+    ++m->currentFrame;
+}
+
+uint64_t acm::Device::currentFrame() const
+{
+    return m->currentFrame;
+}
+
+void acm::Device::enqueueDestroy(std::function<void()> destroy)
+{
+    m->graveyard.push_back({ m->currentFrame, std::move(destroy) });
+}
+
+void acm::Device::collectGarbage(uint64_t completedFrame)
+{
+    auto& graveyard = m->graveyard;
+    auto it = graveyard.begin();
+    while(it != graveyard.end())
+    {
+        if(it->frame <= completedFrame)
+        {
+            it->destroy();
+            it = graveyard.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }

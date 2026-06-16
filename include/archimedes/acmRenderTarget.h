@@ -1,7 +1,7 @@
 #pragma once
 
 #include "archimedes/acmForward.h"
-#include <vulkan/vulkan.h>
+#include "archimedes/acmVkFwd.h"
 #include <vector>
 
 namespace acm

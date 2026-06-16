@@ -3,7 +3,7 @@
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
 #include "archimedes/acmVersion.h"
-#include <vulkan/vulkan.h>
+#include "archimedes/acmVkFwd.h"
 #include <vector>
 
 namespace acm

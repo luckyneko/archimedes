@@ -1,6 +1,8 @@
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmImage.h"
+#include "acmVkConvert.h"
+#include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
 
 struct acm::RenderTarget::impl
@@ -13,14 +15,28 @@ struct acm::RenderTarget::impl
 
     ~impl()
     {
+        if(!device.valid())
+            return;
+
+        // Defer teardown onto the device's frame-fenced queue. Enqueue order is
+        // run order, so framebuffer -> render pass -> views, mirroring the safe
+        // inline ordering.
+        VkDevice dev = device.vkDevice();
         if(frameBuffer)
-            vkDestroyFramebuffer(device.vkDevice(), frameBuffer, nullptr);
-
+        {
+            VkFramebuffer fb = frameBuffer;
+            device.enqueueDestroy([dev, fb]{ vkDestroyFramebuffer(dev, fb, nullptr); });
+        }
         if(renderPass)
-            vkDestroyRenderPass(device.vkDevice(), renderPass, nullptr);
-
-        for (auto imageView : imageViews)
-            vkDestroyImageView(device.vkDevice(), imageView, nullptr);
+        {
+            VkRenderPass rp = renderPass;
+            device.enqueueDestroy([dev, rp]{ vkDestroyRenderPass(dev, rp, nullptr); });
+        }
+        for(auto imageView : imageViews)
+        {
+            if(imageView)
+                device.enqueueDestroy([dev, imageView]{ vkDestroyImageView(dev, imageView, nullptr); });
+        }
     }
 };
 
@@ -39,8 +55,8 @@ acm::RenderTarget::RenderTarget(acm::Device device, const std::vector<acm::Image
         VkImageViewCreateInfo imageViewInfo = {};
         imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewInfo.image = image.vkImage();
-        imageViewInfo.viewType = VkImageViewType(image.type());
-        imageViewInfo.format = image.format();
+        imageViewInfo.viewType = acm::detail::toVkImageViewType(image.type());
+        imageViewInfo.format = acm::detail::toVk(image.format());
         imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -60,7 +76,7 @@ acm::RenderTarget::RenderTarget(acm::Device device, const std::vector<acm::Image
 
     // Create Render Pass
     VkAttachmentDescription colorAttachment = {};
-    colorAttachment.format = impl->images[0].format(); // Hack
+    colorAttachment.format = acm::detail::toVk(impl->images[0].format()); // Hack
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;

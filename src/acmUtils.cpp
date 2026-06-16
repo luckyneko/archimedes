@@ -16,7 +16,7 @@ namespace acm::Utils
                 [targetIdx = gpu.index](const acm::GPUSurfaceSupport& i){ return i.gpuIndex == targetIdx; });
             const acm::GPUSurfaceSupport* gpuSupport = (gpuSupportIt != surfaceSupport.end()) ? &*gpuSupportIt : nullptr;
             
-            spdlog::debug("{0} - {1}", gpu.index, gpu.properties.deviceName);
+            spdlog::debug("{0} - {1}", gpu.index, gpu.name);
 
             spdlog::debug("  QueueFamilies:");
             for(auto& queueFamily : gpu.queueFamilies)

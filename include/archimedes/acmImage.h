@@ -1,7 +1,8 @@
 #pragma once
 
 #include "archimedes/acmForward.h"
-#include <vulkan/vulkan.h>
+#include "archimedes/acmTypes.h"
+#include "archimedes/acmVkFwd.h"
 
 namespace acm
 {
@@ -9,14 +10,14 @@ namespace acm
     {
         public:
             Image() {}
-            Image(acm::Device device, VkImage image, VkImageCreateInfo info);
+            Image(acm::Device device, VkImage image, const acm::ImageDesc& desc);
 
             inline void reset() { m.reset(); }
             inline bool valid() const { return m != nullptr; }
 
-            VkImageType type() const;
-            VkFormat format() const;
-            VkExtent3D extent() const;
+            acm::ImageType type() const;
+            acm::Format format() const;
+            acm::Extent3D extent() const;
             VkImage vkImage() const;
 
         private:

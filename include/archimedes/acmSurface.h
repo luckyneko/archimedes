@@ -2,6 +2,7 @@
 
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
+#include "archimedes/acmVkFwd.h"
 
 namespace acm
 {

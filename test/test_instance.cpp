@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 #include <archimedes/archimedes.h>
+#include <vulkan/vulkan.h>
 
 // Integration: needs a live Vulkan driver (vendored MoltenVK ICD via
 // VK_ICD_FILENAMES). SKIPs when no driver is available.
@@ -21,6 +22,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 		const auto& gpu = gpus[i];
 		REQUIRE(gpu.device != VK_NULL_HANDLE);
 		REQUIRE(gpu.index == i); // index mirrors enumeration order
+		REQUIRE_FALSE(gpu.name.empty()); // neutral GPU info populated
 		REQUIRE_FALSE(gpu.queueFamilies.empty());
 		for(const auto& qf : gpu.queueFamilies)
 			anyGraphics = anyGraphics || qf.supportsGraphics;

@@ -1,5 +1,7 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmInstance.h"
+#include "acmVkConvert.h"
+#include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
 
 struct acm::Surface::impl
@@ -31,17 +33,41 @@ acm::Surface::Surface(acm::Instance instance, VkSurfaceKHR surface)
         auto& gpuSupport = impl->gpuSupport[gpuIdx];
         gpuSupport.gpuIndex = gpu.index;
 
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu.device, impl->surface, &gpuSupport.capabilities);
+        // Query raw Vulkan support, then translate into the backend-neutral view.
+        VkSurfaceCapabilitiesKHR caps{};
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu.device, impl->surface, &caps);
+        gpuSupport.capabilities.minImageCount = caps.minImageCount;
+        gpuSupport.capabilities.maxImageCount = caps.maxImageCount;
+        gpuSupport.capabilities.currentExtent = { caps.currentExtent.width, caps.currentExtent.height };
+        gpuSupport.capabilities.minImageExtent = { caps.minImageExtent.width, caps.minImageExtent.height };
+        gpuSupport.capabilities.maxImageExtent = { caps.maxImageExtent.width, caps.maxImageExtent.height };
 
         uint32_t surfaceFormatCount;
         vkGetPhysicalDeviceSurfaceFormatsKHR(gpu.device, impl->surface, &surfaceFormatCount, nullptr);
-        gpuSupport.supportedFormats.resize(surfaceFormatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(gpu.device, impl->surface, &surfaceFormatCount, gpuSupport.supportedFormats.data());
-    
+        std::vector<VkSurfaceFormatKHR> rawFormats(surfaceFormatCount);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(gpu.device, impl->surface, &surfaceFormatCount, rawFormats.data());
+        // Only surface formats/modes the neutral API can represent; the rest are
+        // silently dropped (a driver lists many an app will never use).
+        gpuSupport.supportedFormats.reserve(rawFormats.size());
+        for(const auto& f : rawFormats)
+        {
+            acm::Format fmt;
+            acm::ColorSpace colorSpace;
+            if(acm::detail::tryFromVk(f.format, fmt) && acm::detail::tryFromVk(f.colorSpace, colorSpace))
+                gpuSupport.supportedFormats.push_back({ fmt, colorSpace });
+        }
+
         uint32_t presentModeCount;
         vkGetPhysicalDeviceSurfacePresentModesKHR(gpu.device, impl->surface, &presentModeCount, nullptr);
-        gpuSupport.supportedPresentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(gpu.device, impl->surface, &presentModeCount, gpuSupport.supportedPresentModes.data());
+        std::vector<VkPresentModeKHR> rawModes(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(gpu.device, impl->surface, &presentModeCount, rawModes.data());
+        gpuSupport.supportedPresentModes.reserve(rawModes.size());
+        for(const auto& mode : rawModes)
+        {
+            acm::PresentMode pm;
+            if(acm::detail::tryFromVk(mode, pm))
+                gpuSupport.supportedPresentModes.push_back(pm);
+        }
 
         gpuSupport.queueFamilySupportsPresent.resize(gpu.queueFamilies.size());
         for(const auto& queueFamily : gpu.queueFamilies)

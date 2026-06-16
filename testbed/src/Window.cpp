@@ -85,7 +85,7 @@ Window::Window(WindowDelegatePtr delegate, acm::Instance instance, const std::st
 	{
 		settings = impl->delegate->onSelectSwapChainSettings(impl->instance.getAvailableGPUs(), impl->surface.getGPUSupport());
 		const auto& selectedGPU = impl->instance.getAvailableGPUs()[settings.selectedGPUIdx];
-		spdlog::info("SelectedGPU: {0}", selectedGPU.properties.deviceName);
+		spdlog::info("SelectedGPU: {0}", selectedGPU.name);
 		spdlog::info("SelectedQueueFamily: {0}", settings.selectedQueueFamilyIdx);
 		spdlog::info("SelectedFormat: {0}", int(settings.selectedFormat.format));
 		spdlog::info("SelectedColourSpace: {0}", int(settings.selectedFormat.colorSpace));
@@ -106,7 +106,7 @@ Window::Window(WindowDelegatePtr delegate, acm::Instance instance, const std::st
 	{
 		int fbWidth = 0, fbHeight = 0;
 		glfwGetFramebufferSize(impl->window, &fbWidth, &fbHeight);
-		impl->swapChain = acm::SwapChain(impl->device, impl->surface, settings.selectedFormat, settings.selectedPresentMode, VkExtent2D{ uint32_t(fbWidth), uint32_t(fbHeight) });
+		impl->swapChain = acm::SwapChain(impl->device, impl->surface, settings.selectedFormat, settings.selectedPresentMode, acm::Extent2D{ uint32_t(fbWidth), uint32_t(fbHeight) });
 		ok = impl->swapChain.valid();
 		spdlog::info("CreateACMSwapChain: {0}", ok ? "ok" : "FAIL");
 	}

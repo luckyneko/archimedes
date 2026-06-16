@@ -54,7 +54,7 @@ SwapChainSettings MainDelegate::onSelectSwapChainSettings(const std::vector<acm:
 			[targetIdx = gpu.index](const acm::GPUSurfaceSupport& i) { return i.gpuIndex == targetIdx; });
 		if(gpuSupportIt == surfaceSupport.end())
 		{
-			spdlog::debug("no surface support for: {0}", gpu.properties.deviceName);
+			spdlog::debug("no surface support for: {0}", gpu.name);
 			continue;
 		}
 		const acm::GPUSurfaceSupport& gpuSupport = *gpuSupportIt;
@@ -62,7 +62,7 @@ SwapChainSettings MainDelegate::onSelectSwapChainSettings(const std::vector<acm:
 		// Must expose at least one format + present mode
 		if(gpuSupport.supportedFormats.empty() || gpuSupport.supportedPresentModes.empty())
 		{
-			spdlog::debug("no surface format/mode for: {0}", gpu.properties.deviceName);
+			spdlog::debug("no surface format/mode for: {0}", gpu.name);
 			continue;
 		}
 
@@ -79,7 +79,7 @@ SwapChainSettings MainDelegate::onSelectSwapChainSettings(const std::vector<acm:
 				return result;
 			}
 		}
-		spdlog::debug("no graphics+present queue for: {0}", gpu.properties.deviceName);
+		spdlog::debug("no graphics+present queue for: {0}", gpu.name);
 	}
 
 	return result;
@@ -123,7 +123,7 @@ bool MainDelegate::createPipeline(acm::Device device, acm::SwapChain swapChain)
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor = {};
-	scissor.extent = swapChain.getExtents();
+	scissor.extent = { swapChain.getExtents().width, swapChain.getExtents().height };
 
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -226,7 +226,7 @@ bool MainDelegate::createCommandBuffers(acm::Device device, acm::SwapChain swapC
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderTarget.vkRenderPass();
 		renderPassInfo.framebuffer = renderTarget.vkFramebuffer();
-		renderPassInfo.renderArea.extent = swapChain.getExtents();
+		renderPassInfo.renderArea.extent = { swapChain.getExtents().width, swapChain.getExtents().height };
 		renderPassInfo.clearValueCount = 1;
 		renderPassInfo.pClearValues = &clearColor;
 
@@ -310,9 +310,19 @@ void MainDelegate::onRender(acm::Device device, acm::SwapChain swapChain)
 	if(!m_ready)
 		return;
 
+	device.beginFrame();
+
 	auto& frame = m_frames[m_currentFrame];
 	vkWaitForFences(device.vkDevice(), 1, &frame.inFlight, VK_TRUE, std::numeric_limits<uint64_t>::max());
 	vkResetFences(device.vkDevice(), 1, &frame.inFlight);
+
+	// This slot's fence just signaled, so the GPU has finished the frame
+	// submitted MAX_FRAMES_IN_FLIGHT ago: any resource retired at/before that
+	// frame is now safe to destroy. (Inert until resources churn, e.g. on a
+	// future swapchain recreation.)
+	const uint64_t cur = device.currentFrame();
+	if(cur > MAX_FRAMES_IN_FLIGHT)
+		device.collectGarbage(cur - MAX_FRAMES_IN_FLIGHT);
 
 	uint32_t imageIndex = 0;
 	vkAcquireNextImageKHR(device.vkDevice(), swapChain.vkSwapChain(), std::numeric_limits<uint64_t>::max(), frame.imageAvailable, VK_NULL_HANDLE, &imageIndex);

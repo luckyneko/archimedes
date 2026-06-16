@@ -36,6 +36,7 @@ set(SOURCE_FILES
     src/acmSurface.cpp
     src/acmSwapChain.cpp
     src/acmUtils.cpp
+    src/acmVkConvert.cpp
 )
 
 # A static library only needs the Vulkan *headers* to compile; the loader is a

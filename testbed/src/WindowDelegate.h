@@ -10,8 +10,8 @@ struct SwapChainSettings
 {
 	uint32_t selectedGPUIdx = 0;
 	uint32_t selectedQueueFamilyIdx = 0;
-	VkSurfaceFormatKHR selectedFormat{};
-	VkPresentModeKHR selectedPresentMode{};
+	acm::SurfaceFormat selectedFormat{};
+	acm::PresentMode selectedPresentMode{};
 };
 
 // The swappable test content. Window owns the window + swapchain lifecycle and

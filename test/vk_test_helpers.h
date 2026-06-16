@@ -1,6 +1,7 @@
 #pragma once
 
 #include <archimedes/archimedes.h>
+#include <vulkan/vulkan.h>
 
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so
 // each test translation unit can include it without an extra link target.

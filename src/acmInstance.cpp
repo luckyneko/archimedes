@@ -1,4 +1,6 @@
 #include "archimedes/acmInstance.h"
+#include "acmVkConvert.h"
+#include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cstring>
@@ -191,7 +193,10 @@ acm::Instance::Instance(const char* appName, const acm::Version& appVer)
         auto& gpu = impl->gpus[deviceIdx];
         gpu.device = devices[deviceIdx];
         gpu.index = uint32_t(deviceIdx);
-        vkGetPhysicalDeviceProperties(gpu.device, &gpu.properties);
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(gpu.device, &properties);
+        gpu.name = properties.deviceName;
+        gpu.type = acm::detail::fromVk(properties.deviceType);
 
         // Load QueueFamilies
         uint32_t queueFamilyCount = 0;

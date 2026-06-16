@@ -3,6 +3,8 @@
 #include "archimedes/acmImage.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmSurface.h"
+#include "acmVkConvert.h"
+#include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
@@ -10,40 +12,59 @@ struct acm::SwapChain::impl
 {
     acm::Device device;
     VkSwapchainKHR swapChain{ VK_NULL_HANDLE };
-    VkSurfaceFormatKHR format;
-    VkPresentModeKHR mode;
-    VkExtent2D extents;
+    acm::SurfaceFormat format;
+    acm::Extent2D extents;
 
     std::vector<acm::RenderTarget> renderTargets;
 
     ~impl()
     {
+        if(!device.valid())
+            return;
+
+        // Drop the render targets first so their views/framebuffers/passes are
+        // enqueued for destruction ahead of the swapchain that backs them; the
+        // device's deferred queue then runs them in that (safe) order.
+        renderTargets.clear();
         if(swapChain)
-            vkDestroySwapchainKHR(device.vkDevice(), swapChain, nullptr);
+        {
+            VkDevice dev = device.vkDevice();
+            VkSwapchainKHR sc = swapChain;
+            device.enqueueDestroy([dev, sc]{ vkDestroySwapchainKHR(dev, sc, nullptr); });
+        }
     }
 };
 
-acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFormatKHR format, VkPresentModeKHR presentMode, VkExtent2D desiredExtent)
+acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent)
 : m()
 {
     auto impl = std::make_shared<acm::SwapChain::impl>();
     impl->device = device;
     impl->format = format;
-    impl->mode = presentMode;
 
-    const auto& capabilities = surface.getGPUSupport()[impl->device.getGPU().index].capabilities;
+    const VkSurfaceFormatKHR vkFormat{ acm::detail::toVk(format.format), acm::detail::toVk(format.colorSpace) };
+    const VkPresentModeKHR vkPresentMode = acm::detail::toVk(presentMode);
+
+    // Query the authoritative surface capabilities straight from the device +
+    // surface (they can change, e.g. on resize); the neutral view on Surface is
+    // for consumers, this path needs the raw values (transform etc.).
+    VkSurfaceCapabilitiesKHR capabilities{};
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl->device.getGPU().device, surface.vkSurface(), &capabilities);
+
     // A currentExtent of UINT32_MAX means the surface (e.g. a headless surface,
     // or some platforms) defers the size to the application: clamp the requested
     // extent to the surface's allowed range. Otherwise the surface dictates it.
+    VkExtent2D vkExtents;
     if (capabilities.currentExtent.width != UINT32_MAX)
     {
-        impl->extents = capabilities.currentExtent;
+        vkExtents = capabilities.currentExtent;
     }
     else
     {
-        impl->extents.width = std::clamp(desiredExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        impl->extents.height = std::clamp(desiredExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        vkExtents.width = std::clamp(desiredExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        vkExtents.height = std::clamp(desiredExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     }
+    impl->extents = { vkExtents.width, vkExtents.height };
     uint32_t imageCount = capabilities.minImageCount + 1;
     if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount)
         imageCount = capabilities.maxImageCount;
@@ -52,9 +73,9 @@ acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFor
     swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapChainCreateInfo.surface = surface.vkSurface();
     swapChainCreateInfo.minImageCount = imageCount;
-    swapChainCreateInfo.imageFormat = impl->format.format;
-    swapChainCreateInfo.imageColorSpace = impl->format.colorSpace;
-    swapChainCreateInfo.imageExtent = impl->extents;
+    swapChainCreateInfo.imageFormat = vkFormat.format;
+    swapChainCreateInfo.imageColorSpace = vkFormat.colorSpace;
+    swapChainCreateInfo.imageExtent = vkExtents;
     swapChainCreateInfo.imageArrayLayers = 1;
     swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; // Assume queue support presentation
@@ -62,7 +83,7 @@ acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFor
     swapChainCreateInfo.pQueueFamilyIndices = (uint32_t*)0x72;
     swapChainCreateInfo.preTransform = capabilities.currentTransform;
     swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapChainCreateInfo.presentMode = impl->mode;
+    swapChainCreateInfo.presentMode = vkPresentMode;
     swapChainCreateInfo.clipped = VK_TRUE;
     swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
@@ -77,27 +98,11 @@ acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, VkSurfaceFor
     vkImages.resize(imageCount);
     vkGetSwapchainImagesKHR(impl->device.vkDevice(), impl->swapChain, &imageCount, vkImages.data());
 
+    const acm::ImageDesc imageDesc{ acm::ImageType::e2D, impl->format.format, { vkExtents.width, vkExtents.height, 1 } };
     for(auto& image : vkImages)
     {
-        // https://vulkan.lunarg.com/doc/view/1.0.30.0/windows/vkspec.chunked/ch29s06.html
-        VkImageCreateInfo imageInfo = {};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.flags = 0;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.format = swapChainCreateInfo.imageFormat;
-        imageInfo.extent = {swapChainCreateInfo.imageExtent.width, swapChainCreateInfo.imageExtent.height, 1};
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = swapChainCreateInfo.imageArrayLayers;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.usage = swapChainCreateInfo.imageUsage;
-        imageInfo.sharingMode = swapChainCreateInfo.imageSharingMode;
-        imageInfo.queueFamilyIndexCount = swapChainCreateInfo.queueFamilyIndexCount;
-        imageInfo.pQueueFamilyIndices = swapChainCreateInfo.pQueueFamilyIndices;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        
         std::vector<acm::Image> acmImages;
-        acmImages.push_back(acm::Image(impl->device, image, imageInfo));
+        acmImages.push_back(acm::Image(impl->device, image, imageDesc));
         impl->renderTargets.push_back(acm::RenderTarget(impl->device, acmImages));
     }
 
@@ -109,12 +114,12 @@ VkSwapchainKHR acm::SwapChain::vkSwapChain()
     return m->swapChain;
 }
 
-VkSurfaceFormatKHR acm::SwapChain::getFormat() const
+acm::SurfaceFormat acm::SwapChain::getFormat() const
 {
     return m->format;
 }
 
-VkExtent2D acm::SwapChain::getExtents() const
+acm::Extent2D acm::SwapChain::getExtents() const
 {
     return m->extents;
 }

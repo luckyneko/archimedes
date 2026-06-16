@@ -1,42 +1,50 @@
 #include "archimedes/acmImage.h"
 #include "archimedes/acmDevice.h"
+#include <vulkan/vulkan.h>
 
 struct acm::Image::impl
 {
     acm::Device device;
     VkImage image{ VK_NULL_HANDLE };
-    VkImageCreateInfo imageInfo{};
+    acm::ImageDesc desc{};
     bool externallyOwned{ false }; // Hack for SwapChain Images
 
     ~impl()
     {
-        if(image && !externallyOwned)
-            vkDestroyImage(device.vkDevice(), image, nullptr);
+        // Swapchain images are externally owned (no-op today); a self-created
+        // image defers its destruction onto the device's frame-fenced queue.
+        if(image && !externallyOwned && device.valid())
+        {
+            VkDevice dev = device.vkDevice();
+            VkImage img = image;
+            device.enqueueDestroy([dev, img]{ vkDestroyImage(dev, img, nullptr); });
+        }
     }
 };
 
-acm::Image::Image(acm::Device device, VkImage image, VkImageCreateInfo info)
+acm::Image::Image(acm::Device device, VkImage image, const acm::ImageDesc& desc)
 : m()
 {
     m = std::make_shared<acm::Image::impl>();
+    m->device = device;
     m->image = image;
-    m->imageInfo = info;
+    m->desc = desc;
     m->externallyOwned = true;
 }
 
-VkImageType acm::Image::type() const
-{ 
-    return m->imageInfo.imageType;
+acm::ImageType acm::Image::type() const
+{
+    return m->desc.type;
 }
 
-VkFormat acm::Image::format() const
+acm::Format acm::Image::format() const
 {
-    return m->imageInfo.format;
+    return m->desc.format;
 }
 
-VkExtent3D acm::Image::extent() const
+acm::Extent3D acm::Image::extent() const
 {
-    return m->imageInfo.extent;
+    return m->desc.extent;
 }
 
 VkImage acm::Image::vkImage() const
