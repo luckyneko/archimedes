@@ -28,8 +28,20 @@ namespace acm
 
 		acm::PhysicalDeviceType fromVk(VkPhysicalDeviceType type);
 
-		VkImageType toVk(acm::ImageType type);
-		acm::ImageType fromVk(VkImageType type);
-		VkImageViewType toVkImageViewType(acm::ImageType type);
-	}
-}
+		VkBufferUsageFlags toVk(acm::BufferUsage usage);
+
+		VkDescriptorType toVk(acm::DescriptorType type);
+		VkShaderStageFlags toVk(acm::ShaderStage stage);
+
+		VkPrimitiveTopology toVk(acm::Topology topology);
+		VkCullModeFlags toVk(acm::CullMode cull);
+		VkFrontFace toVk(acm::FrontFace front);
+		VkPolygonMode toVk(acm::PolygonMode mode);
+
+		// Clamps a requested sample count to what `phys` supports for color+depth
+		// framebuffers (so both RenderTarget and Pipeline derive the same value from the
+		// same request). maxSampleCount returns the device's highest usable count.
+		VkSampleCountFlagBits toVkSampleCount(acm::SampleCount requested, VkPhysicalDevice phys);
+		acm::SampleCount maxSampleCount(VkPhysicalDevice phys);
+	} // namespace detail
+} // namespace acm

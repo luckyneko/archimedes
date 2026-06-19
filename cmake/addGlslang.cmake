@@ -23,34 +23,13 @@ elseif(_acm_glslang)
 	set(ACM_GLSL_COMPILER_FLAG "-V")
 else()
 	# --- Vendor glslang (standalone compiler) ----------------------------
+	# No system compiler found: fetch glslang and build its standalone. The
+	# download path mirrors the source URL under .cache/fetch/ so similarly
+	# named archives across deps can't collide; sources extract into build/_deps.
+	include(FetchContent)
 	set(GLSLANG_VER "1.4.341.0" CACHE STRING "Vendored glslang SDK version")
-	set(_gl_tag "vulkan-sdk-${GLSLANG_VER}")
-	set(_gl_dir "${CMAKE_SOURCE_DIR}/thirdparty/glslang-${_gl_tag}")
+	set(GLSLANG_FILE "github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-${GLSLANG_VER}.tar.gz")
 
-	if(NOT EXISTS "${CMAKE_SOURCE_DIR}/thirdparty/glslang-${GLSLANG_VER}.tar.gz")
-		message(STATUS "Downloading glslang (${_gl_tag})")
-		file(DOWNLOAD
-			"https://github.com/KhronosGroup/glslang/archive/refs/tags/${_gl_tag}.tar.gz"
-			"${CMAKE_SOURCE_DIR}/thirdparty/glslang-${GLSLANG_VER}.tar.gz"
-			STATUS _gl_dl_status
-		)
-		list(GET _gl_dl_status 0 _gl_dl_code)
-		if(NOT _gl_dl_code EQUAL 0)
-			file(REMOVE "${CMAKE_SOURCE_DIR}/thirdparty/glslang-${GLSLANG_VER}.tar.gz")
-			list(GET _gl_dl_status 1 _gl_dl_msg)
-			message(FATAL_ERROR "Failed to download glslang ${_gl_tag}: ${_gl_dl_msg}")
-		endif()
-	endif()
-
-	if(NOT EXISTS "${_gl_dir}")
-		message(STATUS "Decompress glslang (${_gl_tag})")
-		execute_process(COMMAND
-			${CMAKE_COMMAND} -E tar xfz "${CMAKE_SOURCE_DIR}/thirdparty/glslang-${GLSLANG_VER}.tar.gz"
-			WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty"
-		)
-	endif()
-
-	message(STATUS "Using thirdparty/glslang (${_gl_tag})")
 	# Build only the standalone compiler. ENABLE_OPT requires SPIRV-Tools
 	# (not in the source archive), so it must be off.
 	set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
@@ -61,12 +40,12 @@ else()
 	set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
 	set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
 	set(ENABLE_CTEST OFF CACHE BOOL "" FORCE)
-	if(NOT TARGET glslang-standalone)
-		add_subdirectory(
-			"${_gl_dir}"
-			"${CMAKE_BINARY_DIR}/thirdparty/glslang-${_gl_tag}"
-		)
-	endif()
+
+	FetchContent_Declare(glslang
+		URL          "https://${GLSLANG_FILE}"
+		DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/${GLSLANG_FILE}"
+	)
+	FetchContent_MakeAvailable(glslang)
 
 	# An executable target name is resolved to its built path (and added as a
 	# build dependency) when used in add_custom_command COMMAND.

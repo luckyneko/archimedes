@@ -1,6 +1,6 @@
-#include <catch2/catch_all.hpp>
-#include <archimedes/archimedes.h>
 #include "vk_test_helpers.h"
+#include <archimedes/archimedes.h>
+#include <catch2/catch_all.hpp>
 
 // Integration: exercises acm::Surface without a window by creating a headless
 // VkSurfaceKHR (VK_EXT_headless_surface, enabled by the instance's VK_*_surface
@@ -10,14 +10,14 @@
 TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
-	if(!instance.valid())
+	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
 	VkSurfaceKHR vkSurface = acmtest::createHeadlessSurface(instance);
-	if(vkSurface == VK_NULL_HANDLE)
+	if (vkSurface == VK_NULL_HANDLE)
 		SKIP("headless surface unavailable");
 
-	acm::Surface surface(instance, vkSurface); // takes ownership of vkSurface
+	acm::Surface surface = instance.createSurface(vkSurface); // takes ownership of vkSurface
 	REQUIRE(surface.valid());
 	REQUIRE(surface.vkSurface() == vkSurface);
 
@@ -25,7 +25,7 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 	const auto& gpus = instance.getAvailableGPUs();
 	const auto& support = surface.getGPUSupport();
 	REQUIRE(support.size() == gpus.size());
-	for(size_t i = 0; i < support.size(); ++i)
+	for (size_t i = 0; i < support.size(); ++i)
 	{
 		REQUIRE(support[i].gpuIndex == gpus[i].index);
 		REQUIRE(support[i].queueFamilySupportsPresent.size() == gpus[i].queueFamilies.size());
@@ -35,14 +35,14 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
-	if(!instance.valid())
+	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
 	VkSurfaceKHR vkSurface = acmtest::createHeadlessSurface(instance);
-	if(vkSurface == VK_NULL_HANDLE)
+	if (vkSurface == VK_NULL_HANDLE)
 		SKIP("headless surface unavailable");
 
-	acm::Surface a(instance, vkSurface);
+	acm::Surface a = instance.createSurface(vkSurface);
 	acm::Surface b = a; // shares the one underlying VkSurfaceKHR
 	a.reset();
 

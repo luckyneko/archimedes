@@ -1,27 +1,22 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace acm
 {
 	struct Extent2D
 	{
-		uint32_t width{ 0 };
-		uint32_t height{ 0 };
+		uint32_t width{0};
+		uint32_t height{0};
 	};
 
-	struct Extent3D
-	{
-		uint32_t width{ 0 };
-		uint32_t height{ 0 };
-		uint32_t depth{ 1 };
-	};
-
-	// Backend-neutral image formats. This is a deliberately curated subset of
-	// what Vulkan exposes (~250 VkFormat values); it covers the formats the
-	// renderer actually surfaces today. Anything outside the set maps to
-	// Undefined (with a warning) in the acm<->Vk conversion layer; extend both
-	// the enum and the tables in src/acmVkConvert.cpp as new formats are needed.
+	// Backend-neutral image / vertex-attribute formats. This is a deliberately
+	// curated subset of what Vulkan exposes (~250 VkFormat values); it covers the
+	// formats the renderer actually uses today (surface/image formats + the
+	// R32*_Sfloat formats for vertex attributes). Anything outside the set maps to
+	// Undefined (with a warning) in the acm<->Vk conversion layer; extend both the
+	// enum and the tables in src/acmVkConvert.cpp as new formats are needed.
 	enum class Format
 	{
 		Undefined,
@@ -33,6 +28,10 @@ namespace acm
 		R16G16B16A16_Sfloat,
 		D32_Sfloat,
 		D24_Unorm_S8_Uint,
+		R32_Sfloat,
+		R32G32_Sfloat,
+		R32G32B32_Sfloat,
+		R32G32B32A32_Sfloat,
 	};
 
 	enum class ColorSpace
@@ -48,6 +47,16 @@ namespace acm
 		FifoRelaxed,
 	};
 
+	// What an offscreen RenderTarget leaves its texture ready for once the render
+	// pass ends — drives the color attachment's final layout, so no manual barrier
+	// is needed. Sampled => SHADER_READ_ONLY (read it in a later draw); CopySrc =>
+	// TRANSFER_SRC (copy it to a buffer / another image).
+	enum class RenderTargetFinish
+	{
+		Sampled,
+		CopySrc,
+	};
+
 	enum class PhysicalDeviceType
 	{
 		Other,
@@ -57,17 +66,132 @@ namespace acm
 		Cpu,
 	};
 
-	enum class ImageType
+	// Fixed-function pipeline state knobs (see acm::PipelineConfig). Defaults preserve
+	// the original smoke-test behavior: triangle list, no culling, clockwise front
+	// face, opaque (no blend).
+
+	// How input vertices/indices assemble into primitives.
+	enum class Topology
 	{
-		e1D,
-		e2D,
-		e3D,
+		TriangleList,
+		TriangleStrip,
+		LineList,
+		LineStrip,
+		PointList,
+	};
+
+	// Which face (if any) the rasterizer discards. `Back` with the right `FrontFace` is
+	// the usual 3D default; `None` draws both sides (geometry can't hide via winding).
+	enum class CullMode
+	{
+		None,
+		Back,
+		Front,
+	};
+
+	// Which winding (in framebuffer space) counts as the front face.
+	enum class FrontFace
+	{
+		Clockwise,
+		CounterClockwise,
+	};
+
+	// Color blending. `Opaque` overwrites; `AlphaBlend` is standard src-alpha "over".
+	enum class BlendMode
+	{
+		Opaque,
+		AlphaBlend,
+	};
+
+	// How polygons are rasterized. `Line` (wireframe) needs the device's
+	// `fillModeNonSolid` feature — a pipeline falls back to `Fill` without it.
+	enum class PolygonMode
+	{
+		Fill,
+		Line,
+	};
+
+	// Multisample anti-aliasing sample count. A request is clamped to what the device
+	// supports (so `Eight` may resolve to fewer). `One` is plain, single-sampled.
+	enum class SampleCount
+	{
+		One,
+		Two,
+		Four,
+		Eight,
+	};
+
+	// What a Buffer is for. Also decides its memory heap: Vertex/Index are device-local
+	// (filled via staging), Uniform/TransferDst/Staging are host-visible (CPU-mapped).
+	// `Staging` is a host-visible transfer *source* — the scratch buffer that feeds a
+	// device-local buffer or a texture upload. One purpose each — no combined usages
+	// (e.g. a buffer that is both vertex and a transfer source) yet.
+	enum class BufferUsage
+	{
+		Vertex,
+		Index,
+		Uniform,
+		TransferDst,
+		Staging,
+		Storage, // host-visible storage buffer — shader read/write, CPU-mappable
+	};
+
+	// The kinds of resource a descriptor binding can point at: a uniform buffer
+	// (per-draw constants — an MVP matrix, colors), a combined image sampler (a texture
+	// + how to sample it), a storage buffer (shader-writable bulk data), or a dynamic
+	// uniform buffer (one buffer holding many objects' constants, indexed by a per-draw
+	// byte offset supplied at bind time — see DescriptorSet::setDynamicBuffer).
+	enum class DescriptorType
+	{
+		UniformBuffer,
+		CombinedImageSampler,
+		StorageBuffer,
+		UniformBufferDynamic,
+		StorageImage, // a shader-writable image (no sampler) — e.g. a compute target
+	};
+
+	// A texture layout for CommandBuffer::transitionImage. Covers the cases the renderer
+	// transitions by hand — chiefly around a compute storage-image write (Undefined →
+	// General to write, General → TransferSrc / ShaderReadOnly to copy out / sample).
+	enum class ImageLayout
+	{
+		Undefined,
+		General,		// storage image read/write
+		ShaderReadOnly, // sampled in a shader
+		TransferSrc,	// copy source (e.g. copyTextureToBuffer)
+		TransferDst,	// copy destination
+	};
+
+	// Which shader stage(s) a descriptor binding is visible to. A flag set, so values
+	// combine: `ShaderStage::Vertex | ShaderStage::Fragment` for a binding both stages
+	// read. `Compute` is for bindings a compute pipeline reads/writes (stands alone — it
+	// isn't part of the graphics stages).
+	enum class ShaderStage : uint32_t
+	{
+		Vertex = 1u << 0,
+		Fragment = 1u << 1,
+		Compute = 1u << 2,
+	};
+	constexpr ShaderStage operator|(ShaderStage a, ShaderStage b)
+	{
+		return ShaderStage(uint32_t(a) | uint32_t(b));
+	}
+
+	// One entry in a DescriptorSetLayout: the `binding` index a shader references
+	// (set 0), the resource `type` bound there, the `stage`(s) that read it, and
+	// `count` (> 1 makes it a descriptor array, indexed by `arrayElement` when written).
+	struct DescriptorBinding
+	{
+		uint32_t binding{0};
+		DescriptorType type{DescriptorType::UniformBuffer};
+		ShaderStage stage{ShaderStage::Vertex};
+		uint32_t count{1};
 	};
 
 	struct SurfaceFormat
 	{
-		Format format{ Format::Undefined };
-		ColorSpace colorSpace{ ColorSpace::SrgbNonlinear };
+		Format format{Format::Undefined};
+		ColorSpace colorSpace{ColorSpace::SrgbNonlinear};
 	};
 
 	// Backend-neutral subset of VkSurfaceCapabilitiesKHR. The raw capabilities
@@ -75,18 +199,29 @@ namespace acm
 	// swapchain creation; this is the public, descriptive view.
 	struct SurfaceCapabilities
 	{
-		uint32_t minImageCount{ 0 };
-		uint32_t maxImageCount{ 0 };
+		uint32_t minImageCount{0};
+		uint32_t maxImageCount{0};
 		Extent2D currentExtent;
 		Extent2D minImageExtent;
 		Extent2D maxImageExtent;
 	};
 
-	// Backend-neutral description of an image, enough to build views/attachments.
-	struct ImageDesc
+	// One vertex attribute: which shader `location` it feeds, its `format` (e.g.
+	// R32G32_Sfloat for a vec2), and its byte `offset` within the vertex struct.
+	struct VertexAttribute
 	{
-		ImageType type{ ImageType::e2D };
-		Format format{ Format::Undefined };
-		Extent3D extent;
+		uint32_t location{0};
+		Format format{Format::Undefined};
+		uint32_t offset{0};
 	};
-}
+
+	// Describes the per-vertex data a pipeline reads from a single vertex buffer
+	// (binding 0): the `stride` (size of one vertex) and its attributes. An empty
+	// layout (stride 0 / no attributes) means no vertex input — geometry comes from
+	// the shader (e.g. gl_VertexIndex).
+	struct VertexLayout
+	{
+		uint32_t stride{0};
+		std::vector<VertexAttribute> attributes;
+	};
+} // namespace acm

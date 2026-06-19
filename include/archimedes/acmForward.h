@@ -4,10 +4,23 @@
 
 namespace acm
 {
-    class Device;
-    class Image;
-    class Instance;
-    class RenderTarget;
-    class Surface;
-    class SwapChain;
-}
+	class Buffer;
+	class Error;
+	class CommandBuffer;
+	class CommandPool;
+	class ComputePipeline;
+	class DescriptorSet;
+	class DescriptorSetLayout;
+	class Device;
+	class Instance;
+	class Pipeline;
+	struct PipelineConfig;
+	class Renderer;
+	class RenderTarget;
+	class Sampler;
+	class Shader;
+	class Surface;
+	class SwapChain;
+	class Texture;
+	class UniformRing;
+} // namespace acm

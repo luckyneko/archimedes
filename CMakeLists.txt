@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24) # FetchContent FIND_PACKAGE_ARGS
 
 # Detect top-level vs. bundled-as-a-subproject before our own project() call.
 if(NOT DEFINED PROJECT_NAME)
@@ -23,26 +23,38 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
-# Vendored dependencies (download into thirdparty/ on demand; git-ignored).
+# Vendored dependencies. Each add*.cmake prefers a system package, otherwise
+# fetches a pinned release via FetchContent — archives cached under
+# .cache/fetch/ (git-ignored), sources extracted into build/_deps.
 # Shader compilation (addGlslang) + the Vulkan runtime live with the testbed.
-include(addspdlog)
 include(addVulkan)
 
 set(SOURCE_FILES
+    src/acmBuffer.cpp
+    src/acmCommandBuffer.cpp
+    src/acmCommandPool.cpp
+    src/acmComputePipeline.cpp
+    src/acmDescriptorSet.cpp
+    src/acmDescriptorSetLayout.cpp
     src/acmDevice.cpp
-    src/acmImage.cpp
     src/acmInstance.cpp
+    src/acmPipeline.cpp
     src/acmRenderTarget.cpp
+    src/acmRenderer.cpp
+    src/acmSampler.cpp
+    src/acmShader.cpp
     src/acmSurface.cpp
     src/acmSwapChain.cpp
-    src/acmUtils.cpp
+    src/acmTexture.cpp
+    src/acmUniformRing.cpp
     src/acmVkConvert.cpp
+    src/acmVkMemory.cpp
+    src/acmVkOneShot.cpp
 )
 
 # A static library only needs the Vulkan *headers* to compile; the loader is a
 # link-time concern of an eventual executable. See cmake/addVulkan.cmake.
 set(LIBRARIES
-    spdlog::spdlog
     Vulkan::Headers
 )
 

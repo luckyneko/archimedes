@@ -1,0 +1,60 @@
+#version 450
+
+// Deforms the shared mesh on the GPU: one invocation per grid vertex, writing the same
+// storage buffer the two windows' vertex shaders pull from (mesh.vert). Replaces the
+// CPU ripple in Scene — the main thread now just dispatches this each frame. Constants
+// must match Scene's grid (64x64, world extent kHalf, ripple kAmp/kFreq/kSpeed).
+layout(local_size_x = 8, local_size_y = 8) in;
+
+struct Vertex
+{
+    vec4 pos;    // xyz used
+    vec4 normal; // xyz used
+    vec4 uv;     // xy used
+};
+
+layout(std430, set = 0, binding = 0) writeonly buffer Mesh
+{
+    Vertex verts[];
+};
+
+layout(set = 0, binding = 1) uniform Params
+{
+    vec4 data; // x = time
+} p;
+
+const uint kGrid = 64u;
+const float kHalf = 1.3;
+const float kAmp = 0.18;
+const float kFreq = 9.0;
+const float kSpeed = 3.0;
+
+void main()
+{
+    uint gx = gl_GlobalInvocationID.x;
+    uint gz = gl_GlobalInvocationID.y;
+    if (gx >= kGrid || gz >= kGrid)
+        return; // grid need not divide the workgroup size
+
+    float time = p.data.x;
+    float step = 1.0 / float(kGrid - 1u);
+    float u = float(gx) * step;
+    float v = float(gz) * step;
+    float fx = (u * 2.0 - 1.0) * kHalf;
+    float fz = (v * 2.0 - 1.0) * kHalf;
+
+    // Radial ripple: height is a sine of distance from the origin marching outward over
+    // time; the analytic radial derivative gives the normal.
+    float r = sqrt(fx * fx + fz * fz);
+    float phase = r * kFreq - time * kSpeed;
+    float h = kAmp * sin(phase);
+    float dhdr = kAmp * kFreq * cos(phase);
+    float dhdx = (r > 1e-5) ? dhdr * fx / r : 0.0;
+    float dhdz = (r > 1e-5) ? dhdr * fz / r : 0.0;
+    vec3 n = normalize(vec3(-dhdx, 1.0, -dhdz));
+
+    uint idx = gz * kGrid + gx;
+    verts[idx].pos = vec4(fx, h, fz, 0.0);
+    verts[idx].normal = vec4(n, 0.0);
+    verts[idx].uv = vec4(u, v, 0.0, 0.0);
+}

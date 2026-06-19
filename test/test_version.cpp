@@ -1,5 +1,5 @@
-#include <catch2/catch_all.hpp>
 #include <archimedes/acmVersion.h>
+#include <catch2/catch_all.hpp>
 
 TEST_CASE("Version - default construction yields 0.0.0", "[version]")
 {

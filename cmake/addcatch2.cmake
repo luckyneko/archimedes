@@ -1,31 +1,25 @@
+# Provides Catch2::Catch2WithMain + the catch_discover_tests() helper.
+#
+# Prefers a system package; otherwise fetches a pinned release via FetchContent.
+# The download path mirrors the source URL under .cache/fetch/ so similarly
+# named archives across deps can't collide; sources extract into build/_deps.
+
+include(FetchContent)
 
 set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
 set(CATCH_BUILD_TESTING OFF CACHE BOOL "Disable Catch2 SelfTests")
 set(CATCH_ENABLE_WERROR OFF CACHE BOOL "Disable Catch2 Werror")
-find_package(Catch2 CONFIG QUIET)
 
-if (${Catch2_FOUND})       
-else ()
-	set(CATCH2_VER "3.14.0")
-	if(NOT EXISTS "${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER}.tar.gz")
-		message(STATUS "Downloading Catch2 (${CATCH2_VER})")
-		file(DOWNLOAD 
-			"https://github.com/catchorg/Catch2/archive/v${CATCH2_VER}.tar.gz" 
-			"${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER}.tar.gz"
-		)
-	endif()
+set(CATCH2_VER "3.14.0")
+set(CATCH2_FILE "github.com/catchorg/Catch2/archive/v${CATCH2_VER}.tar.gz")
 
-	if(NOT EXISTS "${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER}")
-		message(STATUS "Decompress Catch2 (${CATCH2_VER})")
-		execute_process(COMMAND 
-			${CMAKE_COMMAND} -E tar xfz "${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER}.tar.gz"
-			WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/thirdparty"
-		)
-	endif()
+FetchContent_Declare(Catch2
+	URL          "https://${CATCH2_FILE}"
+	DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/${CATCH2_FILE}"
+	FIND_PACKAGE_ARGS CONFIG
+)
+FetchContent_MakeAvailable(Catch2)
 
-	message(STATUS "Using thirdparty/Catch2 (${CATCH2_VER})")
-	add_subdirectory(${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER})
-	list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/thirdparty/Catch2-${CATCH2_VER}/extras")
-endif ()
-
+# Catch2 puts its CMake helpers (Catch.cmake) on CMAKE_MODULE_PATH itself —
+# whether vendored (add_subdirectory) or found as a package.
 include(Catch)
