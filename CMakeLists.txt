@@ -39,8 +39,8 @@ set(SOURCE_FILES
     src/acmDevice.cpp
     src/acmInstance.cpp
     src/acmPipeline.cpp
-    src/acmRenderTarget.cpp
     src/acmRenderer.cpp
+    src/acmRenderTarget.cpp
     src/acmSampler.cpp
     src/acmShader.cpp
     src/acmSurface.cpp

@@ -384,9 +384,6 @@ surface makes it return `false` so the renderer skips the frame and retries. The
 `Pipeline` uses **dynamic** viewport/scissor (set per-frame in
 `CommandBuffer::setViewportAndScissor`), so it survives a resize untouched.
 
-[acmUtils.h](include/archimedes/acmUtils.h) holds free helpers in
-`acm::Utils` (e.g. `logGPUSupport`).
-
 ## Dependencies (vendored, no system install)
 
 Deps are fetched on demand by the CMake modules under [cmake/](cmake/), each of
