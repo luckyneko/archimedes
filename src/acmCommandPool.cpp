@@ -1,6 +1,8 @@
 #include "archimedes/acmCommandPool.h"
+
 #include "archimedes/acmCommandBuffer.h"
 #include "archimedes/acmDevice.h"
+
 #include <vulkan/vulkan.h>
 
 struct acm::CommandPool::impl

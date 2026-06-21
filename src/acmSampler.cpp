@@ -1,7 +1,10 @@
 #include "archimedes/acmSampler.h"
+
 #include "archimedes/acmDevice.h"
-#include <algorithm>
+
 #include <vulkan/vulkan.h>
+
+#include <algorithm>
 
 struct acm::Sampler::impl
 {

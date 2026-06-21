@@ -1,7 +1,10 @@
 #include "archimedes/acmShader.h"
+
 #include "archimedes/acmDevice.h"
-#include <cassert>
+
 #include <vulkan/vulkan.h>
+
+#include <cassert>
 
 struct acm::Shader::impl
 {

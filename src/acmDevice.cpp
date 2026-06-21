@@ -1,6 +1,6 @@
+
 #include "archimedes/acmDevice.h"
-#include "acmVkConvert.h"
-#include "acmVkMemory.h"
+
 #include "archimedes/acmBuffer.h"
 #include "archimedes/acmCommandBuffer.h"
 #include "archimedes/acmCommandPool.h"
@@ -9,17 +9,21 @@
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmPipeline.h"
-#include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmRenderer.h"
+#include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmSampler.h"
 #include "archimedes/acmShader.h"
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmSwapChain.h"
 #include "archimedes/acmTexture.h"
 #include "archimedes/acmUniformRing.h"
+#include "archimedes/acmVkConvert.h"
+#include "archimedes/acmVkMemory.h"
+
+#include <vulkan/vulkan.h>
+
 #include <cstring>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 struct acm::Device::impl
 {
@@ -29,7 +33,7 @@ struct acm::Device::impl
 	acm::GPUFeatures enabledFeatures;
 	VkDevice device{VK_NULL_HANDLE};
 	VkQueue queue{VK_NULL_HANDLE};
-	std::unique_ptr<acm::detail::MemoryAllocator> allocator;
+	std::unique_ptr<acm::MemoryAllocator> allocator;
 
 	// Externally synchronizes the single VkQueue + the frame/graveyard bookkeeping
 	// when several Renderers submit from their own threads (see Device::deviceMutex).
@@ -123,7 +127,7 @@ acm::Device::Device(acm::Instance instance, const acm::GPU& gpu, uint32_t queueI
 	vkGetDeviceQueue(impl->device, queueIdx, 0, &impl->queue);
 	impl->gpu = gpu;
 	impl->queueIdx = queueIdx;
-	impl->allocator = std::make_unique<acm::detail::MemoryAllocator>(impl->device, gpu.device);
+	impl->allocator = std::make_unique<acm::MemoryAllocator>(impl->device, gpu.device);
 
 	m = impl;
 }
@@ -233,7 +237,7 @@ const acm::GPUFeatures& acm::Device::enabledFeatures() const
 
 acm::SampleCount acm::Device::maxSampleCount() const
 {
-	return acm::detail::maxSampleCount(m->gpu.device);
+	return acm::maxSampleCount(m->gpu.device);
 }
 
 size_t acm::Device::minUniformBufferOffsetAlignment() const
@@ -243,7 +247,7 @@ size_t acm::Device::minUniformBufferOffsetAlignment() const
 	return size_t(props.limits.minUniformBufferOffsetAlignment);
 }
 
-acm::detail::MemoryAllocator& acm::Device::memoryAllocator()
+acm::MemoryAllocator& acm::Device::memoryAllocator()
 {
 	return *m->allocator;
 }

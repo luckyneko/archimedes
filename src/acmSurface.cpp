@@ -1,6 +1,8 @@
 #include "archimedes/acmSurface.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmInstance.h"
+#include "archimedes/acmVkConvert.h"
+
 #include <vulkan/vulkan.h>
 
 struct acm::Surface::impl
@@ -52,7 +54,7 @@ acm::Surface::Surface(acm::Instance instance, VkSurfaceKHR surface)
 		{
 			acm::Format fmt;
 			acm::ColorSpace colorSpace;
-			if (acm::detail::tryFromVk(f.format, fmt) && acm::detail::tryFromVk(f.colorSpace, colorSpace))
+			if (acm::tryFromVk(f.format, fmt) && acm::tryFromVk(f.colorSpace, colorSpace))
 				gpuSupport.supportedFormats.push_back({fmt, colorSpace});
 		}
 
@@ -64,7 +66,7 @@ acm::Surface::Surface(acm::Instance instance, VkSurfaceKHR surface)
 		for (const auto& mode : rawModes)
 		{
 			acm::PresentMode pm;
-			if (acm::detail::tryFromVk(mode, pm))
+			if (acm::tryFromVk(mode, pm))
 				gpuSupport.supportedPresentModes.push_back(pm);
 		}
 

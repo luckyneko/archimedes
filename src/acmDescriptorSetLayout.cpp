@@ -1,9 +1,12 @@
 #include "archimedes/acmDescriptorSetLayout.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmDevice.h"
+#include "archimedes/acmVkConvert.h"
+
+#include <vulkan/vulkan.h>
+
 #include <cassert>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 struct acm::DescriptorSetLayout::impl
 {
@@ -36,9 +39,9 @@ acm::DescriptorSetLayout::DescriptorSetLayout(acm::Device device, const std::vec
 	for (size_t i = 0; i < bindings.size(); ++i)
 	{
 		vkBindings[i].binding = bindings[i].binding;
-		vkBindings[i].descriptorType = acm::detail::toVk(bindings[i].type);
+		vkBindings[i].descriptorType = acm::toVk(bindings[i].type);
 		vkBindings[i].descriptorCount = bindings[i].count; // > 1 = descriptor array
-		vkBindings[i].stageFlags = acm::detail::toVk(bindings[i].stage);
+		vkBindings[i].stageFlags = acm::toVk(bindings[i].stage);
 	}
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};

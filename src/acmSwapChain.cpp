@@ -1,11 +1,14 @@
 #include "archimedes/acmSwapChain.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmSurface.h"
+#include "archimedes/acmVkConvert.h"
+
+#include <vulkan/vulkan.h>
+
 #include <algorithm>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 namespace
 {
@@ -158,8 +161,8 @@ struct acm::SwapChain::impl
 
 bool acm::SwapChain::impl::rebuild()
 {
-	const VkSurfaceFormatKHR vkFormat{acm::detail::toVk(format.format), acm::detail::toVk(format.colorSpace)};
-	const VkPresentModeKHR vkPresentMode = acm::detail::toVk(presentMode);
+	const VkSurfaceFormatKHR vkFormat{acm::toVk(format.format), acm::toVk(format.colorSpace)};
+	const VkPresentModeKHR vkPresentMode = acm::toVk(presentMode);
 
 	// Re-query the authoritative capabilities (currentExtent tracks window resize).
 	VkSurfaceCapabilitiesKHR capabilities{};
@@ -259,9 +262,9 @@ acm::SwapChain::SwapChain(acm::Device device, acm::Surface surface, acm::Surface
 	// the swapchain's whole life, including across rebuilds. Adds a depth attachment
 	// when requested (and the per-image targets then each own a depth buffer), and a
 	// multisampled color + resolve when samples > 1.
-	const VkFormat depthVk = depth ? acm::detail::toVk(kDepthFormat) : VK_FORMAT_UNDEFINED;
-	const VkSampleCountFlagBits vkSamples = acm::detail::toVkSampleCount(samples, impl->device.getGPU().device);
-	impl->renderPass = createColorRenderPass(impl->device.vkDevice(), acm::detail::toVk(format.format), depthVk, vkSamples);
+	const VkFormat depthVk = depth ? acm::toVk(kDepthFormat) : VK_FORMAT_UNDEFINED;
+	const VkSampleCountFlagBits vkSamples = acm::toVkSampleCount(samples, impl->device.getGPU().device);
+	impl->renderPass = createColorRenderPass(impl->device.vkDevice(), acm::toVk(format.format), depthVk, vkSamples);
 	if (impl->renderPass == VK_NULL_HANDLE)
 	{
 		m_error = acm::Error("failed to create render pass");

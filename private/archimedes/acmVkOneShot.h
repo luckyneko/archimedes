@@ -12,12 +12,9 @@
 
 namespace acm
 {
-	namespace detail
-	{
-		// Records `record` into a transient, one-time-submit command buffer, submits it
-		// to the device's queue, and waits the queue idle before returning (so any
-		// scratch resources the caller used are safe to drop). A load-time tool — it
-		// stalls the queue, so it is not for per-frame work.
-		acm::Error oneShotSubmit(acm::Device device, const std::function<void(VkCommandBuffer)>& record);
-	} // namespace detail
+	// Records `record` into a transient, one-time-submit command buffer, submits it
+	// to the device's queue, and waits the queue idle before returning (so any
+	// scratch resources the caller used are safe to drop). A load-time tool — it
+	// stalls the queue, so it is not for per-frame work.
+	acm::Error oneShotSubmit(acm::Device device, const std::function<void(VkCommandBuffer)>& record);
 } // namespace acm

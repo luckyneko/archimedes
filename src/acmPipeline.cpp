@@ -1,11 +1,14 @@
 #include "archimedes/acmPipeline.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmShader.h"
+#include "archimedes/acmVkConvert.h"
+
+#include <vulkan/vulkan.h>
+
 #include <cassert>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 struct acm::Pipeline::impl
 {
@@ -72,7 +75,7 @@ acm::Pipeline::Pipeline(acm::Device device, const acm::PipelineConfig& config)
 		VkVertexInputAttributeDescription desc = {};
 		desc.location = a.location;
 		desc.binding = 0;
-		desc.format = acm::detail::toVk(a.format);
+		desc.format = acm::toVk(a.format);
 		desc.offset = a.offset;
 		attributes.push_back(desc);
 	}
@@ -89,7 +92,7 @@ acm::Pipeline::Pipeline(acm::Device device, const acm::PipelineConfig& config)
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = acm::detail::toVk(config.topology);
+	inputAssembly.topology = acm::toVk(config.topology);
 
 	// Viewport + scissor are dynamic: counts are fixed here, the actual rects are
 	// set per-frame via vkCmdSetViewport/Scissor (see CommandBuffer). This keeps the
@@ -116,14 +119,14 @@ acm::Pipeline::Pipeline(acm::Device device, const acm::PipelineConfig& config)
 
 	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizer.polygonMode = acm::detail::toVk(polygonMode);
+	rasterizer.polygonMode = acm::toVk(polygonMode);
 	rasterizer.lineWidth = lineWidth;
-	rasterizer.cullMode = acm::detail::toVk(config.cullMode);
-	rasterizer.frontFace = acm::detail::toVk(config.frontFace);
+	rasterizer.cullMode = acm::toVk(config.cullMode);
+	rasterizer.frontFace = acm::toVk(config.frontFace);
 
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.rasterizationSamples = acm::detail::toVkSampleCount(config.samples, device.getGPU().device);
+	multisampling.rasterizationSamples = acm::toVkSampleCount(config.samples, device.getGPU().device);
 
 	// Per-sample shading: only meaningful when multisampled, and needs the feature.
 	if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT)

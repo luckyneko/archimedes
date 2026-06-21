@@ -1,9 +1,12 @@
 #include "archimedes/acmComputePipeline.h"
+
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmShader.h"
-#include <cassert>
+
 #include <vulkan/vulkan.h>
+
+#include <cassert>
 
 struct acm::ComputePipeline::impl
 {

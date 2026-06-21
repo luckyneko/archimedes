@@ -1,8 +1,10 @@
 #include "archimedes/acmUniformRing.h"
+
 #include "archimedes/acmBuffer.h"
 #include "archimedes/acmDescriptorSet.h"
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
+
 #include <cassert>
 #include <vector>
 

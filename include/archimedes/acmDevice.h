@@ -14,10 +14,7 @@
 
 namespace acm
 {
-	namespace detail
-	{
-		class MemoryAllocator; // internal pooling sub-allocator (src/acmVkMemory.h)
-	}
+	class MemoryAllocator; // internal pooling sub-allocator (private/archimedes/acmVkMemory.h)
 
 	class Device
 	{
@@ -76,7 +73,7 @@ namespace acm
 		// The device's pooling memory sub-allocator — Texture/Buffer allocate from it
 		// rather than calling vkAllocateMemory per resource. Internal; exposed for those
 		// resource types (and tests via memoryBlockCount).
-		acm::detail::MemoryAllocator& memoryAllocator();
+		acm::MemoryAllocator& memoryAllocator();
 		size_t memoryBlockCount() const; // live VkDeviceMemory blocks in the pool
 		VkDevice vkDevice();
 		VkQueue vkQueue();

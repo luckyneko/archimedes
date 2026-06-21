@@ -1,14 +1,17 @@
 #include "archimedes/acmDescriptorSet.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmBuffer.h"
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmSampler.h"
 #include "archimedes/acmTexture.h"
+#include "archimedes/acmVkConvert.h"
+
+#include <vulkan/vulkan.h>
+
 #include <cassert>
 #include <map>
 #include <vector>
-#include <vulkan/vulkan.h>
 
 struct acm::DescriptorSet::impl
 {
@@ -42,7 +45,7 @@ acm::DescriptorSet::DescriptorSet(acm::Device device, acm::DescriptorSetLayout l
 	// (a binding's `count` > 1 is a descriptor array).
 	std::map<VkDescriptorType, uint32_t> counts;
 	for (const auto& b : layout.bindings())
-		counts[acm::detail::toVk(b.type)] += b.count;
+		counts[acm::toVk(b.type)] += b.count;
 	std::vector<VkDescriptorPoolSize> poolSizes;
 	poolSizes.reserve(counts.size());
 	for (const auto& [type, count] : counts)
@@ -81,7 +84,7 @@ namespace
 	{
 		for (const auto& b : layout.bindings())
 			if (b.binding == binding)
-				return acm::detail::toVk(b.type);
+				return acm::toVk(b.type);
 		assert(false && "acm::DescriptorSet::setBuffer: unknown binding");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	}

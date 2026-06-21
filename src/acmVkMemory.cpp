@@ -1,175 +1,173 @@
-#include "acmVkMemory.h"
+#include "archimedes/acmVkMemory.h"
+
 #include <algorithm>
 
 namespace acm
 {
-	namespace detail
+	namespace
 	{
-		namespace
+		// Default pool block size. Big enough that the many small resources in a
+		// typical scene share one block; allocations larger than this get a
+		// dedicated, exactly-sized block.
+		constexpr VkDeviceSize kBlockSize = 64ull * 1024 * 1024;
+
+		VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment)
 		{
-			// Default pool block size. Big enough that the many small resources in a
-			// typical scene share one block; allocations larger than this get a
-			// dedicated, exactly-sized block.
-			constexpr VkDeviceSize kBlockSize = 64ull * 1024 * 1024;
+			if (alignment == 0)
+				return value;
+			return (value + alignment - 1) & ~(alignment - 1);
+		}
+	} // namespace
 
-			VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment)
-			{
-				if (alignment == 0)
-					return value;
-				return (value + alignment - 1) & ~(alignment - 1);
-			}
-		} // namespace
-
-		// One VkDeviceMemory block, sub-divided by a free list of [offset,size) regions
-		// kept sorted by offset (so neighbours can coalesce on free).
-		struct MemoryAllocator::Block
+	// One VkDeviceMemory block, sub-divided by a free list of [offset,size) regions
+	// kept sorted by offset (so neighbours can coalesce on free).
+	struct MemoryAllocator::Block
+	{
+		VkDeviceMemory memory{VK_NULL_HANDLE};
+		VkDeviceSize size{0};
+		uint32_t memoryType{0};
+		void* mapped{nullptr}; // persistent map for host-visible blocks
+		struct Region
 		{
-			VkDeviceMemory memory{VK_NULL_HANDLE};
-			VkDeviceSize size{0};
-			uint32_t memoryType{0};
-			void* mapped{nullptr}; // persistent map for host-visible blocks
-			struct Region
-			{
-				VkDeviceSize offset;
-				VkDeviceSize size;
-			};
-			std::vector<Region> freeRegions;
+			VkDeviceSize offset;
+			VkDeviceSize size;
+		};
+		std::vector<Region> freeRegions;
 
-			// First-fit: find a free region with room for `size` at `alignment`, carve
-			// it out, and return its offset. False if nothing fits.
-			bool tryAllocate(VkDeviceSize size, VkDeviceSize alignment, VkDeviceSize& outOffset)
+		// First-fit: find a free region with room for `size` at `alignment`, carve
+		// it out, and return its offset. False if nothing fits.
+		bool tryAllocate(VkDeviceSize size, VkDeviceSize alignment, VkDeviceSize& outOffset)
+		{
+			for (size_t i = 0; i < freeRegions.size(); ++i)
 			{
-				for (size_t i = 0; i < freeRegions.size(); ++i)
-				{
-					const VkDeviceSize regionEnd = freeRegions[i].offset + freeRegions[i].size;
-					const VkDeviceSize aligned = alignUp(freeRegions[i].offset, alignment);
-					if (aligned + size > regionEnd)
-						continue;
+				const VkDeviceSize regionEnd = freeRegions[i].offset + freeRegions[i].size;
+				const VkDeviceSize aligned = alignUp(freeRegions[i].offset, alignment);
+				if (aligned + size > regionEnd)
+					continue;
 
-					const VkDeviceSize before = freeRegions[i].offset;
-					const VkDeviceSize allocEnd = aligned + size;
-					freeRegions.erase(freeRegions.begin() + i);
-					// Re-insert the leftovers (alignment gap before, tail after), keeping
-					// the list sorted by offset.
-					if (allocEnd < regionEnd)
-						freeRegions.insert(freeRegions.begin() + i, {allocEnd, regionEnd - allocEnd});
-					if (aligned > before)
-						freeRegions.insert(freeRegions.begin() + i, {before, aligned - before});
-					outOffset = aligned;
-					return true;
-				}
-				return false;
+				const VkDeviceSize before = freeRegions[i].offset;
+				const VkDeviceSize allocEnd = aligned + size;
+				freeRegions.erase(freeRegions.begin() + i);
+				// Re-insert the leftovers (alignment gap before, tail after), keeping
+				// the list sorted by offset.
+				if (allocEnd < regionEnd)
+					freeRegions.insert(freeRegions.begin() + i, {allocEnd, regionEnd - allocEnd});
+				if (aligned > before)
+					freeRegions.insert(freeRegions.begin() + i, {before, aligned - before});
+				outOffset = aligned;
+				return true;
 			}
+			return false;
+		}
 
-			void freeRange(VkDeviceSize offset, VkDeviceSize size)
+		void freeRange(VkDeviceSize offset, VkDeviceSize size)
+		{
+			// Insert sorted by offset, then merge with any touching neighbours.
+			size_t i = 0;
+			while (i < freeRegions.size() && freeRegions[i].offset < offset)
+				++i;
+			freeRegions.insert(freeRegions.begin() + i, {offset, size});
+
+			// Coalesce with previous, then with next.
+			if (i > 0 && freeRegions[i - 1].offset + freeRegions[i - 1].size == freeRegions[i].offset)
 			{
-				// Insert sorted by offset, then merge with any touching neighbours.
-				size_t i = 0;
-				while (i < freeRegions.size() && freeRegions[i].offset < offset)
-					++i;
-				freeRegions.insert(freeRegions.begin() + i, {offset, size});
-
-				// Coalesce with previous, then with next.
-				if (i > 0 && freeRegions[i - 1].offset + freeRegions[i - 1].size == freeRegions[i].offset)
-				{
-					freeRegions[i - 1].size += freeRegions[i].size;
-					freeRegions.erase(freeRegions.begin() + i);
-					--i;
-				}
-				if (i + 1 < freeRegions.size() && freeRegions[i].offset + freeRegions[i].size == freeRegions[i + 1].offset)
-				{
-					freeRegions[i].size += freeRegions[i + 1].size;
-					freeRegions.erase(freeRegions.begin() + i + 1);
-				}
+				freeRegions[i - 1].size += freeRegions[i].size;
+				freeRegions.erase(freeRegions.begin() + i);
+				--i;
 			}
+			if (i + 1 < freeRegions.size() && freeRegions[i].offset + freeRegions[i].size == freeRegions[i + 1].offset)
+			{
+				freeRegions[i].size += freeRegions[i + 1].size;
+				freeRegions.erase(freeRegions.begin() + i + 1);
+			}
+		}
+	};
+
+	MemoryAllocator::MemoryAllocator(VkDevice device, VkPhysicalDevice physicalDevice)
+		: m_device(device)
+		, m_physicalDevice(physicalDevice)
+	{
+	}
+
+	MemoryAllocator::~MemoryAllocator()
+	{
+		for (auto& block : m_blocks)
+		{
+			if (block->mapped)
+				vkUnmapMemory(m_device, block->memory);
+			vkFreeMemory(m_device, block->memory, nullptr);
+		}
+	}
+
+	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
+	{
+		const uint32_t memoryType = findMemoryType(m_physicalDevice, req.memoryTypeBits, props);
+		if (memoryType == UINT32_MAX)
+			return {};
+		const bool hostVisible = (props & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
+
+		auto makeAllocation = [&](Block* block, VkDeviceSize offset) -> Allocation
+		{
+			Allocation a;
+			a.memory = block->memory;
+			a.offset = offset;
+			a.size = req.size;
+			a.mapped = block->mapped ? static_cast<char*>(block->mapped) + offset : nullptr;
+			a.block = block;
+			return a;
 		};
 
-		MemoryAllocator::MemoryAllocator(VkDevice device, VkPhysicalDevice physicalDevice)
-			: m_device(device)
-			, m_physicalDevice(physicalDevice)
+		// Reuse an existing block of the right memory type if it has room.
+		for (auto& block : m_blocks)
 		{
-		}
-
-		MemoryAllocator::~MemoryAllocator()
-		{
-			for (auto& block : m_blocks)
-			{
-				if (block->mapped)
-					vkUnmapMemory(m_device, block->memory);
-				vkFreeMemory(m_device, block->memory, nullptr);
-			}
-		}
-
-		Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
-		{
-			const uint32_t memoryType = findMemoryType(m_physicalDevice, req.memoryTypeBits, props);
-			if (memoryType == UINT32_MAX)
-				return {};
-			const bool hostVisible = (props & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
-
-			auto makeAllocation = [&](Block* block, VkDeviceSize offset) -> Allocation
-			{
-				Allocation a;
-				a.memory = block->memory;
-				a.offset = offset;
-				a.size = req.size;
-				a.mapped = block->mapped ? static_cast<char*>(block->mapped) + offset : nullptr;
-				a.block = block;
-				return a;
-			};
-
-			// Reuse an existing block of the right memory type if it has room.
-			for (auto& block : m_blocks)
-			{
-				if (block->memoryType != memoryType)
-					continue;
-				VkDeviceSize offset = 0;
-				if (block->tryAllocate(req.size, req.alignment, offset))
-					return makeAllocation(block.get(), offset);
-			}
-
-			// None fit: create a new block (dedicated + exactly sized if the request is
-			// larger than the default block size).
-			const VkDeviceSize blockSize = std::max(kBlockSize, req.size);
-			VkMemoryAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = blockSize;
-			allocInfo.memoryTypeIndex = memoryType;
-			VkDeviceMemory memory = VK_NULL_HANDLE;
-			if (vkAllocateMemory(m_device, &allocInfo, nullptr, &memory) != VK_SUCCESS)
-				return {};
-
-			auto block = std::make_unique<Block>();
-			block->memory = memory;
-			block->size = blockSize;
-			block->memoryType = memoryType;
-			if (hostVisible)
-				vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped);
-			block->freeRegions.push_back({0, blockSize});
-
+			if (block->memoryType != memoryType)
+				continue;
 			VkDeviceSize offset = 0;
-			if (!block->tryAllocate(req.size, req.alignment, offset))
-			{
-				if (block->mapped)
-					vkUnmapMemory(m_device, memory);
-				vkFreeMemory(m_device, memory, nullptr);
-				return {};
-			}
-			Block* raw = block.get();
-			m_blocks.push_back(std::move(block));
-			return makeAllocation(raw, offset);
+			if (block->tryAllocate(req.size, req.alignment, offset))
+				return makeAllocation(block.get(), offset);
 		}
 
-		void MemoryAllocator::free(const Allocation& allocation)
-		{
-			if (!allocation.valid() || !allocation.block)
-				return;
-			static_cast<Block*>(allocation.block)->freeRange(allocation.offset, allocation.size);
-		}
+		// None fit: create a new block (dedicated + exactly sized if the request is
+		// larger than the default block size).
+		const VkDeviceSize blockSize = std::max(kBlockSize, req.size);
+		VkMemoryAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = blockSize;
+		allocInfo.memoryTypeIndex = memoryType;
+		VkDeviceMemory memory = VK_NULL_HANDLE;
+		if (vkAllocateMemory(m_device, &allocInfo, nullptr, &memory) != VK_SUCCESS)
+			return {};
 
-		size_t MemoryAllocator::blockCount() const
+		auto block = std::make_unique<Block>();
+		block->memory = memory;
+		block->size = blockSize;
+		block->memoryType = memoryType;
+		if (hostVisible)
+			vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped);
+		block->freeRegions.push_back({0, blockSize});
+
+		VkDeviceSize offset = 0;
+		if (!block->tryAllocate(req.size, req.alignment, offset))
 		{
-			return m_blocks.size();
+			if (block->mapped)
+				vkUnmapMemory(m_device, memory);
+			vkFreeMemory(m_device, memory, nullptr);
+			return {};
 		}
-	} // namespace detail
+		Block* raw = block.get();
+		m_blocks.push_back(std::move(block));
+		return makeAllocation(raw, offset);
+	}
+
+	void MemoryAllocator::free(const Allocation& allocation)
+	{
+		if (!allocation.valid() || !allocation.block)
+			return;
+		static_cast<Block*>(allocation.block)->freeRange(allocation.offset, allocation.size);
+	}
+
+	size_t MemoryAllocator::blockCount() const
+	{
+		return m_blocks.size();
+	}
 } // namespace acm

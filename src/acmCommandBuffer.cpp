@@ -1,4 +1,5 @@
 #include "archimedes/acmCommandBuffer.h"
+
 #include "archimedes/acmBuffer.h"
 #include "archimedes/acmCommandPool.h"
 #include "archimedes/acmComputePipeline.h"
@@ -6,6 +7,7 @@
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmTexture.h"
+
 #include <vulkan/vulkan.h>
 
 struct acm::CommandBuffer::impl

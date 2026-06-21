@@ -1,11 +1,14 @@
 #include "archimedes/acmBuffer.h"
-#include "acmVkConvert.h"
-#include "acmVkMemory.h"
-#include "acmVkOneShot.h"
+
 #include "archimedes/acmDevice.h"
+#include "archimedes/acmVkConvert.h"
+#include "archimedes/acmVkMemory.h"
+#include "archimedes/acmVkOneShot.h"
+
+#include <vulkan/vulkan.h>
+
 #include <algorithm>
 #include <cstring>
-#include <vulkan/vulkan.h>
 
 namespace
 {
@@ -29,8 +32,8 @@ namespace
 		if (auto err = staging.write(data, size_t(size)))
 			return err;
 
-		return acm::detail::oneShotSubmit(device, [&staging, dst, size](VkCommandBuffer cb)
-								   {
+		return acm::oneShotSubmit(device, [&staging, dst, size](VkCommandBuffer cb)
+										  {
 			VkBufferCopy region = {};
 			region.size = size;
 			vkCmdCopyBuffer(cb, staging.vkBuffer(), dst, 1, &region); });
@@ -43,7 +46,7 @@ struct acm::Buffer::impl
 	size_t size{0};
 	bool hostVisible{true};
 	VkBuffer buffer{VK_NULL_HANDLE};
-	acm::detail::Allocation allocation; // sub-range of a pooled block
+	acm::Allocation allocation; // sub-range of a pooled block
 
 	~impl()
 	{
@@ -64,7 +67,7 @@ struct acm::Buffer::impl
 		if (allocation.valid())
 		{
 			auto* alloc = &device.memoryAllocator();
-			acm::detail::Allocation a = allocation;
+			acm::Allocation a = allocation;
 			device.enqueueDestroy([alloc, a]
 								  { alloc->free(a); });
 		}
@@ -85,7 +88,7 @@ acm::Buffer::Buffer(acm::Device device, size_t size, acm::BufferUsage usage)
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.size = size;
-	bufferInfo.usage = acm::detail::toVk(usage);
+	bufferInfo.usage = acm::toVk(usage);
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	if (vkCreateBuffer(impl->device.vkDevice(), &bufferInfo, nullptr, &impl->buffer) != VK_SUCCESS)
 	{

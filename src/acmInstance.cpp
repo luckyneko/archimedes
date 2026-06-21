@@ -1,12 +1,15 @@
 #include "archimedes/acmInstance.h"
-#include "acmVkConvert.h"
+
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmSurface.h"
+#include "archimedes/acmVkConvert.h"
+
+#include <vulkan/vulkan.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <regex>
-#include <vulkan/vulkan.h>
 
 namespace
 {
@@ -199,7 +202,7 @@ acm::Instance::Instance(const char* appName, const acm::Version& appVer)
 		VkPhysicalDeviceProperties properties;
 		vkGetPhysicalDeviceProperties(gpu.device, &properties);
 		gpu.name = properties.deviceName;
-		gpu.type = acm::detail::fromVk(properties.deviceType);
+		gpu.type = acm::fromVk(properties.deviceType);
 
 		// Optional features we care about (enabled later, per-GPU, at device creation).
 		VkPhysicalDeviceFeatures features;

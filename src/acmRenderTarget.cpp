@@ -1,10 +1,13 @@
 #include "archimedes/acmRenderTarget.h"
-#include "acmVkConvert.h"
-#include "acmVkMemory.h"
+
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmTexture.h"
-#include <vector>
+#include "archimedes/acmVkConvert.h"
+#include "archimedes/acmVkMemory.h"
+
 #include <vulkan/vulkan.h>
+
+#include <vector>
 
 namespace
 {
@@ -16,7 +19,7 @@ namespace
 	// for the owned MSAA color/depth images a RenderTarget needs (the swapchain/texture
 	// is the resolve target). Returns false (handles left null) on failure.
 	bool createAttachmentImage(acm::Device device, VkFormat format, acm::Extent2D extent, VkSampleCountFlagBits samples,
-							   VkImageUsageFlags usage, VkImageAspectFlags aspect, VkImage& outImage, acm::detail::Allocation& outAllocation, VkImageView& outView)
+							   VkImageUsageFlags usage, VkImageAspectFlags aspect, VkImage& outImage, acm::Allocation& outAllocation, VkImageView& outView)
 	{
 		VkDevice dev = device.vkDevice();
 
@@ -184,10 +187,10 @@ struct acm::RenderTarget::impl
 	// target is the swapchain image / the texture; these are the transient N-sample
 	// color (and, with depth, depth) buffers the subpass renders into.
 	VkImage msaaColorImage{VK_NULL_HANDLE};
-	acm::detail::Allocation msaaColorAllocation;
+	acm::Allocation msaaColorAllocation;
 	VkImageView msaaColorView{VK_NULL_HANDLE};
 	VkImage msaaDepthImage{VK_NULL_HANDLE};
-	acm::detail::Allocation msaaDepthAllocation;
+	acm::Allocation msaaDepthAllocation;
 	VkImageView msaaDepthView{VK_NULL_HANDLE};
 
 	~impl()
@@ -209,12 +212,12 @@ struct acm::RenderTarget::impl
 									  { fn(dev, h, nullptr); });
 			}
 		};
-		auto freeAlloc = [&](const acm::detail::Allocation& allocation)
+		auto freeAlloc = [&](const acm::Allocation& allocation)
 		{
 			if (allocation.valid())
 			{
 				auto* alloc = &device.memoryAllocator();
-				acm::detail::Allocation a = allocation;
+				acm::Allocation a = allocation;
 				device.enqueueDestroy([alloc, a]
 									  { alloc->free(a); });
 			}
@@ -241,9 +244,9 @@ acm::RenderTarget::RenderTarget(acm::Device device, VkRenderPass renderPass, VkI
 	impl->extent = extent;
 	impl->depth = depth;
 
-	const VkSampleCountFlagBits vkSamples = acm::detail::toVkSampleCount(samples, device.getGPU().device);
+	const VkSampleCountFlagBits vkSamples = acm::toVkSampleCount(samples, device.getGPU().device);
 	impl->multisampled = (vkSamples != VK_SAMPLE_COUNT_1_BIT);
-	const VkFormat colorVk = acm::detail::toVk(format);
+	const VkFormat colorVk = acm::toVk(format);
 
 	// View over the borrowed swapchain image (the single-sampled color / resolve target).
 	VkImageViewCreateInfo imageViewInfo = {};
@@ -265,7 +268,7 @@ acm::RenderTarget::RenderTarget(acm::Device device, VkRenderPass renderPass, VkI
 	{
 		if (impl->multisampled)
 		{
-			if (!createAttachmentImage(device, acm::detail::toVk(kDepthFormat), extent, vkSamples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			if (!createAttachmentImage(device, acm::toVk(kDepthFormat), extent, vkSamples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 									   VK_IMAGE_ASPECT_DEPTH_BIT, impl->msaaDepthImage, impl->msaaDepthAllocation, impl->msaaDepthView))
 				return;
 		}
@@ -329,10 +332,10 @@ acm::RenderTarget::RenderTarget(acm::Device device, acm::Texture texture, acm::R
 	impl->extent = texture.getExtent();
 	impl->depth = depth;
 
-	const VkSampleCountFlagBits vkSamples = acm::detail::toVkSampleCount(samples, device.getGPU().device);
+	const VkSampleCountFlagBits vkSamples = acm::toVkSampleCount(samples, device.getGPU().device);
 	impl->multisampled = (vkSamples != VK_SAMPLE_COUNT_1_BIT);
-	const VkFormat colorVk = acm::detail::toVk(texture.format());
-	const VkFormat depthVk = depth ? acm::detail::toVk(kDepthFormat) : VK_FORMAT_UNDEFINED;
+	const VkFormat colorVk = acm::toVk(texture.format());
+	const VkFormat depthVk = depth ? acm::toVk(kDepthFormat) : VK_FORMAT_UNDEFINED;
 
 	if (depth)
 	{
