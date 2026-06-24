@@ -14,7 +14,7 @@
 
 TEST_CASE("a compute shader fills a storage buffer", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;
@@ -71,7 +71,7 @@ TEST_CASE("a compute shader fills a storage buffer", "[acm][gpu]")
 
 TEST_CASE("a barrier feeds compute output into a graphics read in one command buffer", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;

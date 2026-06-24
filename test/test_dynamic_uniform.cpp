@@ -16,7 +16,7 @@
 
 TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;

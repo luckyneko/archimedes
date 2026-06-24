@@ -11,14 +11,12 @@ namespace acm::vulkan
 		return (value + alignment - 1) & ~(alignment - 1);
 	}
 
-	uint32_t MemoryAllocator::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags properties)
+	uint32_t MemoryAllocator::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const
 	{
-		VkPhysicalDeviceMemoryProperties memoryProperties;
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
-		for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; ++index)
+		for (uint32_t index = 0; index < m_memoryProperties.memoryTypeCount; ++index)
 		{
 			const bool typeAllowed = (typeBits & (1u << index)) != 0;
-			const bool hasProperties = (memoryProperties.memoryTypes[index].propertyFlags & properties) == properties;
+			const bool hasProperties = (m_memoryProperties.memoryTypes[index].propertyFlags & properties) == properties;
 			if (typeAllowed && hasProperties)
 				return index;
 		}
@@ -91,8 +89,11 @@ namespace acm::vulkan
 
 	MemoryAllocator::MemoryAllocator(VkDevice device, VkPhysicalDevice physicalDevice)
 		: m_device(device)
-		, m_physicalDevice(physicalDevice)
 	{
+		VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
+		memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+		vkGetPhysicalDeviceMemoryProperties2(physicalDevice, &memoryProperties);
+		m_memoryProperties = memoryProperties.memoryProperties;
 	}
 
 	MemoryAllocator::~MemoryAllocator()
@@ -108,7 +109,7 @@ namespace acm::vulkan
 	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		const uint32_t memoryType = findMemoryType(m_physicalDevice, req.memoryTypeBits, props);
+		const uint32_t memoryType = findMemoryType(req.memoryTypeBits, props);
 		if (memoryType == UINT32_MAX)
 			return {};
 		const bool hostVisible = (props & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;

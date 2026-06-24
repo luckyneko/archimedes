@@ -14,7 +14,6 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmSwapChain.h"
 #include "archimedes/acmTexture.h"
-#include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Instance.h"
 
 #include <cstring>
@@ -48,6 +47,8 @@ acm::vulkan::Device::Device(acm::vulkan::Instance& instance, const acm::GPU& gpu
 		m_error = acm::Error("failed to create device from invalid queue family");
 		return;
 	}
+	m_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	vkGetPhysicalDeviceProperties2(m_physicalDevice, &m_properties);
 
 	float queuePriority = 1.0f;
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
@@ -56,7 +57,6 @@ acm::vulkan::Device::Device(acm::vulkan::Instance& instance, const acm::GPU& gpu
 	queueCreateInfo.queueCount = 1;
 	queueCreateInfo.pQueuePriorities = &queuePriority;
 
-	const std::vector<const char*>& layerNames = m_instance->layerNames();
 	std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 	uint32_t deviceExtensionCount = 0;
@@ -72,21 +72,24 @@ acm::vulkan::Device::Device(acm::vulkan::Instance& instance, const acm::GPU& gpu
 		}
 	}
 
-	VkPhysicalDeviceFeatures deviceFeatures = {};
-	deviceFeatures.fillModeNonSolid = m_gpu.features.fillModeNonSolid ? VK_TRUE : VK_FALSE;
-	deviceFeatures.wideLines = m_gpu.features.wideLines ? VK_TRUE : VK_FALSE;
-	deviceFeatures.samplerAnisotropy = m_gpu.features.samplerAnisotropy ? VK_TRUE : VK_FALSE;
-	deviceFeatures.sampleRateShading = m_gpu.features.sampleRateShading ? VK_TRUE : VK_FALSE;
+	VkPhysicalDeviceVulkan13Features vulkan13Features = {};
+	vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	vulkan13Features.synchronization2 = VK_TRUE;
+	VkPhysicalDeviceFeatures2 deviceFeatures = {};
+	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	deviceFeatures.pNext = &vulkan13Features;
+	deviceFeatures.features.fillModeNonSolid = m_gpu.features.fillModeNonSolid ? VK_TRUE : VK_FALSE;
+	deviceFeatures.features.wideLines = m_gpu.features.wideLines ? VK_TRUE : VK_FALSE;
+	deviceFeatures.features.samplerAnisotropy = m_gpu.features.samplerAnisotropy ? VK_TRUE : VK_FALSE;
+	deviceFeatures.features.sampleRateShading = m_gpu.features.sampleRateShading ? VK_TRUE : VK_FALSE;
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pNext = &deviceFeatures;
 	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
 	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.enabledLayerCount = uint32_t(layerNames.size());
-	deviceCreateInfo.ppEnabledLayerNames = layerNames.data();
 	deviceCreateInfo.enabledExtensionCount = uint32_t(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
-	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
 	if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device) != VK_SUCCESS)
 	{
@@ -131,16 +134,47 @@ acm::vulkan::Device::~Device()
 	vkDestroyDevice(m_device, nullptr);
 }
 
+VkSampleCountFlagBits acm::vulkan::Device::sampleCount(acm::SampleCount requested) const
+{
+	uint32_t wanted = 1;
+	switch (requested)
+	{
+		case acm::SampleCount::One:
+			wanted = 1;
+			break;
+		case acm::SampleCount::Two:
+			wanted = 2;
+			break;
+		case acm::SampleCount::Four:
+			wanted = 4;
+			break;
+		case acm::SampleCount::Eight:
+			wanted = 8;
+			break;
+	}
+
+	const VkSampleCountFlags supported = properties().limits.framebufferColorSampleCounts & properties().limits.framebufferDepthSampleCounts;
+	for (uint32_t samples = wanted; samples >= 2; samples >>= 1)
+		if (supported & samples)
+			return VkSampleCountFlagBits(samples);
+	return VK_SAMPLE_COUNT_1_BIT;
+}
+
 acm::SampleCount acm::vulkan::Device::maxSampleCount() const
 {
-	return acm::vulkan::maxSampleCount(m_physicalDevice);
+	const VkSampleCountFlags supported = properties().limits.framebufferColorSampleCounts & properties().limits.framebufferDepthSampleCounts;
+	if (supported & VK_SAMPLE_COUNT_8_BIT)
+		return acm::SampleCount::Eight;
+	if (supported & VK_SAMPLE_COUNT_4_BIT)
+		return acm::SampleCount::Four;
+	if (supported & VK_SAMPLE_COUNT_2_BIT)
+		return acm::SampleCount::Two;
+	return acm::SampleCount::One;
 }
 
 size_t acm::vulkan::Device::minUniformBufferOffsetAlignment() const
 {
-	VkPhysicalDeviceProperties properties;
-	vkGetPhysicalDeviceProperties(m_physicalDevice, &properties);
-	return size_t(properties.limits.minUniformBufferOffsetAlignment);
+	return size_t(properties().limits.minUniformBufferOffsetAlignment);
 }
 
 void acm::vulkan::Device::waitIdle()
@@ -209,6 +243,22 @@ acm::Texture acm::vulkan::Device::createTexture(acm::Format format, acm::Extent2
 	return acm::Texture(inserted.resource, inserted.handle);
 }
 
+VkResult acm::vulkan::Device::queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence)
+{
+	VkCommandBufferSubmitInfo commandBufferInfo = {};
+	commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+	commandBufferInfo.commandBuffer = commandBuffer;
+	VkSubmitInfo2 submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+	submitInfo.waitSemaphoreInfoCount = waitSemaphore ? 1u : 0u;
+	submitInfo.pWaitSemaphoreInfos = waitSemaphore;
+	submitInfo.commandBufferInfoCount = 1;
+	submitInfo.pCommandBufferInfos = &commandBufferInfo;
+	submitInfo.signalSemaphoreInfoCount = signalSemaphore ? 1u : 0u;
+	submitInfo.pSignalSemaphoreInfos = signalSemaphore;
+	return vkQueueSubmit2(m_queue, 1, &submitInfo, fence);
+}
+
 acm::Error acm::vulkan::Device::submitOneShot(const std::function<void(VkCommandBuffer)>& record)
 {
 	VkCommandPoolCreateInfo poolInfo = {};
@@ -246,33 +296,31 @@ acm::Error acm::vulkan::Device::submitOneShot(const std::function<void(VkCommand
 		return acm::Error("failed to end one-shot command buffer");
 	}
 
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
 	std::lock_guard<std::mutex> lock(m_queueMutex);
-	if (vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+	if (queueSubmit(commandBuffer, nullptr, nullptr, VK_NULL_HANDLE) != VK_SUCCESS)
 	{
 		vkDestroyCommandPool(m_device, pool, nullptr);
 		return acm::Error("failed to submit one-shot command buffer");
 	}
-	vkQueueWaitIdle(m_queue);
+	if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
+	{
+		vkDestroyCommandPool(m_device, pool, nullptr);
+		return acm::Error("failed to wait for one-shot command buffer");
+	}
 	vkDestroyCommandPool(m_device, pool, nullptr);
 	return {};
 }
 
 acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate)
 {
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &imageAvailable;
-	submitInfo.pWaitDstStageMask = &waitStage;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &renderFinished;
+	VkSemaphoreSubmitInfo waitSemaphore = {};
+	waitSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+	waitSemaphore.semaphore = imageAvailable;
+	waitSemaphore.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkSemaphoreSubmitInfo signalSemaphore = {};
+	signalSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+	signalSemaphore.semaphore = renderFinished;
+	signalSemaphore.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
@@ -282,8 +330,9 @@ acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSem
 	presentInfo.pImageIndices = &imageIndex;
 
 	std::lock_guard<std::mutex> lock(m_queueMutex);
-	vkResetFences(m_device, 1, &inFlight);
-	if (vkQueueSubmit(m_queue, 1, &submitInfo, inFlight) != VK_SUCCESS)
+	if (vkResetFences(m_device, 1, &inFlight) != VK_SUCCESS)
+		return acm::Error("failed to reset draw fence");
+	if (queueSubmit(commandBuffer, &waitSemaphore, &signalSemaphore, inFlight) != VK_SUCCESS)
 		return acm::Error("failed to submit draw command buffer");
 	const VkResult present = vkQueuePresentKHR(m_queue, &presentInfo);
 	if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR)
@@ -392,14 +441,11 @@ acm::Error acm::vulkan::Device::submitCommandBufferSync(const acm::CommandBuffer
 	if (!commandBuffer.valid() || &commandBuffer.native()->owner() != this)
 		return acm::Error("submitSync: invalid command buffer");
 	VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer(commandBuffer.handle());
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &vkCommand;
 	std::lock_guard<std::mutex> lock(m_queueMutex);
-	if (vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+	if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE) != VK_SUCCESS)
 		return acm::Error("submitSync: failed to submit");
-	vkQueueWaitIdle(m_queue);
+	if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
+		return acm::Error("submitSync: failed to wait for queue");
 	return {};
 }
 

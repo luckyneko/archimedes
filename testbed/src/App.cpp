@@ -22,7 +22,7 @@
 namespace
 {
 	const char* APP_NAME = "Archimedes Testbed";
-	const acm::Version APP_VERSION = {0, 1, 0, 0};
+	const acm::Version APP_VERSION = {0, 1, 0};
 
 	// acm_stage_vulkan_runtime() copies the vendored MoltenVK ICD next to the executable
 	// in vulkan/. The generated run_<target>.sh exports VK_ICD_FILENAMES so the loader
@@ -154,7 +154,10 @@ int App::run(Example& example)
 {
 	useStagedVulkanICD();
 
-	acm::Instance instance(APP_NAME, APP_VERSION);
+	acm::InstanceConfig instanceConfig;
+	instanceConfig.validation = true;
+	instanceConfig.debug = true;
+	acm::Instance instance(APP_NAME, APP_VERSION, instanceConfig);
 	if (!instance.valid())
 	{
 		fprintf(stderr, "CreateACMInstance: FAIL\n");

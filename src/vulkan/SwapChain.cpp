@@ -112,7 +112,7 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 
 VkRenderPass acm::vulkan::SwapChain::createRenderPass(acm::vulkan::Device& owner) const
 {
-	const VkSampleCountFlagBits samples = acm::vulkan::toVkSampleCount(m_samples, owner.vkPhysicalDevice());
+	const VkSampleCountFlagBits samples = owner.sampleCount(m_samples);
 	const VkFormat depthFormat = m_depth ? acm::vulkan::toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
 	const bool multisampled = samples != VK_SAMPLE_COUNT_1_BIT;
 	std::vector<VkAttachmentDescription> attachments;

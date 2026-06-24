@@ -9,11 +9,7 @@ bool acm::vulkan::Sampler::create(acm::vulkan::Device& owner, float maxAnisotrop
 	const bool anisotropic = maxAnisotropy > 1.0f && owner.enabledFeatures().samplerAnisotropy;
 	float anisotropy = 1.0f;
 	if (anisotropic)
-	{
-		VkPhysicalDeviceProperties properties;
-		vkGetPhysicalDeviceProperties(owner.vkPhysicalDevice(), &properties);
-		anisotropy = std::min(maxAnisotropy, properties.limits.maxSamplerAnisotropy);
-	}
+		anisotropy = std::min(maxAnisotropy, owner.properties().limits.maxSamplerAnisotropy);
 
 	VkSamplerCreateInfo samplerInfo = {};
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

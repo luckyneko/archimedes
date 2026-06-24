@@ -7,7 +7,7 @@
 
 TEST_CASE("production command-recording benchmark", "[acm][gpu][benchmark]")
 {
-	acm::Instance instance("acm-command-benchmark", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-command-benchmark", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 

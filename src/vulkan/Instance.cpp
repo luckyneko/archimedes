@@ -1,6 +1,7 @@
 #include "archimedes/vulkan/Instance.h"
 
 #include "archimedes/acmDevice.h"
+#include "archimedes/acmInstance.h"
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmVersion.h"
 #include "archimedes/vulkan/Convert.h"
@@ -9,8 +10,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
-#include <regex>
 #include <string>
+#include <string_view>
 #include <utility>
 
 const char* acm::vulkan::Instance::resultString(VkResult result)
@@ -48,7 +49,6 @@ bool acm::vulkan::Instance::layerAvailable(const std::vector<VkLayerProperties>&
 						{ return std::strcmp(name, layer.layerName) == 0; }) != layers.end();
 }
 
-#ifndef NDEBUG
 VkResult acm::vulkan::Instance::createDebugMessenger(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkDebugUtilsMessengerEXT* messenger)
 {
 	auto create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
@@ -70,18 +70,25 @@ VKAPI_ATTR VkBool32 VKAPI_CALL acm::vulkan::Instance::validationCallback(VkDebug
 		std::fprintf(stderr, "validation layer [warn]: %s\n", callbackData->pMessage);
 	return VK_FALSE;
 }
-#endif
 
-acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVersion)
+acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVersion, const acm::InstanceConfig& config)
 	: m_surfaces(*this)
 {
+	uint32_t loaderVersion = VK_API_VERSION_1_0;
+	auto enumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
+	if (!enumerateInstanceVersion || enumerateInstanceVersion(&loaderVersion) != VK_SUCCESS || loaderVersion < RequiredAPIVersion)
+	{
+		m_error = acm::Error("Vulkan 1.3 loader required");
+		return;
+	}
+
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = appName;
 	appInfo.applicationVersion = VK_MAKE_VERSION(appVersion.major, appVersion.minor, appVersion.patch);
 	appInfo.pEngineName = "archimedes";
 	appInfo.engineVersion = VK_MAKE_VERSION(acm::VERSION.major, acm::VERSION.minor, acm::VERSION.patch);
-	appInfo.apiVersion = VK_API_VERSION_1_0;
+	appInfo.apiVersion = RequiredAPIVersion;
 
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
@@ -89,33 +96,28 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
 	std::vector<const char*> extensionNames;
 	for (const VkExtensionProperties& extension : availableExtensions)
-		if (std::regex_match(std::string(extension.extensionName), std::regex("VK_.+_surface")))
-			extensionNames.push_back(extension.extensionName);
-
-	const bool portability = extensionAvailable(availableExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-	if (portability)
 	{
-		extensionNames.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-		if (extensionAvailable(availableExtensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
-			extensionNames.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+		const std::string_view name(extension.extensionName);
+		const bool surfaceExtension = name.size() >= 8 && name.compare(name.size() - 8, 8, "_surface") == 0;
+		const bool moltenVKVendorExtension = name.rfind("VK_MVK_", 0) == 0;
+		if (surfaceExtension && !moltenVKVendorExtension)
+			extensionNames.push_back(extension.extensionName);
 	}
 
-#ifndef NDEBUG
-	const bool debugUtils = extensionAvailable(availableExtensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	const bool portability = config.portability && extensionAvailable(availableExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+	if (portability)
+		extensionNames.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+
+	const bool debugUtils = config.debug && extensionAvailable(availableExtensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	if (debugUtils)
 		extensionNames.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
 
 	uint32_t layerCount = 0;
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 	std::vector<VkLayerProperties> availableLayers(layerCount);
 	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-#ifndef NDEBUG
-	if (layerAvailable(availableLayers, "VK_LAYER_KHRONOS_validation"))
+	if (config.validation && layerAvailable(availableLayers, "VK_LAYER_KHRONOS_validation"))
 		m_layerNames.push_back("VK_LAYER_KHRONOS_validation");
-	else if (layerAvailable(availableLayers, "VK_LAYER_LUNARG_standard_validation"))
-		m_layerNames.push_back("VK_LAYER_LUNARG_standard_validation");
-#endif
 
 	VkInstanceCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -127,7 +129,6 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 	if (portability)
 		createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
-#ifndef NDEBUG
 	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {};
 	if (debugUtils)
 	{
@@ -137,7 +138,6 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 		debugCreateInfo.pfnUserCallback = validationCallback;
 		createInfo.pNext = &debugCreateInfo;
 	}
-#endif
 
 	VkResult result = vkCreateInstance(&createInfo, nullptr, &m_instance);
 	if (result != VK_SUCCESS)
@@ -146,7 +146,6 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 		return;
 	}
 
-#ifndef NDEBUG
 	if (debugUtils)
 	{
 		result = createDebugMessenger(m_instance, &debugCreateInfo, &m_debugMessenger);
@@ -156,7 +155,6 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 			return;
 		}
 	}
-#endif
 
 	enumerateGPUs();
 }
@@ -164,10 +162,8 @@ acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVers
 acm::vulkan::Instance::~Instance()
 {
 	m_surfaces.clear();
-#ifndef NDEBUG
 	if (m_debugMessenger)
 		destroyDebugMessenger(m_instance, m_debugMessenger);
-#endif
 	if (m_instance)
 		vkDestroyInstance(m_instance, nullptr);
 }
@@ -176,42 +172,58 @@ void acm::vulkan::Instance::enumerateGPUs()
 {
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-	m_physicalDevices.resize(deviceCount);
-	vkEnumeratePhysicalDevices(m_instance, &deviceCount, m_physicalDevices.data());
-	m_gpus.resize(deviceCount);
+	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
 
-	for (size_t deviceIndex = 0; deviceIndex < m_physicalDevices.size(); ++deviceIndex)
+	for (VkPhysicalDevice physicalDevice : physicalDevices)
 	{
-		VkPhysicalDevice physicalDevice = m_physicalDevices[deviceIndex];
-		acm::GPU& gpu = m_gpus[deviceIndex];
-		gpu.index = uint32_t(deviceIndex);
-		VkPhysicalDeviceProperties properties;
-		vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-		gpu.name = properties.deviceName;
-		gpu.type = acm::vulkan::fromVk(properties.deviceType);
+		VkPhysicalDeviceProperties2 properties = {};
+		properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		vkGetPhysicalDeviceProperties2(physicalDevice, &properties);
+		if (properties.properties.apiVersion < RequiredAPIVersion)
+			continue;
 
-		VkPhysicalDeviceFeatures features;
-		vkGetPhysicalDeviceFeatures(physicalDevice, &features);
-		gpu.features.fillModeNonSolid = features.fillModeNonSolid == VK_TRUE;
-		gpu.features.wideLines = features.wideLines == VK_TRUE;
-		gpu.features.samplerAnisotropy = features.samplerAnisotropy == VK_TRUE;
-		gpu.features.sampleRateShading = features.sampleRateShading == VK_TRUE;
+		VkPhysicalDeviceVulkan13Features vulkan13Features = {};
+		vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		VkPhysicalDeviceFeatures2 features = {};
+		features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		features.pNext = &vulkan13Features;
+		vkGetPhysicalDeviceFeatures2(physicalDevice, &features);
+		if (!vulkan13Features.synchronization2)
+			continue;
+
+		m_physicalDevices.push_back(physicalDevice);
+		acm::GPU& gpu = m_gpus.emplace_back();
+		gpu.index = uint32_t(m_gpus.size() - 1);
+		gpu.apiVersion = {uint8_t(VK_API_VERSION_MAJOR(properties.properties.apiVersion)), uint8_t(VK_API_VERSION_MINOR(properties.properties.apiVersion)), uint16_t(VK_API_VERSION_PATCH(properties.properties.apiVersion))};
+		gpu.name = properties.properties.deviceName;
+		gpu.type = acm::vulkan::fromVk(properties.properties.deviceType);
+		gpu.features.fillModeNonSolid = features.features.fillModeNonSolid == VK_TRUE;
+		gpu.features.wideLines = features.features.wideLines == VK_TRUE;
+		gpu.features.samplerAnisotropy = features.features.samplerAnisotropy == VK_TRUE;
+		gpu.features.sampleRateShading = features.features.sampleRateShading == VK_TRUE;
 
 		uint32_t queueFamilyCount = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties2> queueFamilies(queueFamilyCount);
+		for (VkQueueFamilyProperties2& queueFamily : queueFamilies)
+			queueFamily.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
+		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, queueFamilies.data());
 		gpu.queueFamilies.resize(queueFamilyCount);
 		for (size_t queueIndex = 0; queueIndex < queueFamilies.size(); ++queueIndex)
 		{
+			const VkQueueFamilyProperties& properties = queueFamilies[queueIndex].queueFamilyProperties;
 			acm::GPUQueueFamily& queue = gpu.queueFamilies[queueIndex];
 			queue.index = uint32_t(queueIndex);
-			queue.queueCount = queueFamilies[queueIndex].queueCount;
-			queue.supportsGraphics = (queueFamilies[queueIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
-			queue.supportsCompute = (queueFamilies[queueIndex].queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
-			queue.supportsTransfer = (queueFamilies[queueIndex].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
+			queue.queueCount = properties.queueCount;
+			queue.supportsGraphics = (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+			queue.supportsCompute = (properties.queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
+			queue.supportsTransfer = (properties.queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
 		}
 	}
+
+	if (m_gpus.empty())
+		m_error = acm::Error("no Vulkan 1.3 physical device with synchronization2 available");
 }
 
 VkPhysicalDevice acm::vulkan::Instance::physicalDevice(uint32_t index) const

@@ -157,7 +157,7 @@ uniform buffers — can be safely rewritten for this frame. Size any such ring t
 **Multi-renderer / multi-threaded.** Several `acm::Renderer`s can share one `Device` —
 each over its own `SwapChain` (one per window) — and run `render(...)` on their own
 threads. The per-renderer work (fence wait, acquire, command recording) is independent
-and runs concurrently. A queue mutex serializes `vkQueueSubmit`/`vkQueuePresentKHR`;
+and runs concurrently. A queue mutex serializes `vkQueueSubmit2`/`vkQueuePresentKHR`;
 the graveyard has a separate mutex and executes extracted destruction callbacks after
 unlocking; the allocator and each resource pool synchronize independently. Distinct
 wrapper copies may be retained, released, and read concurrently. Mutation/reset of the
@@ -202,14 +202,25 @@ in `prePass` feeds the draws through a barrier with no extra submit (proved by
 
 `GPU`, `GPUQueueFamily`, `GPUSurfaceSupport`, and `GPUFeatures`
 ([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
+Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
+`apiVersion` is at least 1.3 and which support the core `synchronization2` feature;
+the reported version is available as `GPU::apiVersion`. Device creation enables
+`synchronization2`, and command-buffer buffer/image barriers use
+`VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
+submissions use `VkSubmitInfo2` through the device-owned submission path.
 `GPUFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each GPU's
-availability into `GPU::features`, and `Device` creation enables the supported subset
-and reports it via `Device::enabledFeatures()`. Consumers that want a feature check it
+availability through `VkPhysicalDeviceFeatures2` into `GPU::features`, and `Device`
+creation enables the supported subset through the matching `VkDeviceCreateInfo::pNext`
+chain and reports it via `Device::enabledFeatures()`. Consumers that want a feature check it
 and degrade-with-a-warning when it's off rather than producing an invalid object — a
 `Pipeline` falls back to fill / width 1 for wireframe / wide lines, and a `Sampler`
 falls back to isotropic when `maxAnisotropy` > 1 but `samplerAnisotropy` is unavailable. `Version` ([acmVersion.h](include/archimedes/acmVersion.h))
 carries the engine version; `acm::VERSION` is the engine's own.
+Physical-device properties are queried through the Vulkan 1.3 `*2` APIs: `Device`
+caches its general properties for limits/sample-count decisions, `MemoryAllocator`
+caches memory properties for memory-type selection, and format properties remain a
+per-format query owned by `Texture`.
 
 **Owned images are `Texture`; there is no separate `acm::Image`.** Swapchain
 images are *borrowed* (the driver frees them with `vkDestroySwapchainKHR`), so the
@@ -461,10 +472,12 @@ On macOS, Vulkan runs through **MoltenVK** (a portability driver). The code
 already accounts for the two non-obvious requirements; preserve them:
 
 - **Instance** ([Instance.cpp](src/vulkan/Instance.cpp)): when
-  `VK_KHR_portability_enumeration` is available, it is enabled (along with
-  `VK_KHR_get_physical_device_properties2`) and the
+  `InstanceConfig::portability` is enabled (the default) and
+  `VK_KHR_portability_enumeration` is available, it is enabled and the
   `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` flag is set — otherwise
-  `vkCreateInstance` returns `VK_ERROR_INCOMPATIBLE_DRIVER`.
+  `vkCreateInstance` returns `VK_ERROR_INCOMPATIBLE_DRIVER`. Surface extension
+  discovery enables `VK_EXT_metal_surface` but excludes the deprecated
+  `VK_MVK_*_surface` vendor extensions.
 - **Device** ([Device.cpp](src/vulkan/Device.cpp)): `VK_KHR_portability_subset`
   is enabled whenever the physical device advertises it (spec-required). The
   name macro lives behind `VK_ENABLE_BETA_EXTENSIONS`, so the literal string is
@@ -607,7 +620,7 @@ Shared `[gpu]` scaffolding lives in [test/vk_test_helpers.h](test/vk_test_helper
 instance→surface→device→swapchain, SKIP-ing with a specific reason on any missing
 layer). Reuse it, don't re-roll it. The pipeline/render tests use precompiled
 SPIR-V embedded in [test/test_spirv.h](test/test_spirv.h) (so tests need no
-build-time shader compiler — regenerate it with `glslangValidator -V` if the GLSL
+build-time shader compiler — regenerate it with `glslangValidator -V --target-env vulkan1.3` if the GLSL
 in its header comment changes). Add new tests in place; do not duplicate the
 production path.
 
@@ -624,8 +637,11 @@ First configure fetches spdlog + Vulkan-Headers and, when the testbed is
 enabled (`ARCHIMEDES_BUILD_TESTBED`, default ON for top-level builds), GLFW +
 Vulkan-Loader + MoltenVK + glslang — archives cached in `.cache/fetch/`,
 sources extracted into `build/_deps/` (both git-ignored). `CMAKE_BUILD_TYPE`
-defaults to `Release`; `Debug` (NDEBUG unset) additionally compiles the Vulkan
-validation-layer / debug-messenger paths in [Instance.cpp](src/vulkan/Instance.cpp).
+defaults to `Release`. Vulkan portability enumeration is enabled by default through
+`InstanceConfig::portability`; validation layers and the debug messenger are runtime
+opt-ins through `InstanceConfig::validation` and `InstanceConfig::debug`, independent
+of build type. Each remains guarded on runtime availability. Validation is enabled only
+as an instance layer; the legacy `VkDeviceCreateInfo` layer fields stay zero/null.
 
 Run the testbed via the generated launcher (it sets `VK_ICD_FILENAMES` to the
 staged MoltenVK ICD):
@@ -655,8 +671,8 @@ the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - **Formatting:** [.clang-format](.clang-format) — Allman braces, tabs (width 4),
   no column limit, `All` namespace indentation, left pointer alignment. Run
   clang-format (v21) on touched files; `editor.formatOnSave` is on in VS Code.
-- **Shaders:** the `vk_target_shaders()` helper in `CMakeLists.txt` compiles
-  GLSL→SPIR-V via `glslc`. No shaders or `glslc` present yet; it is dormant.
+- **Shaders:** the `vk_target_shaders()` helper compiles testbed GLSL to SPIR-V
+  for the Vulkan 1.3 target environment via `glslc` or `glslang`.
 
 ## Known rough edges (pre-existing, not yet addressed)
 

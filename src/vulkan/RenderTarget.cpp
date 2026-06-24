@@ -15,7 +15,7 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkRenderPass 
 	m_renderPass = renderPass;
 	m_extent = extent;
 	m_depth = depth;
-	const VkSampleCountFlagBits vkSamples = acm::vulkan::toVkSampleCount(samples, owner.vkPhysicalDevice());
+	const VkSampleCountFlagBits vkSamples = owner.sampleCount(samples);
 	m_multisampled = vkSamples != VK_SAMPLE_COUNT_1_BIT;
 	const VkFormat colorFormat = acm::vulkan::toVk(format);
 
@@ -65,7 +65,7 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, acm::vulkan::
 	m_texture = textureHandle;
 	m_extent = extent;
 	m_depth = depth;
-	const VkSampleCountFlagBits vkSamples = acm::vulkan::toVkSampleCount(samples, owner.vkPhysicalDevice());
+	const VkSampleCountFlagBits vkSamples = owner.sampleCount(samples);
 	m_multisampled = vkSamples != VK_SAMPLE_COUNT_1_BIT;
 	const VkFormat colorFormat = acm::vulkan::toVk(format);
 	constexpr acm::Format DepthFormat = acm::Format::D32_Sfloat;

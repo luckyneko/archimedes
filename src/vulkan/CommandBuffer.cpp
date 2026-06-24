@@ -182,15 +182,21 @@ void acm::vulkan::CommandBuffer::bufferBarrier(const acm::Handle& handle, const 
 	const VkBuffer vkBuffer = buffer.vkBuffer(bufferHandle);
 	if (!vkBuffer)
 		return;
-	VkBufferMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+	VkBufferMemoryBarrier2 barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	barrier.srcStageMask = acm::vulkan::toVkPipelineStage(srcStage);
+	barrier.srcAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	barrier.dstStageMask = acm::vulkan::toVkPipelineStage(dstStage);
+	barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.buffer = vkBuffer;
 	barrier.size = VK_WHOLE_SIZE;
-	vkCmdPipelineBarrier(m_commandBuffer, acm::vulkan::toVkPipelineStage(srcStage), acm::vulkan::toVkPipelineStage(dstStage), 0, 0, nullptr, 1, &barrier, 0, nullptr);
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.bufferMemoryBarrierCount = 1;
+	dependency.pBufferMemoryBarriers = &barrier;
+	vkCmdPipelineBarrier2(m_commandBuffer, &dependency);
 }
 
 void acm::vulkan::CommandBuffer::transitionImage(const acm::Handle& handle, const acm::vulkan::Texture& texture, const acm::Handle& textureHandle, acm::ImageLayout from, acm::ImageLayout to)

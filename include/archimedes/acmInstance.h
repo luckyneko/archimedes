@@ -11,11 +11,21 @@
 
 namespace acm
 {
+	struct InstanceConfig
+	{
+		// Enumerate portability drivers such as MoltenVK when the extension is available.
+		bool portability{true};
+		// Enable an available standard validation layer.
+		bool validation{false};
+		// Enable VK_EXT_debug_utils and its diagnostic callback when available.
+		bool debug{false};
+	};
+
 	class Instance
 	{
 	public:
 		Instance();
-		Instance(const char* appName, const acm::Version& appVer);
+		Instance(const char* appName, const acm::Version& appVer, const acm::InstanceConfig& config = {});
 		Instance(const acm::Instance& other) = delete;
 		Instance& operator=(const acm::Instance& other) = delete;
 		Instance(acm::Instance&& other) noexcept;

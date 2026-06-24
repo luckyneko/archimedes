@@ -31,7 +31,7 @@ namespace acm::vulkan
 	private:
 		static bool isDepthFormat(acm::Format format);
 		static uint32_t computeMipLevels(acm::Extent2D extent);
-		static void transition(VkCommandBuffer commandBuffer, VkImage image, uint32_t baseMip, uint32_t levelCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags sourceAccess, VkAccessFlags destinationAccess, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage);
+		static void transition(VkCommandBuffer commandBuffer, VkImage image, uint32_t baseMip, uint32_t levelCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 sourceAccess, VkAccessFlags2 destinationAccess, VkPipelineStageFlags2 sourceStage, VkPipelineStageFlags2 destinationStage);
 
 		acm::Format m_format{acm::Format::Undefined};
 		acm::Extent2D m_extent;

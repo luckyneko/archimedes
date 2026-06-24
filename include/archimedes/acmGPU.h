@@ -1,6 +1,7 @@
 #pragma once
 
 #include "archimedes/acmTypes.h"
+#include "archimedes/acmVersion.h"
 
 #include <string>
 #include <vector>
@@ -31,6 +32,7 @@ namespace acm
 	{
 		uint32_t index{0};
 		std::string name;
+		acm::Version apiVersion;
 		acm::PhysicalDeviceType type{acm::PhysicalDeviceType::Other};
 		std::vector<acm::GPUQueueFamily> queueFamilies;
 		acm::GPUFeatures features; // what this GPU supports (of the curated set)

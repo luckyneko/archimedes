@@ -8,9 +8,9 @@
 
 acm::Instance::Instance() = default;
 
-acm::Instance::Instance(const char* appName, const acm::Version& appVer)
+acm::Instance::Instance(const char* appName, const acm::Version& appVer, const acm::InstanceConfig& config)
 {
-	auto instance = std::make_unique<acm::native::Instance>(appName, appVer);
+	auto instance = std::make_unique<acm::native::Instance>(appName, appVer, config);
 	if (!instance->valid())
 	{
 		m_error = instance->error();

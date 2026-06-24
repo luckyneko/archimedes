@@ -52,10 +52,10 @@ namespace acm::vulkan
 		struct Block;
 		static constexpr VkDeviceSize DefaultBlockSize = 64ull * 1024 * 1024;
 		static VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment);
-		static uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags properties);
+		uint32_t findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const;
 
 		VkDevice m_device{VK_NULL_HANDLE};
-		VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
+		VkPhysicalDeviceMemoryProperties m_memoryProperties{};
 		mutable std::mutex m_mutex;
 		std::vector<std::unique_ptr<Block>> m_blocks;
 	};

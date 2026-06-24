@@ -14,7 +14,7 @@
 
 TEST_CASE("wireframe polygon mode draws only edges", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 

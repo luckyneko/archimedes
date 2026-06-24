@@ -14,6 +14,7 @@ namespace acm
 	class DescriptorSetLayout;
 	class Device;
 	class Instance;
+	struct InstanceConfig;
 	class Pipeline;
 	struct PipelineConfig;
 	class Renderer;

@@ -56,7 +56,7 @@ namespace acmtest
 
 	inline bool buildHeadlessStack(HeadlessStack& out)
 	{
-		out.instance = acm::Instance("acm-tests", acm::Version{0, 1, 0, 0});
+		out.instance = acm::Instance("acm-tests", acm::Version{0, 1, 0});
 		if (!out.instance.valid())
 		{
 			SKIP("no Vulkan driver available");

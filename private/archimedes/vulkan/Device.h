@@ -32,6 +32,8 @@ namespace acm::vulkan
 		acm::vulkan::Instance& instance() const { return *m_instance; }
 		uint32_t queueIndex() const { return m_queueIndex; }
 		const acm::GPUFeatures& enabledFeatures() const { return m_enabledFeatures; }
+		const VkPhysicalDeviceProperties& properties() const { return m_properties.properties; }
+		VkSampleCountFlagBits sampleCount(acm::SampleCount requested) const;
 		acm::SampleCount maxSampleCount() const;
 		size_t minUniformBufferOffsetAlignment() const;
 
@@ -77,6 +79,8 @@ namespace acm::vulkan
 		acm::Renderer createRenderer(const acm::SwapChain& swapChain);
 
 	private:
+		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence);
+
 		struct Pending
 		{
 			uint64_t frame{0};
@@ -88,6 +92,7 @@ namespace acm::vulkan
 		uint32_t m_queueIndex{0};
 		acm::GPUFeatures m_enabledFeatures;
 		VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
+		VkPhysicalDeviceProperties2 m_properties{};
 		VkDevice m_device{VK_NULL_HANDLE};
 		VkQueue m_queue{VK_NULL_HANDLE};
 		std::unique_ptr<acm::vulkan::MemoryAllocator> m_allocator;

@@ -16,7 +16,7 @@
 
 TEST_CASE("an anisotropic sampler samples correctly", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 

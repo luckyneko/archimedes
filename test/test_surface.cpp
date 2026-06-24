@@ -11,7 +11,7 @@
 
 TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
@@ -35,7 +35,7 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 
 TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 

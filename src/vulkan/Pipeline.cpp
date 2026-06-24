@@ -80,7 +80,7 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.rasterizationSamples = acm::vulkan::toVkSampleCount(config.samples, owner.vkPhysicalDevice());
+	multisampling.rasterizationSamples = owner.sampleCount(config.samples);
 	if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
 	{
 		multisampling.sampleShadingEnable = VK_TRUE;

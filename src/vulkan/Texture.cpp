@@ -117,8 +117,12 @@ void acm::vulkan::Texture::recordTransition(const acm::Handle& handle, VkCommand
 		return;
 	const acm::vulkan::VkLayoutInfo source = acm::vulkan::toVk(from);
 	const acm::vulkan::VkLayoutInfo destination = acm::vulkan::toVk(to);
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	VkImageMemoryBarrier2 barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	barrier.srcStageMask = source.stage;
+	barrier.srcAccessMask = source.access;
+	barrier.dstStageMask = destination.stage;
+	barrier.dstAccessMask = destination.access;
 	barrier.oldLayout = source.layout;
 	barrier.newLayout = destination.layout;
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -127,9 +131,11 @@ void acm::vulkan::Texture::recordTransition(const acm::Handle& handle, VkCommand
 	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	barrier.subresourceRange.levelCount = m_mipLevels;
 	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = source.access;
-	barrier.dstAccessMask = destination.access;
-	vkCmdPipelineBarrier(commandBuffer, source.stage, destination.stage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.imageMemoryBarrierCount = 1;
+	dependency.pImageMemoryBarriers = &barrier;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
 acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* pixels, size_t size)
@@ -141,9 +147,10 @@ acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* p
 	uint32_t uploadedMipLevels = m_mipLevels;
 	if (uploadedMipLevels > 1)
 	{
-		VkFormatProperties properties;
-		vkGetPhysicalDeviceFormatProperties(owner().vkPhysicalDevice(), acm::vulkan::toVk(m_format), &properties);
-		if (!(properties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+		VkFormatProperties2 properties = {};
+		properties.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+		vkGetPhysicalDeviceFormatProperties2(owner().vkPhysicalDevice(), acm::vulkan::toVk(m_format), &properties);
+		if (!(properties.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 			uploadedMipLevels = 1;
 	}
 
@@ -158,7 +165,7 @@ acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* p
 	const acm::Extent2D textureExtent = m_extent;
 	return owner().submitOneShot([stagingBuffer, image, textureExtent, uploadedMipLevels](VkCommandBuffer commandBuffer)
 								 {
-		transition(commandBuffer, image, 0, uploadedMipLevels, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		transition(commandBuffer, image, 0, uploadedMipLevels, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 
 		VkBufferImageCopy region = {};
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -170,7 +177,7 @@ acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* p
 		int32_t height = int32_t(textureExtent.height);
 		for (uint32_t mip = 1; mip < uploadedMipLevels; ++mip)
 		{
-			transition(commandBuffer, image, mip - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+			transition(commandBuffer, image, mip - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
 			const int32_t nextWidth = width > 1 ? width / 2 : 1;
 			const int32_t nextHeight = height > 1 ? height / 2 : 1;
 			VkImageBlit blit = {};
@@ -183,18 +190,22 @@ acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* p
 			blit.dstSubresource.mipLevel = mip;
 			blit.dstSubresource.layerCount = 1;
 			vkCmdBlitImage(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
-			transition(commandBuffer, image, mip - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+			transition(commandBuffer, image, mip - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_READ_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
 			width = nextWidth;
 			height = nextHeight;
 		}
 
-		transition(commandBuffer, image, uploadedMipLevels - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT); });
+		transition(commandBuffer, image, uploadedMipLevels - 1, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT); });
 }
 
-void acm::vulkan::Texture::transition(VkCommandBuffer commandBuffer, VkImage image, uint32_t baseMip, uint32_t levelCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags sourceAccess, VkAccessFlags destinationAccess, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage)
+void acm::vulkan::Texture::transition(VkCommandBuffer commandBuffer, VkImage image, uint32_t baseMip, uint32_t levelCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 sourceAccess, VkAccessFlags2 destinationAccess, VkPipelineStageFlags2 sourceStage, VkPipelineStageFlags2 destinationStage)
 {
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	VkImageMemoryBarrier2 barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	barrier.srcStageMask = sourceStage;
+	barrier.srcAccessMask = sourceAccess;
+	barrier.dstStageMask = destinationStage;
+	barrier.dstAccessMask = destinationAccess;
 	barrier.oldLayout = oldLayout;
 	barrier.newLayout = newLayout;
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -204,9 +215,11 @@ void acm::vulkan::Texture::transition(VkCommandBuffer commandBuffer, VkImage ima
 	barrier.subresourceRange.baseMipLevel = baseMip;
 	barrier.subresourceRange.levelCount = levelCount;
 	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = sourceAccess;
-	barrier.dstAccessMask = destinationAccess;
-	vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.imageMemoryBarrierCount = 1;
+	dependency.pImageMemoryBarriers = &barrier;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
 void acm::vulkan::Texture::retire(acm::vulkan::Device& owner)

@@ -31,13 +31,13 @@ namespace acm::vulkan
 
 	VkDescriptorType toVk(acm::DescriptorType type);
 	VkShaderStageFlags toVk(acm::ShaderStage stage);
-	VkPipelineStageFlags toVkPipelineStage(acm::ShaderStage stage);
+	VkPipelineStageFlags2 toVkPipelineStage(acm::ShaderStage stage);
 
 	struct VkLayoutInfo
 	{
 		VkImageLayout layout;
-		VkAccessFlags access;
-		VkPipelineStageFlags stage;
+		VkAccessFlags2 access;
+		VkPipelineStageFlags2 stage;
 	};
 	VkLayoutInfo toVk(acm::ImageLayout layout);
 
@@ -45,10 +45,4 @@ namespace acm::vulkan
 	VkCullModeFlags toVk(acm::CullMode cull);
 	VkFrontFace toVk(acm::FrontFace front);
 	VkPolygonMode toVk(acm::PolygonMode mode);
-
-	// Clamps a requested sample count to what `phys` supports for color+depth
-	// framebuffers (so both RenderTarget and Pipeline derive the same value from the
-	// same request). maxSampleCount returns the device's highest usable count.
-	VkSampleCountFlagBits toVkSampleCount(acm::SampleCount requested, VkPhysicalDevice phys);
-	acm::SampleCount maxSampleCount(VkPhysicalDevice phys);
 } // namespace acm::vulkan

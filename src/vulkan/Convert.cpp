@@ -223,16 +223,16 @@ namespace acm::vulkan
 		return flags;
 	}
 
-	VkPipelineStageFlags toVkPipelineStage(acm::ShaderStage stage)
+	VkPipelineStageFlags2 toVkPipelineStage(acm::ShaderStage stage)
 	{
-		VkPipelineStageFlags flags = 0;
+		VkPipelineStageFlags2 flags = VK_PIPELINE_STAGE_2_NONE;
 		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Vertex))
-			flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+			flags |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Fragment))
-			flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			flags |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Compute))
-			flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-		return flags ? flags : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+			flags |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		return flags ? flags : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 	}
 
 	VkLayoutInfo toVk(acm::ImageLayout layout)
@@ -240,18 +240,18 @@ namespace acm::vulkan
 		switch (layout)
 		{
 			case acm::ImageLayout::General:
-				return {VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
+				return {VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT};
 			case acm::ImageLayout::ShaderReadOnly:
-				return {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+				return {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT};
 			case acm::ImageLayout::TransferSrc:
-				return {VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT};
+				return {VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT};
 			case acm::ImageLayout::TransferDst:
-				return {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT};
+				return {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT};
 			case acm::ImageLayout::Undefined:
-				return {VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+				return {VK_IMAGE_LAYOUT_UNDEFINED, VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_NONE};
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::ImageLayout");
-		return {VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+		return {VK_IMAGE_LAYOUT_UNDEFINED, VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_NONE};
 	}
 
 	VkPrimitiveTopology toVk(acm::Topology topology)
@@ -312,51 +312,5 @@ namespace acm::vulkan
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::PolygonMode");
 		return VK_POLYGON_MODE_FILL;
-	}
-
-	VkSampleCountFlagBits toVkSampleCount(acm::SampleCount requested, VkPhysicalDevice phys)
-	{
-		uint32_t want = 1;
-		switch (requested)
-		{
-			case acm::SampleCount::One:
-				want = 1;
-				break;
-			case acm::SampleCount::Two:
-				want = 2;
-				break;
-			case acm::SampleCount::Four:
-				want = 4;
-				break;
-			case acm::SampleCount::Eight:
-				want = 8;
-				break;
-		}
-
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(phys, &props);
-		const VkSampleCountFlags supported = props.limits.framebufferColorSampleCounts & props.limits.framebufferDepthSampleCounts;
-
-		// Highest supported count not exceeding the request.
-		for (uint32_t s = want; s >= 2; s >>= 1)
-		{
-			if (supported & s)
-				return VkSampleCountFlagBits(s);
-		}
-		return VK_SAMPLE_COUNT_1_BIT;
-	}
-
-	acm::SampleCount maxSampleCount(VkPhysicalDevice phys)
-	{
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(phys, &props);
-		const VkSampleCountFlags supported = props.limits.framebufferColorSampleCounts & props.limits.framebufferDepthSampleCounts;
-		if (supported & VK_SAMPLE_COUNT_8_BIT)
-			return acm::SampleCount::Eight;
-		if (supported & VK_SAMPLE_COUNT_4_BIT)
-			return acm::SampleCount::Four;
-		if (supported & VK_SAMPLE_COUNT_2_BIT)
-			return acm::SampleCount::Two;
-		return acm::SampleCount::One;
 	}
 } // namespace acm::vulkan

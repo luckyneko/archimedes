@@ -37,7 +37,7 @@ namespace
 
 TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;
@@ -101,7 +101,7 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 
 TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;
@@ -163,7 +163,7 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 
 TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0, 0});
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIdx = 0;
