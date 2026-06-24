@@ -1,6 +1,7 @@
 #include "SpriteAtlasExample.h"
 
 #include "TbUtils.h"
+
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -79,9 +80,8 @@ ExampleConfig SpriteAtlasExample::config()
 	return cfg;
 }
 
-bool SpriteAtlasExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool SpriteAtlasExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 	m_spriteCount = uint32_t(kSprites.size());
 
@@ -125,7 +125,7 @@ bool SpriteAtlasExample::onInit(acm::Device device, const std::vector<RenderCont
 	acm::PipelineConfig config;
 	config.vertex = tb::loadShader(device, "sprite.vert.spv");
 	config.fragment = tb::loadShader(device, "sprite.frag.spv");
-	config.renderPass = m_views[0]->renderPass();
+	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.topology = acm::Topology::TriangleStrip;
 	config.blend = acm::BlendMode::AlphaBlend;
@@ -133,14 +133,14 @@ bool SpriteAtlasExample::onInit(acm::Device device, const std::vector<RenderCont
 	return m_pipeline.valid();
 }
 
-void SpriteAtlasExample::onUpdate(acm::Device, float)
+void SpriteAtlasExample::onUpdate(acm::Device&, float)
 {
 	// Sprites are static (written once in onInit), so nothing changes per frame.
 }
 
 void SpriteAtlasExample::onRenderView(uint32_t viewIndex, float)
 {
-	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer cmd, uint32_t)
+	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer& cmd, uint32_t)
 										  {
 											  cmd.bindPipeline(m_pipeline);
 											  for (uint32_t i = 0; i < m_spriteCount; ++i)
@@ -159,5 +159,4 @@ void SpriteAtlasExample::onShutdown()
 	m_sampler.reset();
 	for (auto& t : m_textures)
 		t.reset();
-	m_device.reset();
 }

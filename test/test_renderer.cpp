@@ -1,8 +1,11 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 // Integration: exercises the command pool/buffer handles and the acm::Renderer
@@ -25,11 +28,9 @@ TEST_CASE("CommandPool allocates a recordable buffer", "[acm][gpu]")
 
 	acm::CommandPool pool = device.createCommandPool();
 	REQUIRE(pool.valid());
-	REQUIRE(pool.vkCommandPool() != VK_NULL_HANDLE);
 
 	acm::CommandBuffer cmd = pool.allocate();
 	REQUIRE(cmd.valid());
-	REQUIRE(cmd.vkCommandBuffer() != VK_NULL_HANDLE);
 
 	// A bare begin/end (no render pass) is a valid recording — must not crash.
 	cmd.begin();
@@ -38,7 +39,8 @@ TEST_CASE("CommandPool allocates a recordable buffer", "[acm][gpu]")
 	// The buffer keeps its pool alive: dropping the pool handle leaves it usable.
 	pool.reset();
 	REQUIRE(cmd.valid());
-	REQUIRE(cmd.vkCommandBuffer() != VK_NULL_HANDLE);
+	REQUIRE_FALSE(cmd.begin());
+	REQUIRE_FALSE(cmd.end());
 }
 
 TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
@@ -49,11 +51,17 @@ TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
 
 	acm::Shader vert = s.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader frag = s.device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.vkRenderPass());
+	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.getRenderTarget(0));
 	REQUIRE(pipeline.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
 	REQUIRE(renderer.valid());
+	acm::Renderer retained = renderer;
+	renderer.reset();
+	REQUIRE(retained.valid());
+	renderer = std::move(retained);
+	REQUIRE(renderer.valid());
+	REQUIRE_FALSE(retained.valid());
 
 	// Run more frames than MaxFramesInFlight (2) so the fence/slot wrap is exercised.
 	// The callback must fire once per acquired frame, and the frame index it receives
@@ -61,7 +69,7 @@ TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
 	int recorded = 0;
 	for (int i = 0; i < 5; ++i)
 	{
-		renderer.render([&](acm::CommandBuffer cmd, uint32_t frameIndex)
+		renderer.render([&](acm::CommandBuffer& cmd, uint32_t frameIndex)
 						{
 			REQUIRE(frameIndex < acm::Renderer::MaxFramesInFlight);
 			cmd.bindPipeline(pipeline);
@@ -92,7 +100,7 @@ TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 	acm::ComputePipeline compute = s.device.createComputePipeline(s.device.createShader(acmtest::computeFillSpirv()), computeLayout);
 	REQUIRE(compute.valid());
 
-	acm::Pipeline graphics = s.device.createPipeline(s.device.createShader(acmtest::triangleVertSpirv()), s.device.createShader(acmtest::triangleFragSpirv()), s.swapChain.vkRenderPass());
+	acm::Pipeline graphics = s.device.createPipeline(s.device.createShader(acmtest::triangleVertSpirv()), s.device.createShader(acmtest::triangleFragSpirv()), s.swapChain.getRenderTarget(0));
 	REQUIRE(graphics.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
@@ -101,14 +109,14 @@ TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 	for (int i = 0; i < 3; ++i)
 	{
 		renderer.render(
-			[&](acm::CommandBuffer cmd, uint32_t) // pre-pass: compute, outside the render pass
+			[&](acm::CommandBuffer& cmd, uint32_t) // pre-pass: compute, outside the render pass
 			{
 				cmd.bindComputePipeline(compute);
 				cmd.bindComputeDescriptorSet(compute, computeSet);
 				cmd.dispatch(kCount / 64, 1, 1);
 				cmd.bufferBarrier(storage, acm::ShaderStage::Compute, acm::ShaderStage::Vertex);
 			},
-			[&](acm::CommandBuffer cmd, uint32_t) // draws, inside the render pass
+			[&](acm::CommandBuffer& cmd, uint32_t) // draws, inside the render pass
 			{
 				cmd.bindPipeline(graphics);
 				cmd.draw(3);

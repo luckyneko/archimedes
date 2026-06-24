@@ -11,12 +11,9 @@ namespace acm
 		uint32_t height{0};
 	};
 
-	// Backend-neutral image / vertex-attribute formats. This is a deliberately
-	// curated subset of what Vulkan exposes (~250 VkFormat values); it covers the
-	// formats the renderer actually uses today (surface/image formats + the
-	// R32*_Sfloat formats for vertex attributes). Anything outside the set maps to
-	// Undefined (with a warning) in the acm<->Vk conversion layer; extend both the
-	// enum and the tables in src/acmVkConvert.cpp as new formats are needed.
+	// Backend-neutral image / vertex-attribute formats. This deliberately curated
+	// set covers the surface, image, and vertex formats used by the renderer today.
+	// Extend the enum and the selected backend's conversion table together.
 	enum class Format
 	{
 		Undefined,
@@ -194,9 +191,8 @@ namespace acm
 		ColorSpace colorSpace{ColorSpace::SrgbNonlinear};
 	};
 
-	// Backend-neutral subset of VkSurfaceCapabilitiesKHR. The raw capabilities
-	// (transform, usage flags, etc.) are kept inside Surface::impl for internal
-	// swapchain creation; this is the public, descriptive view.
+	// Backend-neutral surface capabilities. Swapchain creation requeries the
+	// complete native capabilities through the private backend.
 	struct SurfaceCapabilities
 	{
 		uint32_t minImageCount{0};

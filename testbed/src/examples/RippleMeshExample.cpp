@@ -1,6 +1,7 @@
 #include "RippleMeshExample.h"
 
 #include "TbUtils.h"
+
 #include <array>
 
 namespace
@@ -32,9 +33,8 @@ ExampleConfig RippleMeshExample::config()
 	return cfg;
 }
 
-bool RippleMeshExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool RippleMeshExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 
 	acm::Shader vertex = tb::loadShader(device, "mesh.vert.spv");
@@ -75,7 +75,7 @@ bool RippleMeshExample::onInit(acm::Device device, const std::vector<RenderConte
 		acm::PipelineConfig config;
 		config.vertex = vertex;
 		config.fragment = fragment;
-		config.renderPass = m_views[i]->renderPass();
+		config.target = m_views[i]->renderTarget();
 		config.descriptorLayout = m_layout;
 		config.depthTest = true;
 		config.samples = acm::SampleCount::Four;
@@ -88,7 +88,7 @@ bool RippleMeshExample::onInit(acm::Device device, const std::vector<RenderConte
 	return true;
 }
 
-void RippleMeshExample::onUpdate(acm::Device, float time)
+void RippleMeshExample::onUpdate(acm::Device&, float time)
 {
 	m_scene.update(time); // GPU compute deform (barrier-fenced against the prior frame)
 }
@@ -106,7 +106,7 @@ void RippleMeshExample::onRenderView(uint32_t viewIndex, float)
 	cam.model = tb::identity();
 	vd.cameraUniform.write(&cam, sizeof(cam));
 
-	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer cmd, uint32_t)
+	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer& cmd, uint32_t)
 										  {
 											  cmd.bindPipeline(vd.pipeline);
 											  cmd.bindDescriptorSet(vd.pipeline, vd.descriptor);
@@ -120,5 +120,4 @@ void RippleMeshExample::onShutdown()
 	m_indexBuffer.reset();
 	m_layout.reset();
 	m_scene.shutdown();
-	m_device.reset();
 }

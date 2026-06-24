@@ -1,7 +1,10 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
+#include <utility>
 
 // Integration: builds an acm::Shader + acm::Pipeline against a headless
 // swapchain's render pass, using the precompiled SPIR-V in test_spirv.h. SKIPs
@@ -17,10 +20,13 @@ TEST_CASE("Shader rejects empty SPIR-V, accepts valid", "[acm][gpu]")
 
 	acm::Shader vert = s.device.createShader(acmtest::triangleVertSpirv());
 	REQUIRE(vert.valid());
-	REQUIRE(vert.vkShaderModule() != VK_NULL_HANDLE);
+	acm::Shader retained = vert;
+	vert.reset();
+	REQUIRE_FALSE(vert.valid());
+	REQUIRE(retained.valid());
 }
 
-TEST_CASE("Pipeline builds from shaders + render pass", "[acm][gpu]")
+TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 {
 	acmtest::HeadlessStack s;
 	if (!acmtest::buildHeadlessStack(s))
@@ -31,10 +37,16 @@ TEST_CASE("Pipeline builds from shaders + render pass", "[acm][gpu]")
 	REQUIRE(vert.valid());
 	REQUIRE(frag.valid());
 
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.vkRenderPass());
+	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.getRenderTarget(0));
 	REQUIRE(pipeline.valid());
-	REQUIRE(pipeline.vkPipeline() != VK_NULL_HANDLE);
-	REQUIRE(pipeline.vkPipelineLayout() != VK_NULL_HANDLE);
+
+	acm::Pipeline retained = pipeline;
+	pipeline.reset();
+	REQUIRE_FALSE(pipeline.valid());
+	REQUIRE(retained.valid());
+	pipeline = std::move(retained);
+	REQUIRE(pipeline.valid());
+	REQUIRE_FALSE(retained.valid());
 
 	// The shaders are only needed at creation time; dropping them must not affect
 	// the already-built pipeline.
@@ -53,6 +65,6 @@ TEST_CASE("Pipeline is invalid when a shader is", "[acm][gpu]")
 	REQUIRE(frag.valid());
 
 	// A null vertex shader can't build a pipeline.
-	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.vkRenderPass());
+	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.getRenderTarget(0));
 	REQUIRE_FALSE(pipeline.valid());
 }

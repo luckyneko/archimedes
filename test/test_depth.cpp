@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <tuple>
@@ -65,7 +67,7 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		acm::PipelineConfig config;
 		config.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
 		config.fragment = device.createShader(acmtest::uniformColorFragSpirv());
-		config.renderPass = target.vkRenderPass();
+		config.target = target;
 		config.descriptorLayout = layout;
 		config.depthTest = true;
 		config.samples = samples;
@@ -109,13 +111,7 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		cmd.copyTextureToBuffer(color, readback);
 		cmd.end();
 
-		VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-		VkSubmitInfo submit = {};
-		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submit.commandBufferCount = 1;
-		submit.pCommandBuffers = &vkcb;
-		REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-		REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+		REQUIRE_FALSE(device.submitSync(cmd));
 
 		// Center must be the near triangle's green: the far red was drawn last but
 		// failed the depth test. B8G8R8A8 layout is [B,G,R,A].

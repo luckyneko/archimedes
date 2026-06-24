@@ -1,8 +1,11 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 // Integration: a compute pipeline dispatched over a storage buffer, read back on the
@@ -40,9 +43,16 @@ TEST_CASE("a compute shader fills a storage buffer", "[acm][gpu]")
 	REQUIRE(compute.valid());
 	acm::ComputePipeline pipeline = device.createComputePipeline(compute, layout);
 	REQUIRE(pipeline.valid());
+	acm::ComputePipeline retained = pipeline;
+	pipeline.reset();
+	REQUIRE_FALSE(pipeline.valid());
+	REQUIRE(retained.valid());
+	pipeline = std::move(retained);
+	REQUIRE(pipeline.valid());
+	REQUIRE_FALSE(retained.valid());
 
 	// Dispatch 4 groups; submitSync records + submits + waits the queue idle.
-	device.submitSync([&](acm::CommandBuffer cmd)
+	device.submitSync([&](acm::CommandBuffer& cmd)
 					  {
 						  cmd.bindComputePipeline(pipeline);
 						  cmd.bindComputeDescriptorSet(pipeline, descriptors);
@@ -96,7 +106,7 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::storageReadFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.descriptorLayout = layout;
 	acm::Pipeline graphics = device.createPipeline(config);
 	REQUIRE(graphics.valid());
@@ -121,13 +131,7 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	cmd.copyTextureToBuffer(color, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// The center pixel is the compute-written green, not the seeded red — proving the
 	// fragment read saw the compute write through the barrier.

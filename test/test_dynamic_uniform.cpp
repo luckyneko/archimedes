@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <cstring>
@@ -55,7 +57,7 @@ TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::colorUniformFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.descriptorLayout = layout;
 	acm::Pipeline pipeline = device.createPipeline(config);
 	REQUIRE(pipeline.valid());
@@ -73,13 +75,7 @@ TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 	cmd.copyTextureToBuffer(color, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// Element 1 (green) was selected by the dynamic offset, not element 0 (red).
 	const auto* px = static_cast<const uint8_t*>(readback.map());

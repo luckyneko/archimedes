@@ -1,11 +1,15 @@
 #include <archimedes/archimedes.h>
-#include <catch2/catch_all.hpp>
 
-// Pure handle semantics — no Vulkan device required. Every acm:: type is a
-// value handle over a shared_ptr pImpl: default-constructed is null/invalid.
+#include <catch2/catch_all.hpp>
+#include <type_traits>
+#include <utility>
+
+// Pure handle semantics -- no Vulkan device required. Every acm:: resource is a
+// value handle: default-constructed is null/invalid regardless of its backend.
 
 TEST_CASE("default-constructed handles are invalid", "[acm][handle]")
 {
+	REQUIRE_FALSE(acm::Handle().valid());
 	REQUIRE_FALSE(acm::Instance().valid());
 	REQUIRE_FALSE(acm::Device().valid());
 	REQUIRE_FALSE(acm::Surface().valid());
@@ -21,7 +25,6 @@ TEST_CASE("default-constructed handles are invalid", "[acm][handle]")
 	REQUIRE_FALSE(acm::Sampler().valid());
 	REQUIRE_FALSE(acm::DescriptorSetLayout().valid());
 	REQUIRE_FALSE(acm::DescriptorSet().valid());
-	REQUIRE_FALSE(acm::UniformRing().valid());
 }
 
 TEST_CASE("reset on a null handle stays invalid", "[acm][handle]")
@@ -33,8 +36,25 @@ TEST_CASE("reset on a null handle stays invalid", "[acm][handle]")
 
 TEST_CASE("copying a null handle yields another null handle", "[acm][handle]")
 {
-	acm::Device a;
-	acm::Device b = a;
+	acm::Buffer a;
+	acm::Buffer b = a;
 	REQUIRE_FALSE(a.valid());
 	REQUIRE_FALSE(b.valid());
+}
+
+TEST_CASE("owning roots are move-only", "[acm][handle]")
+{
+	STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<acm::Instance>);
+	STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<acm::Instance>);
+	STATIC_REQUIRE(std::is_nothrow_move_constructible_v<acm::Instance>);
+	STATIC_REQUIRE(std::is_nothrow_move_assignable_v<acm::Instance>);
+	STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<acm::Device>);
+	STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<acm::Device>);
+	STATIC_REQUIRE(std::is_nothrow_move_constructible_v<acm::Device>);
+	STATIC_REQUIRE(std::is_nothrow_move_assignable_v<acm::Device>);
+
+	acm::Device source;
+	acm::Device destination = std::move(source);
+	REQUIRE_FALSE(source.valid());
+	REQUIRE_FALSE(destination.valid());
 }

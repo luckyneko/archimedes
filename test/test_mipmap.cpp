@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <vector>
@@ -58,7 +60,7 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 		acm::PipelineConfig config;
 		config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 		config.fragment = device.createShader(acmtest::sampleTextureLodFragSpirv());
-		config.renderPass = target.vkRenderPass();
+		config.target = target;
 		config.descriptorLayout = layout;
 		acm::Pipeline pipeline = device.createPipeline(config);
 		REQUIRE(pipeline.valid());
@@ -77,13 +79,7 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 		cmd.copyTextureToBuffer(out, readback);
 		cmd.end();
 
-		VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-		VkSubmitInfo submit = {};
-		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submit.commandBufferCount = 1;
-		submit.pCommandBuffers = &vkcb;
-		REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-		REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+		REQUIRE_FALSE(device.submitSync(cmd));
 		return readback;
 	};
 

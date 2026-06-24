@@ -3,8 +3,10 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
+#include "archimedes/acmNative.h"
 #include "archimedes/acmVersion.h"
-#include "archimedes/acmVkFwd.h"
+
+#include <memory>
 #include <vector>
 
 namespace acm
@@ -12,24 +14,25 @@ namespace acm
 	class Instance
 	{
 	public:
-		Instance() {}
+		Instance();
 		Instance(const char* appName, const acm::Version& appVer);
+		Instance(const acm::Instance& other) = delete;
+		Instance& operator=(const acm::Instance& other) = delete;
+		Instance(acm::Instance&& other) noexcept;
+		Instance& operator=(acm::Instance&& other) noexcept;
+		~Instance();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		acm::native::InstanceHandle nativeInstance() const;
 
-		// Factories — the only way to build children of an Instance.
-		acm::Surface createSurface(VkSurfaceKHR surface);
+		acm::Surface createSurface(acm::native::SurfaceHandle surface);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIdx);
-
-		const std::vector<const char*>& getLayerNames() const;
 		const std::vector<acm::GPU>& getAvailableGPUs() const;
-		VkInstance vkInstance();
 
 	private:
-		struct impl;
-		std::shared_ptr<impl> m;
+		std::unique_ptr<acm::native::Instance> m;
 		acm::Error m_error;
 	};
 } // namespace acm

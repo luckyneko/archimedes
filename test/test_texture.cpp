@@ -1,8 +1,11 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <utility>
 
 // Integration: the render-to-texture path. Renders the triangle into an owned
 // acm::Texture (no swapchain / surface needed), copies it to a host-visible
@@ -28,15 +31,30 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 
 	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	REQUIRE(texture.valid());
-	REQUIRE(texture.vkImage() != VK_NULL_HANDLE);
-	REQUIRE(texture.vkImageView() != VK_NULL_HANDLE);
+	REQUIRE(texture.format() == acm::Format::B8G8R8A8_Unorm);
+	REQUIRE(texture.getExtent().width == kSize);
+	REQUIRE(texture.getExtent().height == kSize);
+	REQUIRE(texture.mipLevels() == 1);
+
+	acm::Texture retained = texture;
+	texture.reset();
+	REQUIRE_FALSE(texture.valid());
+	REQUIRE(retained.valid());
+	texture = std::move(retained);
 
 	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc);
 	REQUIRE(target.valid());
+	acm::RenderTarget retainedTarget = target;
+	target.reset();
+	REQUIRE_FALSE(target.valid());
+	REQUIRE(retainedTarget.valid());
+	target = std::move(retainedTarget);
+	REQUIRE(target.valid());
+	REQUIRE_FALSE(retainedTarget.valid());
 
 	acm::Shader vert = device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader frag = device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = device.createPipeline(vert, frag, target.vkRenderPass());
+	acm::Pipeline pipeline = device.createPipeline(vert, frag, target);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
@@ -56,13 +74,7 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 	cmd.copyTextureToBuffer(texture, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// The center pixel sits inside the triangle, so it must be the shader's red.
 	// B8G8R8A8 layout is [B, G, R, A].

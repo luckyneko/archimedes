@@ -11,12 +11,12 @@ class RenderContext
 {
 public:
 	RenderContext() {}
-	bool init(acm::Device device, acm::Surface surface, acm::SurfaceFormat format, acm::PresentMode presentMode, bool depth, acm::SampleCount samples, acm::Extent2D extent);
+	bool init(acm::Device& device, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, bool depth, acm::SampleCount samples, acm::Extent2D extent);
 
 	acm::Renderer renderer() { return m_renderer; }
 	acm::SwapChain swapChain() { return m_swapChain; }
+	acm::RenderTarget renderTarget() { return m_swapChain.getRenderTarget(0); }
 	acm::Extent2D extent() { return m_swapChain.getExtents(); }
-	VkRenderPass renderPass() { return m_swapChain.vkRenderPass(); } // for pipeline creation
 
 	void shutdown();
 

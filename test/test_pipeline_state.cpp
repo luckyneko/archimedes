@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 
@@ -69,7 +71,7 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 		acm::PipelineConfig config;
 		config.vertex = device.createShader(acmtest::triangleVertSpirv());
 		config.fragment = device.createShader(acmtest::triangleFragSpirv());
-		config.renderPass = v.target.vkRenderPass();
+		config.target = v.target;
 		config.cullMode = v.cull;
 		config.frontFace = v.front;
 		v.pipeline = device.createPipeline(config);
@@ -87,13 +89,7 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	const size_t center = (size_t(kSize / 2) * kSize + kSize / 2) * 4;
 	const uint8_t* none = static_cast<const uint8_t*>(variants[0].readback.map()) + center;

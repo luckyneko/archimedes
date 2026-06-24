@@ -2,8 +2,10 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
-#include "archimedes/acmVkFwd.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -17,21 +19,26 @@ namespace acm
 	class DescriptorSetLayout
 	{
 	public:
-		DescriptorSetLayout() {}
+		DescriptorSetLayout();
+		DescriptorSetLayout(const acm::DescriptorSetLayout& other);
+		DescriptorSetLayout& operator=(const acm::DescriptorSetLayout& other);
+		DescriptorSetLayout(acm::DescriptorSetLayout&& other) noexcept;
+		DescriptorSetLayout& operator=(acm::DescriptorSetLayout&& other) noexcept;
+		~DescriptorSetLayout();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
-
-		const std::vector<acm::DescriptorBinding>& bindings() const;
-		VkDescriptorSetLayout vkDescriptorSetLayout() const;
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::DescriptorSetLayout* native() const { return m_resource; }
 
 	private:
-		friend class Device; // only Device::createDescriptorSetLayout builds one
-		DescriptorSetLayout(acm::Device device, const std::vector<acm::DescriptorBinding>& bindings);
+		friend acm::native::Device;
+		DescriptorSetLayout(acm::native::DescriptorSetLayout* resource, acm::Handle handle);
+		explicit DescriptorSetLayout(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::DescriptorSetLayout* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm

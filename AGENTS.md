@@ -1,6 +1,6 @@
 # Global rules
 
-This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currently a static library; MoltenVK on macOS). The rules below are general working discipline that applies to every change here. Project-specific architecture — the `acm::` pImpl/`shared_ptr` handle pattern, the object graph and ownership rules, the MoltenVK/portability requirements, the vendored-dependency model, and build commands & naming/style conventions — lives in **[CLAUDE.md](CLAUDE.md)** — that file is authoritative; read it first and defer to it wherever it is more specific than this one.
+This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currently a static library; MoltenVK on macOS). The rules below are general working discipline that applies to every change here. Project-specific architecture — the stable typed-resource slot pattern, the object graph and ownership rules, the MoltenVK/portability requirements, the vendored-dependency model, and build commands & naming/style conventions — lives in **[CLAUDE.md](CLAUDE.md)** — that file is authoritative; read it first and defer to it wherever it is more specific than this one.
 
 ## Top 10 non-negotiables
 
@@ -25,6 +25,10 @@ This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currentl
 - Before writing a new class, search for an existing owner and extend or generalize it. Duplicate or "alternative" implementations are unacceptable — including in benchmarks, tests, prototypes, examples, and temporary scaffolding.
 - **Separation of concerns.** Code lives where it logically belongs. If outside code must reach into a class's internals, the method probably belongs on the class.
 - When adding a feature, refactor the nearby code it needs as part of the same change. If the refactor is large, surface the trade-off before proceeding.
+- **Implementation placement.** Non-trivial functions declared in a header must be implemented in the associated `.cpp`, not in unrelated translation units. Trivial value-returning accessors and templates may be defined inline in their headers.
+- **No floating anonymous helpers.** Do not add free functions in anonymous namespaces. Put worthwhile behavior on its owning class or in a named utility/convert module.
+- **No generic detail namespace.** Do not use a `detail` namespace unless it is genuinely required by a public-header boundary; prefer a domain namespace such as `vulkan` and mirror it in the folder structure.
+- **Avoid friendship.** Do not add `friend` access when a proper API can express the relationship. If friendship still appears necessary, check with the user first.
 
 ## Before editing
 

@@ -19,17 +19,17 @@ matters once compute does heavier work than the demo deform.
 
 ### 2. Best-fit allocator
 
-In `Block::tryAllocate` ([src/acmVkMemory.cpp](src/acmVkMemory.cpp)), scan all free
+In `Block::tryAllocate` ([src/vulkan/Memory.cpp](src/vulkan/Memory.cpp)), scan all free
 regions and pick the smallest that fits instead of the first. O(regions) already, so no
 real cost; reduces fragmentation a little. Self-contained — but only worth doing if
 profiling ever shows fragmentation. First-fit is fine at our scale.
 
-### 3. UniformRing for mixed / texture descriptor sets
+### 3. General per-frame descriptor resources
 
-`acm::UniformRing` bundles per-frame updates only for a *single-uniform* set. The testbed
-already hand-rolls a per-frame ring for its mixed uniform+sampler set (and there's no
-per-frame ring for texture descriptors), so this is a de-risked convenience extraction,
-not new ground.
+Callers currently keep their own per-frame buffers and descriptor sets, indexed by the
+renderer callback's fence-safe frame slot. If that pattern repeats enough to justify an
+abstraction, it should support arbitrary descriptor layouts and resource types rather
+than special-casing a single uniform binding.
 
 ### 4. Drop the deform's `submitSync` wait (compute pipelining)
 

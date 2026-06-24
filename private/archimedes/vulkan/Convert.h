@@ -6,9 +6,10 @@
 // pull in <vulkan/vulkan.h>.
 
 #include "archimedes/acmTypes.h"
+
 #include <vulkan/vulkan.h>
 
-namespace acm
+namespace acm::vulkan
 {
 	// toVk translates an app-supplied value; it warns on anything it cannot
 	// map, since that means the caller set an invalid value. fromVk/tryFromVk
@@ -30,6 +31,15 @@ namespace acm
 
 	VkDescriptorType toVk(acm::DescriptorType type);
 	VkShaderStageFlags toVk(acm::ShaderStage stage);
+	VkPipelineStageFlags toVkPipelineStage(acm::ShaderStage stage);
+
+	struct VkLayoutInfo
+	{
+		VkImageLayout layout;
+		VkAccessFlags access;
+		VkPipelineStageFlags stage;
+	};
+	VkLayoutInfo toVk(acm::ImageLayout layout);
 
 	VkPrimitiveTopology toVk(acm::Topology topology);
 	VkCullModeFlags toVk(acm::CullMode cull);
@@ -41,4 +51,4 @@ namespace acm
 	// same request). maxSampleCount returns the device's highest usable count.
 	VkSampleCountFlagBits toVkSampleCount(acm::SampleCount requested, VkPhysicalDevice phys);
 	acm::SampleCount maxSampleCount(VkPhysicalDevice phys);
-} // namespace acm
+} // namespace acm::vulkan

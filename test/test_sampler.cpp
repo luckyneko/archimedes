@@ -1,8 +1,11 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <utility>
 
 // Integration: the full render-to-texture-then-sample path. Pass 1 renders the
 // red triangle into texture A (left in SHADER_READ_ONLY). Pass 2 draws a
@@ -32,7 +35,7 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 	acm::RenderTarget targetA = device.createRenderTarget(texA, acm::RenderTargetFinish::Sampled);
 	acm::Pipeline pipeA = device.createPipeline(device.createShader(acmtest::triangleVertSpirv()),
 												device.createShader(acmtest::triangleFragSpirv()),
-												targetA.vkRenderPass());
+												targetA);
 	REQUIRE(targetA.valid());
 	REQUIRE(pipeA.valid());
 
@@ -42,6 +45,11 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 
 	acm::Sampler sampler = device.createSampler();
 	REQUIRE(sampler.valid());
+	acm::Sampler retainedSampler = sampler;
+	sampler.reset();
+	REQUIRE_FALSE(sampler.valid());
+	REQUIRE(retainedSampler.valid());
+	sampler = std::move(retainedSampler);
 	acm::DescriptorSetLayout layout = device.createDescriptorSetLayout(1);
 	REQUIRE(layout.valid());
 	acm::DescriptorSet descriptors = device.createDescriptorSet(layout);
@@ -51,7 +59,7 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 	acm::PipelineConfig configB;
 	configB.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	configB.fragment = device.createShader(acmtest::sampleTextureFragSpirv());
-	configB.renderPass = targetB.vkRenderPass();
+	configB.target = targetB;
 	configB.descriptorLayout = layout;
 	acm::Pipeline pipeB = device.createPipeline(configB);
 	REQUIRE(pipeB.valid());
@@ -81,13 +89,7 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 	cmd.copyTextureToBuffer(texB, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// B's center sampled A's center (the red triangle). B8G8R8A8 layout is [B,G,R,A].
 	const auto* pixels = static_cast<const uint8_t*>(readback.map());

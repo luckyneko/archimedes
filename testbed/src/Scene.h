@@ -1,6 +1,7 @@
 #pragma once
 
 #include <archimedes/archimedes.h>
+
 #include <cstdint>
 
 // The shared, centralised model both windows render from their own viewpoints: a
@@ -14,7 +15,7 @@ class Scene
 public:
 	Scene() {}
 	// `computeShader` is the mesh-deform compute module (mesh.comp.spv), loaded by main.
-	bool init(acm::Device device, acm::Shader computeShader);
+	bool init(acm::Device& device, acm::Shader computeShader);
 
 	// Rewrite the mesh for animation time `t`: write the time uniform, then dispatch the
 	// compute shader (synchronously — submitSync waits the queue idle). Must run only
@@ -22,8 +23,7 @@ public:
 	// first, so the prior frame's reads are already done.
 	void update(float t);
 
-	// Release all GPU resources (and the device reference) so the device can be
-	// destroyed. Resource teardown defers onto the device's queue as usual.
+	// Release all GPU resources before the borrowed device is destroyed.
 	void shutdown();
 
 	acm::Buffer vertexBuffer() const { return m_vertexBuffer; }
@@ -33,7 +33,7 @@ public:
 	acm::Sampler sampler() const { return m_sampler; }
 
 private:
-	acm::Device m_device;
+	acm::Device* m_device{nullptr};
 	acm::Buffer m_vertexBuffer; // storage SSBO, rewritten every frame by compute
 	acm::Buffer m_indexBuffer;	// static grid topology
 	acm::Texture m_texture;

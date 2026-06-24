@@ -8,6 +8,7 @@
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmGPU.h"
+#include "archimedes/acmHandle.h"
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderTarget.h"
@@ -17,5 +18,4 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmSwapChain.h"
 #include "archimedes/acmTexture.h"
-#include "archimedes/acmUniformRing.h"
 #include "archimedes/acmVersion.h"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Example.h"
+
 #include <array>
 #include <vector>
 
@@ -16,8 +17,8 @@ class ComputeTextureExample : public Example
 {
 public:
 	ExampleConfig config() override;
-	bool onInit(acm::Device device, const std::vector<RenderContext*>& views) override;
-	void onUpdate(acm::Device device, float time) override;
+	bool onInit(acm::Device& device, const std::vector<RenderContext*>& views) override;
+	void onUpdate(acm::Device& device, float time) override;
 	void onRenderView(uint32_t viewIndex, float time) override;
 	void onShutdown() override;
 
@@ -25,7 +26,6 @@ private:
 	static constexpr uint32_t kFrames = acm::Renderer::MaxFramesInFlight;
 	static constexpr uint32_t kImageSize = 512; // multiple of the 8x8 workgroup
 
-	acm::Device m_device;
 	std::vector<RenderContext*> m_views;
 
 	acm::Texture m_image; // storage image the compute writes + the draw samples

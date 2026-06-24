@@ -1,76 +1,86 @@
 #include "archimedes/acmSampler.h"
 
-#include "archimedes/acmDevice.h"
+#include "archimedes/nativeAPI.h"
 
-#include <vulkan/vulkan.h>
+#include <utility>
 
-#include <algorithm>
+acm::Sampler::Sampler() = default;
 
-struct acm::Sampler::impl
+acm::Sampler::Sampler(acm::native::Sampler* resource, acm::Handle handle)
+	: m_resource(resource)
+	, m_handle(handle)
 {
-	acm::Device device;
-	VkSampler sampler{VK_NULL_HANDLE};
-
-	~impl()
-	{
-		if (sampler && device.valid())
-		{
-			VkDevice dev = device.vkDevice();
-			VkSampler s = sampler;
-			device.enqueueDestroy([dev, s]
-								  { vkDestroySampler(dev, s, nullptr); });
-		}
-	}
-};
-
-acm::Sampler::Sampler(acm::Device device, float maxAnisotropy)
-	: m()
-{
-	auto impl = std::make_shared<acm::Sampler::impl>();
-	impl->device = device;
-
-	// Anisotropy is requested with maxAnisotropy > 1. It needs the samplerAnisotropy
-	// device feature; without it we disable (silently degrade) rather than make an
-	// invalid sampler. The level is clamped to the device's maxSamplerAnisotropy limit.
-	bool aniso = maxAnisotropy > 1.0f;
-	if (aniso && !device.enabledFeatures().samplerAnisotropy)
-		aniso = false;
-	float anisoLevel = 1.0f;
-	if (aniso)
-	{
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(device.getGPU().device, &props);
-		anisoLevel = std::min(maxAnisotropy, props.limits.maxSamplerAnisotropy);
-	}
-
-	VkSamplerCreateInfo samplerInfo = {};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	// Trilinear + the full LOD range, so a mipmapped texture is filtered across its
-	// levels. Harmless for single-level textures (clamps to level 0).
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.anisotropyEnable = aniso ? VK_TRUE : VK_FALSE;
-	samplerInfo.maxAnisotropy = anisoLevel;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	samplerInfo.compareEnable = VK_FALSE;
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-
-	if (vkCreateSampler(impl->device.vkDevice(), &samplerInfo, nullptr, &impl->sampler) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create sampler");
-		return;
-	}
-
-	m = impl;
 }
 
-VkSampler acm::Sampler::vkSampler() const
+acm::Sampler::Sampler(acm::Error error)
+	: m_error(std::move(error))
 {
-	return m->sampler;
+}
+
+acm::Sampler::Sampler(const acm::Sampler& other)
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(other.m_error)
+{
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+}
+
+acm::Sampler& acm::Sampler::operator=(const acm::Sampler& other)
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = other.m_error;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+	return *this;
+}
+
+acm::Sampler::Sampler(acm::Sampler&& other) noexcept
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(std::move(other.m_error))
+{
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+}
+
+acm::Sampler& acm::Sampler::operator=(acm::Sampler&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = std::move(other.m_error);
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+	return *this;
+}
+
+acm::Sampler::~Sampler()
+{
+	reset();
+}
+
+void acm::Sampler::reset()
+{
+	if (m_handle.valid())
+		m_resource->release(m_handle);
+	m_resource = nullptr;
+	m_handle.reset();
+	m_error = {};
+}
+
+bool acm::Sampler::valid() const
+{
+	return m_resource && m_resource->valid(m_handle);
+}
+
+acm::Error acm::Sampler::error() const
+{
+	return m_error;
 }

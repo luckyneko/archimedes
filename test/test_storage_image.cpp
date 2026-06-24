@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 
@@ -42,7 +44,7 @@ TEST_CASE("a compute shader writes a storage image", "[acm][gpu]")
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
 	REQUIRE(readback.valid());
 
-	device.submitSync([&](acm::CommandBuffer cmd)
+	device.submitSync([&](acm::CommandBuffer& cmd)
 					  {
 						  cmd.transitionImage(image, acm::ImageLayout::Undefined, acm::ImageLayout::General);
 						  cmd.bindComputePipeline(pipeline);

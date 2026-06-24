@@ -1,69 +1,86 @@
 #include "archimedes/acmDescriptorSetLayout.h"
 
-#include "archimedes/acmDevice.h"
-#include "archimedes/acmVkConvert.h"
+#include "archimedes/nativeAPI.h"
 
-#include <vulkan/vulkan.h>
+#include <utility>
 
-#include <cassert>
-#include <vector>
+acm::DescriptorSetLayout::DescriptorSetLayout() = default;
 
-struct acm::DescriptorSetLayout::impl
+acm::DescriptorSetLayout::DescriptorSetLayout(acm::native::DescriptorSetLayout* resource, acm::Handle handle)
+	: m_resource(resource)
+	, m_handle(handle)
 {
-	acm::Device device;
-	std::vector<acm::DescriptorBinding> bindings;
-	VkDescriptorSetLayout layout{VK_NULL_HANDLE};
-
-	~impl()
-	{
-		if (layout && device.valid())
-		{
-			VkDevice dev = device.vkDevice();
-			VkDescriptorSetLayout l = layout;
-			device.enqueueDestroy([dev, l]
-								  { vkDestroyDescriptorSetLayout(dev, l, nullptr); });
-		}
-	}
-};
-
-acm::DescriptorSetLayout::DescriptorSetLayout(acm::Device device, const std::vector<acm::DescriptorBinding>& bindings)
-	: m()
-{
-	assert(!bindings.empty() && "acm::DescriptorSetLayout: no bindings");
-
-	auto impl = std::make_shared<acm::DescriptorSetLayout::impl>();
-	impl->device = device;
-	impl->bindings = bindings;
-
-	std::vector<VkDescriptorSetLayoutBinding> vkBindings(bindings.size());
-	for (size_t i = 0; i < bindings.size(); ++i)
-	{
-		vkBindings[i].binding = bindings[i].binding;
-		vkBindings[i].descriptorType = acm::toVk(bindings[i].type);
-		vkBindings[i].descriptorCount = bindings[i].count; // > 1 = descriptor array
-		vkBindings[i].stageFlags = acm::toVk(bindings[i].stage);
-	}
-
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = uint32_t(vkBindings.size());
-	layoutInfo.pBindings = vkBindings.data();
-
-	if (vkCreateDescriptorSetLayout(impl->device.vkDevice(), &layoutInfo, nullptr, &impl->layout) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create descriptor set layout");
-		return;
-	}
-
-	m = impl;
 }
 
-const std::vector<acm::DescriptorBinding>& acm::DescriptorSetLayout::bindings() const
+acm::DescriptorSetLayout::DescriptorSetLayout(acm::Error error)
+	: m_error(std::move(error))
 {
-	return m->bindings;
 }
 
-VkDescriptorSetLayout acm::DescriptorSetLayout::vkDescriptorSetLayout() const
+acm::DescriptorSetLayout::DescriptorSetLayout(const acm::DescriptorSetLayout& other)
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(other.m_error)
 {
-	return m->layout;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+}
+
+acm::DescriptorSetLayout& acm::DescriptorSetLayout::operator=(const acm::DescriptorSetLayout& other)
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = other.m_error;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+	return *this;
+}
+
+acm::DescriptorSetLayout::DescriptorSetLayout(acm::DescriptorSetLayout&& other) noexcept
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(std::move(other.m_error))
+{
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+}
+
+acm::DescriptorSetLayout& acm::DescriptorSetLayout::operator=(acm::DescriptorSetLayout&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = std::move(other.m_error);
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+	return *this;
+}
+
+acm::DescriptorSetLayout::~DescriptorSetLayout()
+{
+	reset();
+}
+
+void acm::DescriptorSetLayout::reset()
+{
+	if (m_handle.valid())
+		m_resource->release(m_handle);
+	m_resource = nullptr;
+	m_handle.reset();
+	m_error = {};
+}
+
+bool acm::DescriptorSetLayout::valid() const
+{
+	return m_resource && m_resource->valid(m_handle);
+}
+
+acm::Error acm::DescriptorSetLayout::error() const
+{
+	return m_error;
 }

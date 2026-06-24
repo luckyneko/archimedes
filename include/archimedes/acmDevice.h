@@ -3,43 +3,45 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmRenderer.h" // Renderer::MaxFramesInFlight (default ring depth)
+#include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
-#include "archimedes/acmVkFwd.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <mutex>
+#include <memory>
 #include <vector>
 
 namespace acm
 {
-	class MemoryAllocator; // internal pooling sub-allocator (private/archimedes/acmVkMemory.h)
-
 	class Device
 	{
 	public:
-		Device() {}
+		Device();
+		Device(const acm::Device& other) = delete;
+		Device& operator=(const acm::Device& other) = delete;
+		Device(acm::Device&& other) noexcept;
+		Device& operator=(acm::Device&& other) noexcept;
+		~Device();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
 
 		// Factories — the only way to build children of a Device.
-		acm::SwapChain createSwapChain(acm::Surface surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
-		acm::RenderTarget createRenderTarget(VkRenderPass renderPass, VkImage image, acm::Format format, acm::Extent2D extent, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
-		acm::RenderTarget createRenderTarget(acm::Texture texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One); // offscreen: owns its render pass
+		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
+		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One); // offscreen: owns its render pass
 		acm::Shader createShader(const std::vector<char>& spirv);
 		// Convenience: a pipeline with no vertex input and no descriptors (geometry
 		// from the shader). For vertex buffers / descriptors, use the config form.
-		acm::Pipeline createPipeline(acm::Shader vertex, acm::Shader fragment, VkRenderPass renderPass);
+		acm::Pipeline createPipeline(const acm::Shader& vertex, const acm::Shader& fragment, const acm::RenderTarget& target);
 		acm::Pipeline createPipeline(const acm::PipelineConfig& config);
 		// A compute pipeline: a compute `Shader` + a `DescriptorSetLayout` for the
 		// resources it reads/writes (a storage buffer, an optional uniform). Record
 		// bindComputePipeline -> bindComputeDescriptorSet -> dispatch, then submit.
-		acm::ComputePipeline createComputePipeline(acm::Shader compute, acm::DescriptorSetLayout layout);
+		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		acm::CommandPool createCommandPool();
-		acm::Renderer createRenderer(acm::SwapChain swapChain);
+		acm::Renderer createRenderer(const acm::SwapChain& swapChain);
 		// `mipmapped` (color only) gives the texture a full mip chain that Texture::upload
 		// generates; the result is a sampling resource, not a RenderTarget attachment.
 		// `storage` (color only) adds STORAGE usage so a compute shader can write it via a
@@ -52,11 +54,7 @@ namespace acm
 		// Convenience: N fragment-stage combined-image-samplers (bindings 0..n-1).
 		acm::DescriptorSetLayout createDescriptorSetLayout(uint32_t samplerCount);
 		acm::DescriptorSetLayout createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings);
-		acm::DescriptorSet createDescriptorSet(acm::DescriptorSetLayout layout);
-		// A per-frame ring of `frames` uniform buffers + one-binding descriptor sets,
-		// for a uniform updated every frame (e.g. an MVP matrix). Defaults: binding 0,
-		// vertex stage, MaxFramesInFlight deep.
-		acm::UniformRing createUniformRing(size_t bytes, uint32_t binding = 0, acm::ShaderStage stage = acm::ShaderStage::Vertex, uint32_t frames = acm::Renderer::MaxFramesInFlight);
+		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
 
 		const acm::GPU& getGPU() const;
 		uint32_t getQueueIdx() const;
@@ -70,13 +68,7 @@ namespace acm
 		// per-object slice packed into one buffer to a multiple of this.
 		size_t minUniformBufferOffsetAlignment() const;
 
-		// The device's pooling memory sub-allocator — Texture/Buffer allocate from it
-		// rather than calling vkAllocateMemory per resource. Internal; exposed for those
-		// resource types (and tests via memoryBlockCount).
-		acm::MemoryAllocator& memoryAllocator();
-		size_t memoryBlockCount() const; // live VkDeviceMemory blocks in the pool
-		VkDevice vkDevice();
-		VkQueue vkQueue();
+		size_t memoryBlockCount() const; // live native memory blocks in the pool
 
 		// Blocks until the device is idle (all queues drained). Like the queue, host
 		// access must be externally synchronized — call it only when no other thread
@@ -91,37 +83,14 @@ namespace acm
 		// most tool, not a hot path, and is externally synchronized like waitIdle (locks
 		// the device mutex around submit + wait; don't call it while another thread
 		// submits). The callback records into an already-begun command buffer.
-		acm::Error submitSync(const std::function<void(acm::CommandBuffer cmd)>& record);
-
-		// Guards the single VkQueue (submit/present) and the device-shared frame /
-		// graveyard bookkeeping below, so several Renderers can drive their own
-		// swapchains from their own threads. The Renderer locks this around
-		// submit/present + recreate + beginFrame/collectGarbage; command recording runs
-		// unlocked (concurrent). Single-window use just locks an uncontended mutex. The
-		// lock is the caller's responsibility (the bookkeeping methods below stay
-		// lock-free, so they don't deadlock when called under it).
-		std::mutex& deviceMutex();
-
-		// Deferred destruction. A Vulkan object must outlive every GPU
-		// submission that references it, which the CPU-side handle refcount
-		// cannot know about. Resources therefore enqueue their teardown here
-		// (tagged with the current frame) instead of destroying inline; the
-		// render loop calls beginFrame() once per frame and collectGarbage()
-		// with the newest frame index known to have fully retired on the GPU.
-		// Lock-free by design: a multi-threaded caller holds deviceMutex() around
-		// these (see above), so they must not lock it themselves. The Device
-		// destructor waits idle then flushes everything still pending.
-		void beginFrame();
-		uint64_t currentFrame() const;
-		void enqueueDestroy(std::function<void()> destroy);
-		void collectGarbage(uint64_t completedFrame);
+		acm::Error submitSync(const std::function<void(acm::CommandBuffer& cmd)>& record);
+		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:
-		friend class Instance; // only Instance::createDevice builds one
-		Device(acm::Instance instance, const acm::GPU& gpu, uint32_t queueIdx);
+		friend acm::native::Instance; // only Instance::createDevice builds one
+		explicit Device(std::unique_ptr<acm::native::Device> device);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		std::unique_ptr<acm::native::Device> m;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -2,32 +2,35 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmVkFwd.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
 
 namespace acm
 {
 	class CommandPool
 	{
 	public:
-		CommandPool() {}
+		CommandPool();
+		CommandPool(const acm::CommandPool& other);
+		CommandPool& operator=(const acm::CommandPool& other);
+		CommandPool(acm::CommandPool&& other) noexcept;
+		CommandPool& operator=(acm::CommandPool&& other) noexcept;
+		~CommandPool();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
-
-		// Allocates one primary command buffer from the pool. The pool is created
-		// with RESET_COMMAND_BUFFER, so each buffer can be re-recorded every frame
-		// (CommandBuffer::begin implicitly resets it).
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
 		acm::CommandBuffer allocate();
-
-		VkCommandPool vkCommandPool() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::CommandPool* native() const { return m_resource; }
 
 	private:
-		friend class Device; // only Device::createCommandPool builds one
-		CommandPool(acm::Device device);
+		friend acm::native::Device;
+		CommandPool(acm::native::CommandPool* resource, acm::Handle handle);
+		explicit CommandPool(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::CommandPool* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -9,6 +9,8 @@ include(addVulkanRuntime)
 add_executable(test-${PROJECT_NAME}
     test_version.cpp
     test_handles.cpp
+    test_handle_map.cpp
+    test_command_recording_benchmark.cpp
     test_instance.cpp
     test_device.cpp
     test_surface.cpp
@@ -19,7 +21,6 @@ add_executable(test-${PROJECT_NAME}
     test_sampler.cpp
     test_vertexbuffer.cpp
     test_uniform.cpp
-    test_uniform_ring.cpp
     test_depth.cpp
     test_buffer.cpp
     test_texture_upload.cpp
@@ -36,6 +37,7 @@ add_executable(test-${PROJECT_NAME}
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
+target_include_directories(test-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/private)
 target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2WithMain)
 
 # Point the loader at the vendored MoltenVK ICD so [gpu] tests find a driver

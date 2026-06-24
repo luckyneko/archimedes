@@ -3,28 +3,14 @@
 // Internal (not installed) Vulkan memory helpers. Included only by library .cpp
 // files, which already pull in <vulkan/vulkan.h>.
 
-#include <memory>
-#include <vector>
 #include <vulkan/vulkan.h>
 
-namespace acm
-{
-	// Index of the first memory type in `typeBits` that has all of `props`, or
-	// UINT32_MAX if none.
-	inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags props)
-	{
-		VkPhysicalDeviceMemoryProperties memProps;
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
-		for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i)
-		{
-			const bool typeAllowed = (typeBits & (1u << i)) != 0;
-			const bool hasProps = (memProps.memoryTypes[i].propertyFlags & props) == props;
-			if (typeAllowed && hasProps)
-				return i;
-		}
-		return UINT32_MAX;
-	}
+#include <memory>
+#include <mutex>
+#include <vector>
 
+namespace acm::vulkan
+{
 	// A sub-range of a pooled VkDeviceMemory block. `memory`/`offset` are what you
 	// bind a resource to; `mapped` is a persistent CPU pointer to this range for
 	// host-visible blocks (null otherwise — no per-resource vkMapMemory). Free it
@@ -45,8 +31,8 @@ namespace acm
 	// vkAllocateMemory per resource — which keeps us well under
 	// maxMemoryAllocationCount and avoids per-resource allocation overhead. Per
 	// block it keeps a first-fit free list (coalesced on free). Host-visible blocks
-	// are persistently mapped. Not thread-safe (single render thread assumed); one
-	// instance lives per Device. Blocks are freed when the allocator is destroyed,
+	// are persistently mapped. Allocation/free are protected by an allocator mutex;
+	// one instance lives per Device. Blocks are freed when the allocator is destroyed,
 	// so every allocation must be free()d (and its resource destroyed) first.
 	class MemoryAllocator
 	{
@@ -64,8 +50,13 @@ namespace acm
 
 	private:
 		struct Block;
+		static constexpr VkDeviceSize DefaultBlockSize = 64ull * 1024 * 1024;
+		static VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment);
+		static uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags properties);
+
 		VkDevice m_device{VK_NULL_HANDLE};
 		VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
+		mutable std::mutex m_mutex;
 		std::vector<std::unique_ptr<Block>> m_blocks;
 	};
-} // namespace acm
+} // namespace acm::vulkan

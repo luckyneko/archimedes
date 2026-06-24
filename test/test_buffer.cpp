@@ -35,6 +35,13 @@ TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
 	REQUIRE(mapped[2] == 3);
 	host.unmap();
 
+	// Buffer copies share the device-owned record without a shared_ptr pImpl.
+	acm::Buffer copy = host;
+	host.reset();
+	REQUIRE_FALSE(host.valid());
+	REQUIRE(copy.valid());
+	REQUIRE(static_cast<const uint32_t*>(copy.map())[1] == 2);
+
 	// Device-local: not host-visible, so map() refuses; write() still works (staging).
 	acm::Buffer local = device.createBuffer(sizeof(data), acm::BufferUsage::Vertex);
 	REQUIRE(local.valid());

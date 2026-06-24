@@ -46,10 +46,25 @@ set(SOURCE_FILES
     src/acmSurface.cpp
     src/acmSwapChain.cpp
     src/acmTexture.cpp
-    src/acmUniformRing.cpp
-    src/acmVkConvert.cpp
-    src/acmVkMemory.cpp
-    src/acmVkOneShot.cpp
+    
+    src/vulkan/Buffer.cpp
+    src/vulkan/CommandBuffer.cpp
+    src/vulkan/CommandPool.cpp
+    src/vulkan/ComputePipeline.cpp
+    src/vulkan/Convert.cpp
+    src/vulkan/DescriptorSet.cpp
+    src/vulkan/DescriptorSetLayout.cpp
+    src/vulkan/Device.cpp
+    src/vulkan/Instance.cpp
+    src/vulkan/Memory.cpp
+    src/vulkan/Pipeline.cpp
+    src/vulkan/Renderer.cpp
+    src/vulkan/RenderTarget.cpp
+    src/vulkan/Sampler.cpp
+    src/vulkan/Shader.cpp
+    src/vulkan/Surface.cpp
+    src/vulkan/SwapChain.cpp
+    src/vulkan/Texture.cpp
 )
 
 # A static library only needs the Vulkan *headers* to compile; the loader is a

@@ -6,6 +6,7 @@ namespace acm
 {
 	class Buffer;
 	class Error;
+	class Handle;
 	class CommandBuffer;
 	class CommandPool;
 	class ComputePipeline;
@@ -22,5 +23,4 @@ namespace acm
 	class Surface;
 	class SwapChain;
 	class Texture;
-	class UniformRing;
 } // namespace acm

@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <vector>
@@ -55,7 +57,7 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		acm::PipelineConfig config;
 		config.vertex = device.createShader(acmtest::triangleVertSpirv());
 		config.fragment = device.createShader(acmtest::triangleFragSpirv());
-		config.renderPass = target.vkRenderPass();
+		config.target = target;
 		config.samples = samples;
 		acm::Pipeline pipeline = device.createPipeline(config);
 		REQUIRE(pipeline.valid());
@@ -73,13 +75,7 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		cmd.copyTextureToBuffer(tex, readback);
 		cmd.end();
 
-		VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-		VkSubmitInfo submit = {};
-		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submit.commandBufferCount = 1;
-		submit.pCommandBuffers = &vkcb;
-		REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-		REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+		REQUIRE_FALSE(device.submitSync(cmd));
 	};
 
 	acm::Buffer single, multi;
@@ -131,7 +127,7 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::triangleVertSpirv());
 	config.fragment = device.createShader(acmtest::triangleFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.samples = acm::SampleCount::Four;
 	config.minSampleShading = 1.0f; // shade every sample
 	acm::Pipeline pipeline = device.createPipeline(config);
@@ -149,13 +145,7 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	cmd.copyTextureToBuffer(tex, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// Center is inside the triangle: still the shader's red, sample shading or not.
 	const auto* pixels = static_cast<const uint8_t*>(readback.map());

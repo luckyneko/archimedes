@@ -1,6 +1,7 @@
 #include <archimedes/archimedes.h>
-#include <catch2/catch_all.hpp>
 #include <vulkan/vulkan.h>
+
+#include <catch2/catch_all.hpp>
 
 // Integration: needs a live Vulkan driver (vendored MoltenVK ICD via
 // VK_ICD_FILENAMES). SKIPs when no driver is available.
@@ -11,7 +12,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	REQUIRE(instance.vkInstance() != VK_NULL_HANDLE);
+	REQUIRE(instance.nativeInstance() != VK_NULL_HANDLE);
 
 	const auto& gpus = instance.getAvailableGPUs();
 	REQUIRE_FALSE(gpus.empty());
@@ -20,7 +21,6 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	for (uint32_t i = 0; i < gpus.size(); ++i)
 	{
 		const auto& gpu = gpus[i];
-		REQUIRE(gpu.device != VK_NULL_HANDLE);
 		REQUIRE(gpu.index == i);		 // index mirrors enumeration order
 		REQUIRE_FALSE(gpu.name.empty()); // neutral GPU info populated
 		REQUIRE_FALSE(gpu.queueFamilies.empty());
@@ -30,17 +30,16 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	REQUIRE(anyGraphics);
 }
 
-TEST_CASE("Instance is a shared handle", "[acm][gpu]")
+TEST_CASE("Instance transfers ownership on move", "[acm][gpu]")
 {
 	acm::Instance a("acm-tests", acm::Version{0, 1, 0, 0});
 	if (!a.valid())
 		SKIP("no Vulkan driver available");
 
-	acm::Instance b = a; // shares the underlying VkInstance
-	VkInstance raw = b.vkInstance();
-	a.reset(); // drop one reference
+	acm::Instance b = std::move(a);
+	acm::native::InstanceHandle raw = b.nativeInstance();
 
 	REQUIRE_FALSE(a.valid());
 	REQUIRE(b.valid());
-	REQUIRE(b.vkInstance() == raw); // still alive through b
+	REQUIRE(b.nativeInstance() == raw);
 }

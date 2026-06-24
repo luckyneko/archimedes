@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Example.h"
+
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -14,15 +15,14 @@ class SpriteAtlasExample : public Example
 {
 public:
 	ExampleConfig config() override;
-	bool onInit(acm::Device device, const std::vector<RenderContext*>& views) override;
-	void onUpdate(acm::Device device, float time) override;
+	bool onInit(acm::Device& device, const std::vector<RenderContext*>& views) override;
+	void onUpdate(acm::Device& device, float time) override;
 	void onRenderView(uint32_t viewIndex, float time) override;
 	void onShutdown() override;
 
 private:
 	static constexpr uint32_t kTextureCount = 3;
 
-	acm::Device m_device;
 	std::vector<RenderContext*> m_views;
 
 	std::array<acm::Texture, kTextureCount> m_textures;

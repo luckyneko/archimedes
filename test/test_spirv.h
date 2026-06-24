@@ -1769,8 +1769,7 @@ namespace acmtest
 	}
 
 	// A solid-color fragment shader reading its color from a uniform at set 0,
-	// binding 0 (fragment stage) — used by the UniformRing test, where the only
-	// uniform is the ring's color. Generated from this GLSL 450 source:
+	// binding 0 (fragment stage). Generated from this GLSL 450 source:
 	//
 	//   layout(set = 0, binding = 0) uniform Color { vec4 color; } u;
 	//   layout(location = 0) out vec4 outColor;

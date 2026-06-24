@@ -1,23 +1,29 @@
-#include "archimedes/acmVkMemory.h"
+#include "archimedes/vulkan/Memory.h"
 
 #include <algorithm>
 
-namespace acm
+namespace acm::vulkan
 {
-	namespace
+	VkDeviceSize MemoryAllocator::alignUp(VkDeviceSize value, VkDeviceSize alignment)
 	{
-		// Default pool block size. Big enough that the many small resources in a
-		// typical scene share one block; allocations larger than this get a
-		// dedicated, exactly-sized block.
-		constexpr VkDeviceSize kBlockSize = 64ull * 1024 * 1024;
+		if (alignment == 0)
+			return value;
+		return (value + alignment - 1) & ~(alignment - 1);
+	}
 
-		VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment)
+	uint32_t MemoryAllocator::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeBits, VkMemoryPropertyFlags properties)
+	{
+		VkPhysicalDeviceMemoryProperties memoryProperties;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+		for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; ++index)
 		{
-			if (alignment == 0)
-				return value;
-			return (value + alignment - 1) & ~(alignment - 1);
+			const bool typeAllowed = (typeBits & (1u << index)) != 0;
+			const bool hasProperties = (memoryProperties.memoryTypes[index].propertyFlags & properties) == properties;
+			if (typeAllowed && hasProperties)
+				return index;
 		}
-	} // namespace
+		return UINT32_MAX;
+	}
 
 	// One VkDeviceMemory block, sub-divided by a free list of [offset,size) regions
 	// kept sorted by offset (so neighbours can coalesce on free).
@@ -41,7 +47,7 @@ namespace acm
 			for (size_t i = 0; i < freeRegions.size(); ++i)
 			{
 				const VkDeviceSize regionEnd = freeRegions[i].offset + freeRegions[i].size;
-				const VkDeviceSize aligned = alignUp(freeRegions[i].offset, alignment);
+				const VkDeviceSize aligned = MemoryAllocator::alignUp(freeRegions[i].offset, alignment);
 				if (aligned + size > regionEnd)
 					continue;
 
@@ -101,6 +107,7 @@ namespace acm
 
 	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
 	{
+		std::lock_guard<std::mutex> lock(m_mutex);
 		const uint32_t memoryType = findMemoryType(m_physicalDevice, req.memoryTypeBits, props);
 		if (memoryType == UINT32_MAX)
 			return {};
@@ -129,7 +136,7 @@ namespace acm
 
 		// None fit: create a new block (dedicated + exactly sized if the request is
 		// larger than the default block size).
-		const VkDeviceSize blockSize = std::max(kBlockSize, req.size);
+		const VkDeviceSize blockSize = std::max(DefaultBlockSize, req.size);
 		VkMemoryAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = blockSize;
@@ -163,11 +170,13 @@ namespace acm
 	{
 		if (!allocation.valid() || !allocation.block)
 			return;
+		std::lock_guard<std::mutex> lock(m_mutex);
 		static_cast<Block*>(allocation.block)->freeRange(allocation.offset, allocation.size);
 	}
 
 	size_t MemoryAllocator::blockCount() const
 	{
+		std::lock_guard<std::mutex> lock(m_mutex);
 		return m_blocks.size();
 	}
-} // namespace acm
+} // namespace acm::vulkan

@@ -1,5 +1,7 @@
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 
@@ -48,5 +50,12 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	REQUIRE(extent.height <= caps.maxImageExtent.height);
 
 	REQUIRE(swapChain.getRenderTargetCount() > 0);
-	REQUIRE(swapChain.getRenderTarget(0).valid());
+	acm::RenderTarget target = swapChain.getRenderTarget(0);
+	REQUIRE(target.valid());
+	acm::SwapChain retained = swapChain;
+	swapChain.reset();
+	REQUIRE(retained.valid());
+	REQUIRE(target.valid());
+	retained.reset();
+	REQUIRE_FALSE(target.valid());
 }

@@ -21,6 +21,7 @@ IndentPPDirectives: AfterHash
 NamespaceIndentation: All
 DerivePointerAlignment: false
 PointerAlignment: Left
+QualifierAlignment: Left
 
 # CXX Includes
 SortIncludes: CaseInsensitive

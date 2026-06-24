@@ -57,9 +57,9 @@ namespace
 	}
 } // namespace
 
-bool Scene::init(acm::Device device, acm::Shader computeShader)
+bool Scene::init(acm::Device& device, acm::Shader computeShader)
 {
-	m_device = device;
+	m_device = &device;
 
 	// The mesh vertices: a storage buffer the compute shader rewrites each frame and the
 	// vertex shaders read as an SSBO.
@@ -110,8 +110,8 @@ void Scene::update(float t)
 	m_paramsBuffer.write(params, sizeof(params));
 
 	const uint32_t groups = (kGrid + kLocalSize - 1) / kLocalSize;
-	m_device.submitSync([this, groups](acm::CommandBuffer cmd)
-						{
+	m_device->submitSync([this, groups](acm::CommandBuffer& cmd)
+						 {
 							// Bracket the dispatch with barriers so the shared SSBO is synced
 							// purely by queue-submission-order dependencies (not a wait-idle):
 							// wait for the previous frame's vertex reads before overwriting it
@@ -134,5 +134,5 @@ void Scene::shutdown()
 	m_indexBuffer.reset();
 	m_texture.reset();
 	m_sampler.reset();
-	m_device.reset();
+	m_device = nullptr;
 }

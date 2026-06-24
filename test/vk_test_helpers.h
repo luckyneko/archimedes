@@ -1,8 +1,9 @@
 #pragma once
 
 #include <archimedes/archimedes.h>
-#include <catch2/catch_all.hpp>
 #include <vulkan/vulkan.h>
+
+#include <catch2/catch_all.hpp>
 
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so
 // each test translation unit can include it without an extra link target.
@@ -14,7 +15,7 @@ namespace acmtest
 	inline VkSurfaceKHR createHeadlessSurface(acm::Instance& instance)
 	{
 		auto fn = reinterpret_cast<PFN_vkCreateHeadlessSurfaceEXT>(
-			vkGetInstanceProcAddr(instance.vkInstance(), "vkCreateHeadlessSurfaceEXT"));
+			vkGetInstanceProcAddr(instance.nativeInstance(), "vkCreateHeadlessSurfaceEXT"));
 		if (!fn)
 			return VK_NULL_HANDLE;
 
@@ -22,7 +23,7 @@ namespace acmtest
 		info.sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT;
 
 		VkSurfaceKHR surface = VK_NULL_HANDLE;
-		if (fn(instance.vkInstance(), &info, nullptr, &surface) != VK_SUCCESS)
+		if (fn(instance.nativeInstance(), &info, nullptr, &surface) != VK_SUCCESS)
 			return VK_NULL_HANDLE;
 		return surface;
 	}

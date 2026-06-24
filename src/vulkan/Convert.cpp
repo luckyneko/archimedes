@@ -1,8 +1,8 @@
-#include "archimedes/acmVkConvert.h"
+#include "archimedes/vulkan/Convert.h"
 
 #include <cassert>
 
-namespace acm
+namespace acm::vulkan
 {
 	VkFormat toVk(acm::Format format)
 	{
@@ -35,7 +35,7 @@ namespace acm
 			case acm::Format::Undefined:
 				return VK_FORMAT_UNDEFINED;
 		}
-		assert(false && "acm::toVk: invalid acm::Format");
+		assert(false && "acm::vulkan::toVk: invalid acm::Format");
 		return VK_FORMAT_UNDEFINED;
 	}
 
@@ -94,7 +94,7 @@ namespace acm
 			case acm::ColorSpace::SrgbNonlinear:
 				return VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 		}
-		assert(false && "acm::toVk: invalid acm::ColorSpace");
+		assert(false && "acm::vulkan::toVk: invalid acm::ColorSpace");
 		return VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	}
 
@@ -123,7 +123,7 @@ namespace acm
 			case acm::PresentMode::FifoRelaxed:
 				return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 		}
-		assert(false && "acm::toVk: invalid acm::PresentMode");
+		assert(false && "acm::vulkan::toVk: invalid acm::PresentMode");
 		return VK_PRESENT_MODE_FIFO_KHR;
 	}
 
@@ -186,7 +186,7 @@ namespace acm
 			case acm::BufferUsage::Storage:
 				return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		}
-		assert(false && "acm::toVk: invalid acm::BufferUsage");
+		assert(false && "acm::vulkan::toVk: invalid acm::BufferUsage");
 		return 0;
 	}
 
@@ -205,7 +205,7 @@ namespace acm
 			case acm::DescriptorType::StorageImage:
 				return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		}
-		assert(false && "acm::toVk: invalid acm::DescriptorType");
+		assert(false && "acm::vulkan::toVk: invalid acm::DescriptorType");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	}
 
@@ -219,8 +219,39 @@ namespace acm
 			flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
 		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Compute))
 			flags |= VK_SHADER_STAGE_COMPUTE_BIT;
-		assert(flags != 0 && "acm::toVk: empty acm::ShaderStage");
+		assert(flags != 0 && "acm::vulkan::toVk: empty acm::ShaderStage");
 		return flags;
+	}
+
+	VkPipelineStageFlags toVkPipelineStage(acm::ShaderStage stage)
+	{
+		VkPipelineStageFlags flags = 0;
+		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Vertex))
+			flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Fragment))
+			flags |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		if (uint32_t(stage) & uint32_t(acm::ShaderStage::Compute))
+			flags |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		return flags ? flags : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+	}
+
+	VkLayoutInfo toVk(acm::ImageLayout layout)
+	{
+		switch (layout)
+		{
+			case acm::ImageLayout::General:
+				return {VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT};
+			case acm::ImageLayout::ShaderReadOnly:
+				return {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
+			case acm::ImageLayout::TransferSrc:
+				return {VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT};
+			case acm::ImageLayout::TransferDst:
+				return {VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT};
+			case acm::ImageLayout::Undefined:
+				return {VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+		}
+		assert(false && "acm::vulkan::toVk: invalid acm::ImageLayout");
+		return {VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
 	}
 
 	VkPrimitiveTopology toVk(acm::Topology topology)
@@ -238,7 +269,7 @@ namespace acm
 			case acm::Topology::PointList:
 				return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
 		}
-		assert(false && "acm::toVk: invalid acm::Topology");
+		assert(false && "acm::vulkan::toVk: invalid acm::Topology");
 		return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	}
 
@@ -253,7 +284,7 @@ namespace acm
 			case acm::CullMode::Front:
 				return VK_CULL_MODE_FRONT_BIT;
 		}
-		assert(false && "acm::toVk: invalid acm::CullMode");
+		assert(false && "acm::vulkan::toVk: invalid acm::CullMode");
 		return VK_CULL_MODE_NONE;
 	}
 
@@ -266,7 +297,7 @@ namespace acm
 			case acm::FrontFace::CounterClockwise:
 				return VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		}
-		assert(false && "acm::toVk: invalid acm::FrontFace");
+		assert(false && "acm::vulkan::toVk: invalid acm::FrontFace");
 		return VK_FRONT_FACE_CLOCKWISE;
 	}
 
@@ -279,7 +310,7 @@ namespace acm
 			case acm::PolygonMode::Line:
 				return VK_POLYGON_MODE_LINE;
 		}
-		assert(false && "acm::toVk: invalid acm::PolygonMode");
+		assert(false && "acm::vulkan::toVk: invalid acm::PolygonMode");
 		return VK_POLYGON_MODE_FILL;
 	}
 
@@ -328,4 +359,4 @@ namespace acm
 			return acm::SampleCount::Two;
 		return acm::SampleCount::One;
 	}
-} // namespace acm
+} // namespace acm::vulkan

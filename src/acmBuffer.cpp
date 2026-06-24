@@ -1,158 +1,109 @@
 #include "archimedes/acmBuffer.h"
 
-#include "archimedes/acmDevice.h"
-#include "archimedes/acmVkConvert.h"
-#include "archimedes/acmVkMemory.h"
-#include "archimedes/acmVkOneShot.h"
+#include "archimedes/nativeAPI.h"
 
-#include <vulkan/vulkan.h>
+#include <utility>
 
-#include <algorithm>
-#include <cstring>
+acm::Buffer::Buffer() = default;
 
-namespace
+acm::Buffer::Buffer(acm::native::Buffer* resource, acm::Handle handle)
+	: m_resource(resource)
+	, m_handle(handle)
 {
-	// Vertex/index data is written once and read many times by the GPU, so it lives in
-	// device-local memory (filled via a staging copy). Uniforms (rewritten every frame),
-	// readback targets, and staging scratch buffers stay host-visible so the CPU can
-	// map them directly.
-	bool isHostVisible(acm::BufferUsage usage)
-	{
-		return usage == acm::BufferUsage::Uniform || usage == acm::BufferUsage::TransferDst || usage == acm::BufferUsage::Staging || usage == acm::BufferUsage::Storage;
-	}
+}
 
-	// Uploads `size` bytes into a device-local buffer through a host-visible Staging
-	// buffer + a one-shot copy. Synchronous (oneShotSubmit waits the queue idle), so it
-	// is a load-time operation, not a per-frame one.
-	acm::Error stagedUpload(acm::Device device, VkBuffer dst, VkDeviceSize size, const void* data)
-	{
-		acm::Buffer staging = device.createBuffer(size_t(size), acm::BufferUsage::Staging);
-		if (!staging.valid())
-			return acm::Error("stagedUpload: failed to create staging buffer");
-		if (auto err = staging.write(data, size_t(size)))
-			return err;
-
-		return acm::oneShotSubmit(device, [&staging, dst, size](VkCommandBuffer cb)
-										  {
-			VkBufferCopy region = {};
-			region.size = size;
-			vkCmdCopyBuffer(cb, staging.vkBuffer(), dst, 1, &region); });
-	}
-} // namespace
-
-struct acm::Buffer::impl
+acm::Buffer::Buffer(acm::Error error)
+	: m_error(std::move(error))
 {
-	acm::Device device;
-	size_t size{0};
-	bool hostVisible{true};
-	VkBuffer buffer{VK_NULL_HANDLE};
-	acm::Allocation allocation; // sub-range of a pooled block
+}
 
-	~impl()
-	{
-		if (!device.valid())
-			return;
-
-		// Defer onto the device's frame-fenced queue: destroy the buffer, then return
-		// its memory range to the pool. The allocator outlives the graveyard flush, so
-		// capturing a raw pointer to it (not the Device handle) is safe and avoids a
-		// shared_ptr cycle through the device's own graveyard.
-		VkDevice dev = device.vkDevice();
-		if (buffer)
-		{
-			VkBuffer b = buffer;
-			device.enqueueDestroy([dev, b]
-								  { vkDestroyBuffer(dev, b, nullptr); });
-		}
-		if (allocation.valid())
-		{
-			auto* alloc = &device.memoryAllocator();
-			acm::Allocation a = allocation;
-			device.enqueueDestroy([alloc, a]
-								  { alloc->free(a); });
-		}
-	}
-};
-
-acm::Buffer::Buffer(acm::Device device, size_t size, acm::BufferUsage usage)
-	: m()
+acm::Buffer::Buffer(const acm::Buffer& other)
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(other.m_error)
 {
-	if (size == 0)
-		return;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+}
 
-	auto impl = std::make_shared<acm::Buffer::impl>();
-	impl->device = device;
-	impl->size = size;
-	impl->hostVisible = isHostVisible(usage);
+acm::Buffer& acm::Buffer::operator=(const acm::Buffer& other)
+{
+	if (this == &other)
+		return *this;
 
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size;
-	bufferInfo.usage = acm::toVk(usage);
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	if (vkCreateBuffer(impl->device.vkDevice(), &bufferInfo, nullptr, &impl->buffer) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create buffer");
-		return;
-	}
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = other.m_error;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+	return *this;
+}
 
-	// Host-visible (uniform/readback/staging) maps directly via the block's persistent
-	// mapping; device-local (vertex/index) is filled via staging — toVk() gives those
-	// usages a TRANSFER_DST flag for the copy.
-	const VkMemoryPropertyFlags props = impl->hostVisible
-											? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-											: VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-	VkMemoryRequirements memReq;
-	vkGetBufferMemoryRequirements(impl->device.vkDevice(), impl->buffer, &memReq);
-	impl->allocation = impl->device.memoryAllocator().allocate(memReq, props);
-	if (!impl->allocation.valid())
-	{
-		vkDestroyBuffer(impl->device.vkDevice(), impl->buffer, nullptr);
-		impl->buffer = VK_NULL_HANDLE;
-		m_error = acm::Error("failed to allocate buffer memory");
-		return;
-	}
-	vkBindBufferMemory(impl->device.vkDevice(), impl->buffer, impl->allocation.memory, impl->allocation.offset);
+acm::Buffer::Buffer(acm::Buffer&& other) noexcept
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(std::move(other.m_error))
+{
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+}
 
-	m = impl;
+acm::Buffer& acm::Buffer::operator=(acm::Buffer&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = std::move(other.m_error);
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+	return *this;
+}
+
+acm::Buffer::~Buffer()
+{
+	reset();
+}
+
+void acm::Buffer::reset()
+{
+	if (m_handle.valid())
+		m_resource->release(m_handle);
+	m_resource = nullptr;
+	m_handle.reset();
+	m_error = {};
+}
+
+bool acm::Buffer::valid() const
+{
+	return m_resource && m_resource->valid(m_handle);
+}
+
+acm::Error acm::Buffer::error() const
+{
+	return m_error;
 }
 
 size_t acm::Buffer::size() const
 {
-	return m->size;
+	return m_resource ? m_resource->size(m_handle) : 0;
 }
 
 void* acm::Buffer::map()
 {
-	if (!m->hostVisible)
-		return nullptr;
-	// Host-visible blocks are persistently mapped; this range's pointer is precomputed.
-	return m->allocation.mapped;
+	return m_resource ? m_resource->map(m_handle) : nullptr;
 }
 
 void acm::Buffer::unmap()
 {
-	// No-op: the backing block stays mapped for its lifetime (host-coherent, no flush).
 }
 
 acm::Error acm::Buffer::write(const void* data, size_t size)
 {
-	const size_t n = std::min(size, m->size);
-	if (m->hostVisible)
-	{
-		void* dst = map();
-		if (!dst)
-			return acm::Error("Buffer::write: map failed");
-		std::memcpy(dst, data, n);
-		return acm::Error{};
-	}
-	else
-	{
-		return stagedUpload(m->device, m->buffer, n, data);
-	}
-}
-
-VkBuffer acm::Buffer::vkBuffer() const
-{
-	return m->buffer;
+	if (!m_resource)
+		return acm::Error("Buffer::write: invalid buffer");
+	return m_resource->write(m_handle, data, size);
 }

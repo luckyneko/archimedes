@@ -2,7 +2,9 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmVkFwd.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
+
 #include <vector>
 
 namespace acm
@@ -10,23 +12,29 @@ namespace acm
 	class Shader
 	{
 	public:
-		Shader() {}
+		Shader();
+		Shader(const acm::Shader& other);
+		Shader& operator=(const acm::Shader& other);
+		Shader(acm::Shader&& other) noexcept;
+		Shader& operator=(acm::Shader&& other) noexcept;
+		~Shader();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
-
-		VkShaderModule vkShaderModule() const;
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::Shader* native() const { return m_resource; }
 
 	private:
-		friend class Device; // only Device::createShader builds one
+		friend acm::native::Device;
 		// spirv is the compiled SPIR-V bytecode (loading it from disk is the
 		// caller's concern). codeSize is in bytes; the data must be 4-byte aligned,
 		// which std::vector already guarantees.
-		Shader(acm::Device device, const std::vector<char>& spirv);
+		Shader(acm::native::Shader* resource, acm::Handle handle);
+		explicit Shader(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::Shader* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm

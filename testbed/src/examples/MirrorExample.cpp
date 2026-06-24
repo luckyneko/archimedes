@@ -3,6 +3,7 @@
 #include "TbGeometry.h"
 #include "TbMath.h"
 #include "TbUtils.h"
+
 #include <cstring>
 #include <vector>
 
@@ -27,9 +28,8 @@ ExampleConfig MirrorExample::config()
 	return cfg;
 }
 
-bool MirrorExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 
 	// Offscreen color texture + its render target (owns a render pass; depth for the cube).
@@ -64,7 +64,7 @@ bool MirrorExample::onInit(acm::Device device, const std::vector<RenderContext*>
 	acm::PipelineConfig cubeCfg;
 	cubeCfg.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
 	cubeCfg.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
-	cubeCfg.renderPass = m_offscreenTarget.vkRenderPass();
+	cubeCfg.target = m_offscreenTarget;
 	cubeCfg.descriptorLayout = m_cubeLayout;
 	cubeCfg.depthTest = true;
 	cubeCfg.cullMode = acm::CullMode::None;
@@ -90,13 +90,13 @@ bool MirrorExample::onInit(acm::Device device, const std::vector<RenderContext*>
 	acm::PipelineConfig quadCfg;
 	quadCfg.vertex = tb::loadShader(device, "fullscreen.vert.spv");
 	quadCfg.fragment = tb::loadShader(device, "sample.frag.spv");
-	quadCfg.renderPass = m_views[0]->renderPass();
+	quadCfg.target = m_views[0]->renderTarget();
 	quadCfg.descriptorLayout = m_quadLayout;
 	m_quadPipeline = device.createPipeline(quadCfg);
 	return m_quadPipeline.valid();
 }
 
-void MirrorExample::onUpdate(acm::Device device, float time)
+void MirrorExample::onUpdate(acm::Device& device, float time)
 {
 	// The single offscreen texture is written + sampled each frame; idle first so this
 	// frame's render doesn't clobber the previous frame's still-in-flight sample.
@@ -118,7 +118,7 @@ void MirrorExample::onUpdate(acm::Device device, float time)
 void MirrorExample::onRenderView(uint32_t viewIndex, float)
 {
 	m_views[viewIndex]->renderer().render(
-		[&](acm::CommandBuffer cmd, uint32_t) // pre-pass: render the cube into the offscreen texture
+		[&](acm::CommandBuffer& cmd, uint32_t) // pre-pass: render the cube into the offscreen texture
 		{
 			cmd.beginRenderPass(m_offscreenTarget, 0.06f, 0.10f, 0.12f, 1.0f);
 			cmd.setViewportAndScissor(acm::Extent2D{kRttSize, kRttSize});
@@ -129,7 +129,7 @@ void MirrorExample::onRenderView(uint32_t viewIndex, float)
 			cmd.drawIndexed(m_cubeIndexCount);
 			cmd.endRenderPass(); // RenderTargetFinish::Sampled leaves it SHADER_READ_ONLY
 		},
-		[&](acm::CommandBuffer cmd, uint32_t) // main pass: sample it fullscreen
+		[&](acm::CommandBuffer& cmd, uint32_t) // main pass: sample it fullscreen
 		{
 			cmd.bindPipeline(m_quadPipeline);
 			cmd.bindDescriptorSet(m_quadPipeline, m_quadDescriptor);
@@ -151,5 +151,4 @@ void MirrorExample::onShutdown()
 	m_cubeVertices.reset();
 	m_offscreenTarget.reset();
 	m_offscreenColor.reset();
-	m_device.reset();
 }

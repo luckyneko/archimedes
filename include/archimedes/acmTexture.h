@@ -2,14 +2,16 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
-#include "archimedes/acmVkFwd.h"
+
 #include <cstddef>
 #include <cstdint>
 
 namespace acm
 {
-	// An owned 2D image: VkImage + device-local memory + an image view. Unlike the
+	// An owned native 2D image with device-local memory and an image view. Unlike the
 	// swapchain's borrowed images, a Texture allocates and destroys its own GPU memory.
 	// A color format gives usage COLOR_ATTACHMENT | SAMPLED | TRANSFER_SRC | TRANSFER_DST
 	// (rendered into, sampled, copied out, and uploaded into — the render-to-texture and
@@ -21,11 +23,18 @@ namespace acm
 	class Texture
 	{
 	public:
-		Texture() {}
+		Texture();
+		Texture(const acm::Texture& other);
+		Texture& operator=(const acm::Texture& other);
+		Texture(acm::Texture&& other) noexcept;
+		Texture& operator=(acm::Texture&& other) noexcept;
+		~Texture();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::Texture* native() const { return m_resource; }
 
 		// Uploads CPU pixels (tightly packed, matching the texture's format/extent) via
 		// a staging buffer + one-shot copy. For a mipmapped texture it then generates
@@ -36,17 +45,16 @@ namespace acm
 		acm::Format format() const;
 		acm::Extent2D getExtent() const;
 		uint32_t mipLevels() const; // 1 unless created mipmapped
-		VkImage vkImage() const;
-		VkImageView vkImageView() const;
 
 	private:
-		friend class Device; // only Device::createTexture builds one
+		friend acm::native::Device;
 		// `storage` (color only) adds STORAGE usage so a compute shader can write the
 		// image via a StorageImage descriptor.
-		Texture(acm::Device device, acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage);
+		Texture(acm::native::Texture* resource, acm::Handle handle);
+		explicit Texture(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::Texture* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm

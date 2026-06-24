@@ -11,9 +11,8 @@ ExampleConfig ComputeTextureExample::config()
 	return cfg;
 }
 
-bool ComputeTextureExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool ComputeTextureExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 
 	// The storage image the compute writes and the draw samples.
@@ -24,7 +23,7 @@ bool ComputeTextureExample::onInit(acm::Device device, const std::vector<RenderC
 
 	// Leave it in SHADER_READ_ONLY so every frame's pre-pass can uniformly do
 	// ShaderReadOnly -> General (write) -> ShaderReadOnly (sample).
-	device.submitSync([&](acm::CommandBuffer cmd)
+	device.submitSync([&](acm::CommandBuffer& cmd)
 					  { cmd.transitionImage(m_image, acm::ImageLayout::Undefined, acm::ImageLayout::ShaderReadOnly); });
 
 	// Compute side: storage image (0) + a ringed time uniform (1).
@@ -60,13 +59,13 @@ bool ComputeTextureExample::onInit(acm::Device device, const std::vector<RenderC
 	acm::PipelineConfig config;
 	config.vertex = tb::loadShader(device, "fullscreen.vert.spv");
 	config.fragment = tb::loadShader(device, "sample.frag.spv");
-	config.renderPass = m_views[0]->renderPass();
+	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_graphicsLayout;
 	m_graphics = device.createPipeline(config);
 	return m_graphics.valid();
 }
 
-void ComputeTextureExample::onUpdate(acm::Device, float time)
+void ComputeTextureExample::onUpdate(acm::Device&, float time)
 {
 	m_time = time; // consumed in the pre-pass (which knows the in-flight slot)
 }
@@ -74,7 +73,7 @@ void ComputeTextureExample::onUpdate(acm::Device, float time)
 void ComputeTextureExample::onRenderView(uint32_t viewIndex, float)
 {
 	m_views[viewIndex]->renderer().render(
-		[&](acm::CommandBuffer cmd, uint32_t frame) // pre-pass: compute the image
+		[&](acm::CommandBuffer& cmd, uint32_t frame) // pre-pass: compute the image
 		{
 			// Write this slot's time uniform (safe: the renderer waited this slot's fence).
 			const float params[4] = {m_time, float(kImageSize), float(kImageSize), 0.0f};
@@ -86,7 +85,7 @@ void ComputeTextureExample::onRenderView(uint32_t viewIndex, float)
 			cmd.dispatch(kImageSize / 8, kImageSize / 8, 1);
 			cmd.transitionImage(m_image, acm::ImageLayout::General, acm::ImageLayout::ShaderReadOnly);
 		},
-		[&](acm::CommandBuffer cmd, uint32_t) // draws: sample it fullscreen
+		[&](acm::CommandBuffer& cmd, uint32_t) // draws: sample it fullscreen
 		{
 			cmd.bindPipeline(m_graphics);
 			cmd.bindDescriptorSet(m_graphics, m_graphicsSet);
@@ -107,5 +106,4 @@ void ComputeTextureExample::onShutdown()
 	m_computeLayout.reset();
 	m_sampler.reset();
 	m_image.reset();
-	m_device.reset();
 }

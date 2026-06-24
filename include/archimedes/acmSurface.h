@@ -3,28 +3,36 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmVkFwd.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
 
 namespace acm
 {
 	class Surface
 	{
 	public:
-		Surface() {}
+		Surface();
+		Surface(const acm::Surface& other);
+		Surface& operator=(const acm::Surface& other);
+		Surface(acm::Surface&& other) noexcept;
+		Surface& operator=(acm::Surface&& other) noexcept;
+		~Surface();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::Surface* native() const { return m_resource; }
 
 		const std::vector<acm::GPUSurfaceSupport>& getGPUSupport() const;
-		VkSurfaceKHR vkSurface();
 
 	private:
-		friend class Instance; // only Instance::createSurface builds one
-		Surface(acm::Instance instance, VkSurfaceKHR surface);
+		friend acm::native::Instance;
+		Surface(acm::native::Surface* resource, acm::Handle handle);
+		explicit Surface(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::Surface* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -3,6 +3,7 @@
 #include "TbGeometry.h"
 #include "TbMath.h"
 #include "TbUtils.h"
+
 #include <vector>
 
 namespace
@@ -25,9 +26,8 @@ ExampleConfig WireframeExample::config()
 	return cfg;
 }
 
-bool WireframeExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 
 	const std::vector<tb::CubeVertex> verts = tb::cubeVertices();
@@ -55,7 +55,7 @@ bool WireframeExample::onInit(acm::Device device, const std::vector<RenderContex
 	acm::PipelineConfig config;
 	config.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
 	config.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
-	config.renderPass = m_views[0]->renderPass();
+	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depthTest = true;
 	config.samples = acm::SampleCount::Four;
@@ -71,7 +71,7 @@ bool WireframeExample::onInit(acm::Device device, const std::vector<RenderContex
 	return m_pipeline.valid();
 }
 
-void WireframeExample::onUpdate(acm::Device device, float time)
+void WireframeExample::onUpdate(acm::Device& device, float time)
 {
 	device.waitIdle(); // single uniform rewritten each frame — idle before clobbering it
 
@@ -92,7 +92,7 @@ void WireframeExample::onUpdate(acm::Device device, float time)
 
 void WireframeExample::onRenderView(uint32_t viewIndex, float)
 {
-	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer cmd, uint32_t)
+	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer& cmd, uint32_t)
 										  {
 											  cmd.bindPipeline(m_pipeline);
 											  cmd.bindDescriptorSet(m_pipeline, m_descriptor);
@@ -109,5 +109,4 @@ void WireframeExample::onShutdown()
 	m_uniform.reset();
 	m_indexBuffer.reset();
 	m_vertexBuffer.reset();
-	m_device.reset();
 }

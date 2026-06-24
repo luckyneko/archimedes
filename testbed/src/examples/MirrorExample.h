@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Example.h"
+
 #include <vector>
 
 // Render-to-texture. A spinning cube is rendered into an offscreen RenderTarget
@@ -13,15 +14,14 @@ class MirrorExample : public Example
 {
 public:
 	ExampleConfig config() override;
-	bool onInit(acm::Device device, const std::vector<RenderContext*>& views) override;
-	void onUpdate(acm::Device device, float time) override;
+	bool onInit(acm::Device& device, const std::vector<RenderContext*>& views) override;
+	void onUpdate(acm::Device& device, float time) override;
 	void onRenderView(uint32_t viewIndex, float time) override;
 	void onShutdown() override;
 
 private:
 	static constexpr uint32_t kRttSize = 512;
 
-	acm::Device m_device;
 	std::vector<RenderContext*> m_views;
 
 	// Offscreen pass: a cube into a sampled texture.

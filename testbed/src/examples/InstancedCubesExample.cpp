@@ -3,6 +3,7 @@
 #include "TbGeometry.h"
 #include "TbMath.h"
 #include "TbUtils.h"
+
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -43,9 +44,8 @@ ExampleConfig InstancedCubesExample::config()
 	return cfg;
 }
 
-bool InstancedCubesExample::onInit(acm::Device device, const std::vector<RenderContext*>& views)
+bool InstancedCubesExample::onInit(acm::Device& device, const std::vector<RenderContext*>& views)
 {
-	m_device = device;
 	m_views = views;
 	m_cubeCount = kGrid * kGrid;
 
@@ -85,7 +85,7 @@ bool InstancedCubesExample::onInit(acm::Device device, const std::vector<RenderC
 	acm::PipelineConfig config;
 	config.vertex = vertex;
 	config.fragment = fragment;
-	config.renderPass = m_views[0]->renderPass();
+	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depthTest = true;
 	config.samples = acm::SampleCount::Four;
@@ -99,7 +99,7 @@ bool InstancedCubesExample::onInit(acm::Device device, const std::vector<RenderC
 	return m_pipeline.valid();
 }
 
-void InstancedCubesExample::onUpdate(acm::Device device, float time)
+void InstancedCubesExample::onUpdate(acm::Device& device, float time)
 {
 	// The per-cube buffer is rewritten every frame and read by the in-flight draws; idle
 	// the device first so we don't clobber a frame still being read. (A simple-correct
@@ -131,7 +131,7 @@ void InstancedCubesExample::onUpdate(acm::Device device, float time)
 
 void InstancedCubesExample::onRenderView(uint32_t viewIndex, float)
 {
-	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer cmd, uint32_t)
+	m_views[viewIndex]->renderer().render([&](acm::CommandBuffer& cmd, uint32_t)
 										  {
 											  cmd.bindPipeline(m_pipeline);
 											  cmd.bindVertexBuffer(m_vertexBuffer);
@@ -151,5 +151,4 @@ void InstancedCubesExample::onShutdown()
 	m_objectBuffer.reset();
 	m_indexBuffer.reset();
 	m_vertexBuffer.reset();
-	m_device.reset();
 }

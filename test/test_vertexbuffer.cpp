@@ -1,6 +1,8 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 
@@ -57,7 +59,7 @@ TEST_CASE("indexed draw from vertex + index buffers", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::vertexColorVertSpirv());
 	config.fragment = device.createShader(acmtest::vertexColorFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.vertexLayout.stride = sizeof(Vertex);
 	config.vertexLayout.attributes = {
 		{0, acm::Format::R32G32_Sfloat, offsetof(Vertex, pos)},
@@ -84,13 +86,7 @@ TEST_CASE("indexed draw from vertex + index buffers", "[acm][gpu]")
 	cmd.copyTextureToBuffer(texture, readback);
 	cmd.end();
 
-	VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &vkcb;
-	REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-	REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+	REQUIRE_FALSE(device.submitSync(cmd));
 
 	// The buffer-fed triangle covers the center, so it must be its vertex red.
 	const auto* pixels = static_cast<const uint8_t*>(readback.map());

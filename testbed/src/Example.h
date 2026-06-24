@@ -1,7 +1,9 @@
 #pragma once
 
 #include "RenderContext.h"
+
 #include <archimedes/archimedes.h>
+
 #include <string>
 #include <vector>
 
@@ -40,11 +42,11 @@ public:
 
 	// Build pipelines / scene / descriptors. `views` has one RenderContext per window
 	// (already holding a swapchain + renderer), borrowed for the example's lifetime.
-	virtual bool onInit(acm::Device device, const std::vector<RenderContext*>& views) = 0;
+	virtual bool onInit(acm::Device& device, const std::vector<RenderContext*>& views) = 0;
 
 	// Per-frame work shared across windows, on the main thread (e.g. a compute dispatch,
 	// advancing animation). `time` is a fixed-step clock.
-	virtual void onUpdate(acm::Device device, float time) = 0;
+	virtual void onUpdate(acm::Device& device, float time) = 0;
 
 	// Record + present one window's frame. May run on a worker thread (multi-window), so
 	// it must touch only Vulkan, never GLFW.

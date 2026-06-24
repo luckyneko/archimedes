@@ -1,5 +1,7 @@
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 
 // Integration: exercises acm::Surface without a window by creating a headless
@@ -19,7 +21,6 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 
 	acm::Surface surface = instance.createSurface(vkSurface); // takes ownership of vkSurface
 	REQUIRE(surface.valid());
-	REQUIRE(surface.vkSurface() == vkSurface);
 
 	// One support entry per enumerated GPU, mirroring its queue families.
 	const auto& gpus = instance.getAvailableGPUs();
@@ -48,5 +49,4 @@ TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 
 	REQUIRE_FALSE(a.valid());
 	REQUIRE(b.valid());
-	REQUIRE(b.vkSurface() == vkSurface);
 }

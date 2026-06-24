@@ -1,8 +1,11 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
+
 #include <archimedes/archimedes.h>
+
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 // Integration: the extended descriptor model — storage buffers, multi-stage bindings,
@@ -26,13 +29,7 @@ namespace
 
 	void submitAndWait(acm::Device& device, acm::CommandBuffer& cmd)
 	{
-		VkCommandBuffer vkcb = cmd.vkCommandBuffer();
-		VkSubmitInfo submit = {};
-		submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submit.commandBufferCount = 1;
-		submit.pCommandBuffers = &vkcb;
-		REQUIRE(vkQueueSubmit(device.vkQueue(), 1, &submit, VK_NULL_HANDLE) == VK_SUCCESS);
-		REQUIRE(vkQueueWaitIdle(device.vkQueue()) == VK_SUCCESS);
+		REQUIRE_FALSE(device.submitSync(cmd));
 	}
 
 	constexpr uint32_t kSize = 32;
@@ -63,6 +60,14 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	REQUIRE(layout.valid());
 	acm::DescriptorSet descriptors = device.createDescriptorSet(layout);
 	REQUIRE(descriptors.valid());
+	acm::DescriptorSetLayout retainedLayout = layout;
+	layout.reset();
+	REQUIRE(retainedLayout.valid());
+	layout = std::move(retainedLayout);
+	acm::DescriptorSet retainedSet = descriptors;
+	descriptors.reset();
+	REQUIRE(retainedSet.valid());
+	descriptors = std::move(retainedSet);
 	descriptors.setBuffer(0, storage);
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
@@ -70,7 +75,7 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::storageWriteFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.descriptorLayout = layout;
 	acm::Pipeline pipeline = device.createPipeline(config);
 	REQUIRE(pipeline.valid());
@@ -126,7 +131,7 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::multiStageVertSpirv());
 	config.fragment = device.createShader(acmtest::multiStageFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.descriptorLayout = layout;
 	acm::Pipeline pipeline = device.createPipeline(config);
 	REQUIRE(pipeline.valid());
@@ -192,7 +197,7 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::samplerArrayFragSpirv());
-	config.renderPass = target.vkRenderPass();
+	config.target = target;
 	config.descriptorLayout = layout;
 	acm::Pipeline pipeline = device.createPipeline(config);
 	REQUIRE(pipeline.valid());

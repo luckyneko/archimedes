@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Example.h"
+
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -11,7 +12,7 @@
 // worker, which call example->onRenderView(viewIndex, time) concurrently; the App then
 // wait()s for all before the next update. Workers do only Vulkan (no GLFW), so they are
 // safe off the main thread; cross-thread queue access is serialized inside acm::Renderer
-// (acm::Device::deviceMutex). Single-window examples skip workers and render inline.
+// through the private Vulkan Device. Single-window examples skip workers and render inline.
 class RenderWorker
 {
 public:

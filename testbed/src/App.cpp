@@ -55,7 +55,7 @@ namespace
 	// Create a GLFW window (Vulkan, no OpenGL context) + its acm::Surface. GLFW window
 	// creation must happen on the main thread; the surface is needed before the shared
 	// device can be created (present-queue selection needs every window's surface).
-	acm::Surface createWindowSurface(acm::Instance instance, const WindowSpec& spec, GLFWwindow*& outWindow)
+	acm::Surface createWindowSurface(acm::Instance& instance, const WindowSpec& spec, GLFWwindow*& outWindow)
 	{
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // acm::Renderer rebuilds the swapchain on resize
@@ -64,15 +64,15 @@ namespace
 			return {};
 		glfwSetWindowPos(window, spec.posX, spec.posY);
 
-		VkSurfaceKHR vkSurface = VK_NULL_HANDLE;
-		if (glfwCreateWindowSurface(instance.vkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
+		acm::native::SurfaceHandle nativeSurface{};
+		if (glfwCreateWindowSurface(instance.nativeInstance(), window, nullptr, &nativeSurface) != VK_SUCCESS)
 		{
 			fprintf(stderr, "glfwCreateWindowSurface failed\n");
 			glfwDestroyWindow(window);
 			return {};
 		}
 		outWindow = window;
-		return instance.createSurface(vkSurface);
+		return instance.createSurface(nativeSurface);
 	}
 
 	// Pick a GPU + queue family that supports graphics and can present to *every* window
@@ -87,7 +87,7 @@ namespace
 		bool ok{false};
 	};
 
-	Selection selectSettings(acm::Instance instance, const std::vector<acm::Surface>& surfaces)
+	Selection selectSettings(const acm::Instance& instance, const std::vector<acm::Surface>& surfaces)
 	{
 		for (const acm::GPU& gpu : instance.getAvailableGPUs())
 		{
@@ -221,46 +221,49 @@ int App::run(Example& example)
 		contextPtrs[i] = &contexts[i];
 	}
 
-	if (!example.onInit(device, contextPtrs))
-	{
-		fprintf(stderr, "Example onInit: FAIL\n");
-		return 1;
-	}
-	printf("%zu window(s) ready — close any to exit\n", viewCount);
-
 	// One render thread per window for multi-window examples (fork-join); single-window
 	// examples render inline on the main thread (no worker).
 	std::vector<std::unique_ptr<RenderWorker>> workers;
-	if (viewCount > 1)
-		for (uint32_t i = 0; i < viewCount; ++i)
-			workers.push_back(std::make_unique<RenderWorker>(&example, i));
-
-	// Optional frame cap for scripted/CI smoke runs (verify N frames then exit cleanly).
-	const char* capEnv = std::getenv("TESTBED_FRAME_CAP");
-	int frameCap = capEnv ? std::atoi(capEnv) : -1;
-
-	float time = 0.0f;
-	while (!anyWindowClosing(windows))
+	int exitCode = 0;
+	if (!example.onInit(device, contextPtrs))
 	{
-		if (frameCap >= 0 && --frameCap < 0)
-			break;
-		glfwPollEvents();
+		fprintf(stderr, "Example onInit: FAIL\n");
+		exitCode = 1;
+	}
+	else
+	{
+		printf("%zu window(s) ready — close any to exit\n", viewCount);
+		if (viewCount > 1)
+			for (uint32_t i = 0; i < viewCount; ++i)
+				workers.push_back(std::make_unique<RenderWorker>(&example, i));
 
-		example.onUpdate(device, time);
+		// Optional frame cap for scripted/CI smoke runs (verify N frames then exit cleanly).
+		const char* capEnv = std::getenv("TESTBED_FRAME_CAP");
+		int frameCap = capEnv ? std::atoi(capEnv) : -1;
 
-		if (workers.empty())
+		float time = 0.0f;
+		while (!anyWindowClosing(windows))
 		{
-			example.onRenderView(0, time); // single window, inline
-		}
-		else
-		{
-			for (auto& w : workers)
-				w->kick(time);
-			for (auto& w : workers)
-				w->wait();
-		}
+			if (frameCap >= 0 && --frameCap < 0)
+				break;
+			glfwPollEvents();
 
-		time += 0.016f; // fixed step keeps animation clock-free
+			example.onUpdate(device, time);
+
+			if (workers.empty())
+			{
+				example.onRenderView(0, time); // single window, inline
+			}
+			else
+			{
+				for (auto& w : workers)
+					w->kick(time);
+				for (auto& w : workers)
+					w->wait();
+			}
+
+			time += 0.016f; // fixed step keeps animation clock-free
+		}
 	}
 
 	// Teardown, device-before-surface ordered: stop the threads, release the example's
@@ -277,5 +280,5 @@ int App::run(Example& example)
 		if (w)
 			glfwDestroyWindow(w);
 	glfwTerminate();
-	return 0;
+	return exitCode;
 }

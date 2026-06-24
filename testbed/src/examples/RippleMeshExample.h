@@ -3,6 +3,7 @@
 #include "Example.h"
 #include "Scene.h"
 #include "TbMath.h"
+
 #include <vector>
 
 // The multi-window / threads example: two windows share one compute-deformed mesh (the
@@ -13,8 +14,8 @@ class RippleMeshExample : public Example
 {
 public:
 	ExampleConfig config() override;
-	bool onInit(acm::Device device, const std::vector<RenderContext*>& views) override;
-	void onUpdate(acm::Device device, float time) override;
+	bool onInit(acm::Device& device, const std::vector<RenderContext*>& views) override;
+	void onUpdate(acm::Device& device, float time) override;
 	void onRenderView(uint32_t viewIndex, float time) override;
 	void onShutdown() override;
 
@@ -29,7 +30,6 @@ private:
 		tb::Vec3 eye;
 	};
 
-	acm::Device m_device;
 	std::vector<RenderContext*> m_views; // borrowed (owned by App)
 	Scene m_scene;
 	acm::DescriptorSetLayout m_layout;

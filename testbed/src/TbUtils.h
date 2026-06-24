@@ -1,6 +1,7 @@
 #pragma once
 
 #include <archimedes/archimedes.h>
+
 #include <cstdio>
 #include <fstream>
 #include <string>
@@ -26,7 +27,7 @@ namespace tb
 	}
 
 	// Loads a compiled SPIR-V shader from the testbed shader dir (e.g. "mesh.vert.spv").
-	inline acm::Shader loadShader(acm::Device device, const std::string& spvName)
+	inline acm::Shader loadShader(acm::Device& device, const std::string& spvName)
 	{
 		return device.createShader(readFile(std::string(TESTBED_SHADER_DIR) + "/" + spvName));
 	}

@@ -1,65 +1,92 @@
 #include "archimedes/acmCommandPool.h"
 
 #include "archimedes/acmCommandBuffer.h"
-#include "archimedes/acmDevice.h"
+#include "archimedes/nativeAPI.h"
 
-#include <vulkan/vulkan.h>
+#include <utility>
 
-struct acm::CommandPool::impl
+acm::CommandPool::CommandPool() = default;
+
+acm::CommandPool::CommandPool(acm::native::CommandPool* resource, acm::Handle handle)
+	: m_resource(resource)
+	, m_handle(handle)
 {
-	acm::Device device;
-	VkCommandPool pool{VK_NULL_HANDLE};
+}
 
-	~impl()
-	{
-		// vkDestroyCommandPool frees every command buffer allocated from it, so
-		// CommandBuffer has nothing of its own to destroy.
-		if (pool && device.valid())
-		{
-			VkDevice dev = device.vkDevice();
-			VkCommandPool p = pool;
-			device.enqueueDestroy([dev, p]
-								  { vkDestroyCommandPool(dev, p, nullptr); });
-		}
-	}
-};
-
-acm::CommandPool::CommandPool(acm::Device device)
-	: m()
+acm::CommandPool::CommandPool(acm::Error error)
+	: m_error(std::move(error))
 {
-	auto impl = std::make_shared<acm::CommandPool::impl>();
-	impl->device = device;
+}
 
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	poolInfo.queueFamilyIndex = device.getQueueIdx();
+acm::CommandPool::CommandPool(const acm::CommandPool& other)
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(other.m_error)
+{
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+}
 
-	if (vkCreateCommandPool(impl->device.vkDevice(), &poolInfo, nullptr, &impl->pool) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create command pool");
-		return;
-	}
+acm::CommandPool& acm::CommandPool::operator=(const acm::CommandPool& other)
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = other.m_error;
+	if (m_handle.valid())
+		m_resource->retain(m_handle);
+	return *this;
+}
 
-	m = impl;
+acm::CommandPool::CommandPool(acm::CommandPool&& other) noexcept
+	: m_resource(other.m_resource)
+	, m_handle(other.m_handle)
+	, m_error(std::move(other.m_error))
+{
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+}
+
+acm::CommandPool& acm::CommandPool::operator=(acm::CommandPool&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	reset();
+	m_resource = other.m_resource;
+	m_handle = other.m_handle;
+	m_error = std::move(other.m_error);
+	other.m_resource = nullptr;
+	other.m_handle.reset();
+	return *this;
+}
+
+acm::CommandPool::~CommandPool()
+{
+	reset();
+}
+
+void acm::CommandPool::reset()
+{
+	if (m_handle.valid())
+		m_resource->release(m_handle);
+	m_resource = nullptr;
+	m_handle.reset();
+	m_error = {};
+}
+
+bool acm::CommandPool::valid() const
+{
+	return m_resource && m_resource->valid(m_handle);
+}
+
+acm::Error acm::CommandPool::error() const
+{
+	return m_error;
 }
 
 acm::CommandBuffer acm::CommandPool::allocate()
 {
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = m->pool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer cb = VK_NULL_HANDLE;
-	if (vkAllocateCommandBuffers(m->device.vkDevice(), &allocInfo, &cb) != VK_SUCCESS)
-		return acm::CommandBuffer();
-
-	return acm::CommandBuffer(*this, cb);
-}
-
-VkCommandPool acm::CommandPool::vkCommandPool() const
-{
-	return m->pool;
+	return m_resource->owner().allocateCommandBuffer(m_resource, m_handle);
 }

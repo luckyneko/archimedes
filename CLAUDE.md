@@ -20,15 +20,14 @@ Verified end-to-end on a live driver
 `acm::Renderer` rebuilds the swapchain on out-of-date/resize and skips minimized frames.
 Several `acm::Renderer`s can drive their own swapchains from their own threads because
 the one `VkQueue` (submit/present) and the device's frame/graveyard bookkeeping are
-serialized by an `acm::Device` mutex (`deviceMutex()`); command recording runs unlocked.
+serialized by the private Vulkan Device; command recording runs unlocked.
 There's also an owned-resource path (`acm::Texture` +
 `acm::Buffer`), **render-to-texture**, **texture sampling** (`acm::Sampler` +
 descriptor sets — uniform / dynamic-uniform / storage buffers + combined-image-samplers +
 storage images, multi-stage bindings, descriptor arrays), **CPU texture upload** (`Texture::upload` via a staging buffer),
 **vertex/index buffers** (device-local, staged; geometry no longer hardcoded in the
 shader), **uniform buffers** (per-draw constants — e.g. an MVP matrix — through the
-same descriptor-set path, including a per-frame `acm::UniformRing` for values that
-change every frame), **depth buffering** (opt-in depth attachment on a swapchain /
+same descriptor-set path), **depth buffering** (opt-in depth attachment on a swapchain /
 offscreen target + a depth-testing pipeline), **configurable pipeline state**
 (topology, cull mode, front face, blend, polygon mode), **opt-in device features**
 (a curated set enabled per device — `fillModeNonSolid` for wireframe, `wideLines`,
@@ -47,79 +46,90 @@ pipeline/render/RTT/sampling/vertex-buffer/uniform/depth paths.
 
 ### The `acm::` handle pattern
 
-Every public class (`Instance`, `Surface`, `Device`, `SwapChain`,
-`RenderTarget`, `Shader`, `Pipeline`, `CommandPool`, `CommandBuffer`,
-`Renderer`, `Texture`, `Buffer`, `Sampler`, `DescriptorSetLayout`,
-`DescriptorSet`, `UniformRing`) is a thin value-type **handle** over a pImpl held by
-`std::shared_ptr<impl>`:
+There are no per-resource pImpls. Public resource wrappers hold a stable typed backend
+slot pointer plus an index/generation `Handle`. The forward declarations and aliases in
+[acmNative.h](include/archimedes/acmNative.h) currently select `acm::vulkan` without
+including Vulkan headers. Platform integration uses the backend-neutral
+`native::InstanceHandle` and `native::SurfaceHandle` aliases.
 
 ```cpp
-class Thing
+class Resource
 {
 public:
-	Thing() {}                       // empty/null handle — the only public ctor
-	void reset() { m.reset(); }
-	bool valid() const { return m != nullptr; }
-	/* accessors forward to m-> */
+	Resource();
+	Resource(const Resource&);
+	Resource& operator=(const Resource&);
+	~Resource();
 private:
-	friend class Creator;            // only Creator::createThing(...) builds a real one
-	Thing(Creator parent, /* real args */); // constructs impl, only assigns m on full success
-	struct impl;
-	std::shared_ptr<impl> m;
+	native::Resource* m_resource{};
+	Handle m_handle; // index + generation
 };
-
-// The parent is the factory; it is the single entry point for creating a child:
-acm::Thing Creator::createThing(/* real args */);  // forwards to the private ctor
 ```
 
-Conventions that come with the pattern — match them in any new class:
+Each named private resource derives from `ResourceSlot<Resource, Owner>` and is allocated
+directly by a block-based `HandleMap`; there is no separate public state/payload struct.
+Blocks never move, so a wrapper's slot pointer remains stable until its owning root is
+destroyed. A lock-free packed 64-bit atomic stores generation and reference count. Copies
+retain with a generation-aware CAS, access performs one acquire load, and the final
+release advances the generation before retiring the resource. Forced
+invalidation performs the same transition, making every old wrapper stale and making
+later stale releases harmless. Pool allocation and free-list mutation are protected by
+that pool's mutex. Resource copies do not allocate and hot command recording performs no
+indexed map lookup, lock, reference mutation, or Device forwarding.
 
-- **Copyable, shareable, cheap.** Handles are passed by value; the `shared_ptr`
-  gives shared ownership of the underlying Vulkan object. The `impl`'s
-  destructor owns Vulkan teardown (`vkDestroy*`), so lifetime is automatic and
-  ref-counted. Do not add manual destroy calls on the handle.
-- **All-or-nothing construction.** The constructor builds a local
-  `auto impl = std::make_shared<impl>();`, does the Vulkan work, and assigns
-  `m = impl;` **only at the very end**. Any failure path `return`s early,
-  leaving the handle `!valid()`. Never assign `m` before the object is fully
-  built.
-- **`impl` keeps its dependencies alive** by storing the handles it was built
-  from (e.g. `Device::impl` stores its `acm::Instance`, `Surface::impl` stores
-  its `acm::Instance`). This guarantees correct teardown order via shared_ptr
-  refcounts — a child never outlives its parent's Vulkan object.
-- **Creation goes through the parent (factory pattern).** Only the public empty
-  ctor is accessible; the dependency-taking ctor is **private**, and the parent
-  is `friend`ed so the sole way to build a child is the parent's `createX(...)`
-  factory (`instance.createSurface(...)`, `instance.createDevice(...)`,
-  `device.createSwapChain/createRenderTarget/createShader/createPipeline/createCommandPool/createRenderer/createTexture/createBuffer/createSampler/createDescriptorSetLayout/createDescriptorSet/createUniformRing(...)`,
-  `commandPool.allocate()` → `CommandBuffer`).
-  Each factory is a one-line forwarder to the private ctor. Match this in any new
-  class: empty ctor public, real ctor private + `friend class <Parent>;`, and a
-  `createX` on the parent. (Factories are intentionally non-`const` — a planned
-  child-tracking step will mutate the parent's `impl`.)
-- **Forward declarations** live in [acmForward.h](include/archimedes/acmForward.h);
-  include it (not the full headers) when you only need to name a handle type.
+The trivial internal `native()` accessor returns the selected backend slot pointer;
+`handle()` remains available for validation and diagnostics. `native()` is an internal
+compile-time backend seam, not a public native-handle API. Backend selection must remain
+compile-time: do not add virtual dispatch, type erasure, casts, or runtime renderer
+switching.
+
+`acm::Instance` and `acm::Device` are unique, move-only owning roots. Each holds a
+`unique_ptr` to its heap-stable named backend; moving a root therefore preserves child
+backend pointers. There is no shared ownership. A `vulkan::Device` borrows its
+`vulkan::Instance`, and dependent resources retain both the dependency's stable slot
+pointer and its `Handle`. Destruction order
+is strict: `Instance` outlives every `Device` and `Surface`; `Device` outlives every
+Device resource. Reset child resources before resetting their root.
+
+Factories remain the public construction path. Friendship is limited to approved private
+constructors; ordinary backend access goes through explicit accessors.
+
+Public wrapper methods stay in their matching `src/acm*.cpp`; those backend-neutral
+translation units include only [nativeAPI.h](private/archimedes/nativeAPI.h), which selects
+the complete private backend through [vulkan/API.h](private/archimedes/vulkan/API.h).
+Backend implementation files include their precise Vulkan siblings directly. Each private
+resource's construction, native state, operations, dependency retention, and retirement live in matching
+`private/archimedes/vulkan/Type.h` and `src/vulkan/Type.cpp` files. `vulkan::Device`
+owns the stable pools/factories and shared queue, allocator, and synchronization context;
+`SwapChain` owns recreation/targets and `Renderer` owns its frame resources/orchestration.
+Resource state is private and is exposed to collaborating backend classes only through
+narrow validated operations;
+it must not rediscover a resource from an index when the caller already has its typed
+slot. `vulkan/API.h` is the complete-backend aggregate and `Resources.h` aggregates only
+resource owners. Public Archimedes declarations live in
+[acmForward.h](include/archimedes/acmForward.h); selected backend declarations live only in
+`acmNative.h`.
 
 ### Object graph / ownership
 
-Arrows are the `createX` factories (the parent builds the child); the child's
-`impl` then holds the handles it was built from, so ownership/teardown follows
-the same tree.
+Arrows are the `createX` factories (the parent builds the child). Resources live in
+private backend tables and require their public owning root to outlive them. The graph
+is a lifetime hierarchy, not shared ownership.
 
 ```
 Instance ── enumerates ──> GPU[] (physical devices, queue families)
    │
-   ├── createSurface(VkSurfaceKHR) ─────────────> Surface   // platform window surface + per-GPU support query
+   ├── createSurface(native::SurfaceHandle) ────> Surface   // platform window surface + per-GPU support query
    │
    └── createDevice(GPU, queueIdx) ─────────────> Device    // logical device + queue
           │
           ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
           │        │   owns the one shared VkRenderPass; builds a RenderTarget per
-          │        │   swapchain image via the Device factory below:
-          ├────────┴── createRenderTarget(renderPass, VkImage, format, extent[, depth, samples]) ─> RenderTarget
-          │                                             // borrowed image + shared pass -> view + framebuffer (+ per-image depth / MSAA color buffers)
+          │        │   swapchain image via the Device's stable target pool:
+          ├────────┴── vulkan::SwapChain builds each target from the borrowed image + shared pass
+          │                                             // view + framebuffer (+ per-image depth / MSAA color buffers)
           ├── createShader(spirv) ──────────────────> Shader      // VkShaderModule from SPIR-V bytecode
-          ├── createPipeline(vert, frag, renderPass) ─> Pipeline   // owns VkPipeline + VkPipelineLayout; dynamic viewport/scissor
+          ├── createPipeline(vert, frag, target) ─────> Pipeline   // owns VkPipeline + VkPipelineLayout; dynamic viewport/scissor
           ├── createComputePipeline(compute, layout) ─> ComputePipeline // owns a compute VkPipeline + layout; bind -> dispatch
           ├── createCommandPool() ──────────────────> CommandPool // owns VkCommandPool; .allocate() -> CommandBuffer
           ├── createRenderer(SwapChain) ────────────> Renderer
@@ -131,13 +141,13 @@ Instance ── enumerates ──> GPU[] (physical devices, queue families)
           ├── createRenderTarget(Texture, finish[, depth, samples]) ─> RenderTarget // offscreen: owns its render pass (+ depth / MSAA buffers)
           ├── createSampler([maxAnisotropy]) ───────> Sampler     // owned VkSampler (+ optional anisotropic filtering)
           ├── createDescriptorSetLayout(bindings) ──> DescriptorSetLayout // typed/staged bindings (n-sampler convenience form too)
-          ├── createDescriptorSet(layout) ──────────> DescriptorSet // owns pool + set; .setTexture(...) / .setBuffer(...)
-          └── createUniformRing(bytes[,binding,stage,frames]) ─> UniformRing // N uniform buffers + sets, one per frame-in-flight
+          └── createDescriptorSet(layout) ──────────> DescriptorSet // owns pool + set; .setTexture(...) / .setBuffer(...)
 ```
 
-A `CommandBuffer` is a recording handle over a pool-allocated `VkCommandBuffer`;
-it owns nothing of its own (the pool frees its buffers on teardown) but keeps its
-`CommandPool` alive. `Renderer::render(record)` drives one frame and calls
+A `CommandBuffer` is a recording handle over a named backend owner containing its
+`VkCommandBuffer`. It retains the parent `CommandPool` handle and queues
+`vkFreeCommandBuffers` before
+releasing that pool. `Renderer::render(record)` drives one frame and calls
 `record(cmd, frameIndex)` with the render pass already begun — the demo just records
 draws. `frameIndex` is the frame-in-flight slot (0..`Renderer::MaxFramesInFlight`-1)
 the renderer just waited the fence on, so per-slot resources — a ring of dynamic
@@ -147,27 +157,33 @@ uniform buffers — can be safely rewritten for this frame. Size any such ring t
 **Multi-renderer / multi-threaded.** Several `acm::Renderer`s can share one `Device` —
 each over its own `SwapChain` (one per window) — and run `render(...)` on their own
 threads. The per-renderer work (fence wait, acquire, command recording) is independent
-and runs concurrently; the device-shared bits are serialized by `Device::deviceMutex()`,
-which the renderer locks around (a) `vkQueueSubmit`/`vkQueuePresentKHR` (the one
-`VkQueue` must be externally synchronized), (b) `SwapChain::recreate` (it waits the
-device idle), and (c) the `beginFrame`/`collectGarbage` graveyard bookkeeping. A
-single-window app just locks an uncontended mutex (cheap). `Device::waitIdle()` is the
+and runs concurrently. A queue mutex serializes `vkQueueSubmit`/`vkQueuePresentKHR`;
+the graveyard has a separate mutex and executes extracted destruction callbacks after
+unlocking; the allocator and each resource pool synchronize independently. Distinct
+wrapper copies may be retained, released, and read concurrently. Mutation/reset of the
+same wrapper object and mutation of the same underlying native resource remain
+caller-synchronized. Swapchain recreation is externally synchronized, waits the Device
+idle, and force-invalidates old RenderTarget generations before retirement.
+`Device::waitIdle()` is the
 matching coarse fence — also externally-synchronized, so call it only when no thread is
 submitting (the testbed's fork-join calls it on the main thread while both render threads
 are parked, to fence a shared-resource update against in-flight reads).
 
 **Compute.** `device.createComputePipeline(compute, layout)` builds an
 `acm::ComputePipeline` — a single compute-stage `Shader` + a pipeline layout from a
-`DescriptorSetLayout`, no render pass / fixed-function state
-([acmComputePipeline.cpp](src/acmComputePipeline.cpp)). Record it on a `CommandBuffer`
+`DescriptorSetLayout`, no render pass / fixed-function state. Vulkan creation and
+ownership live in the private `vulkan::ComputePipeline`; `vulkan::Device` only allocates
+its stable slot and supplies shared context. The public class only retains its handle.
+Record it on a `CommandBuffer`
 with `bindComputePipeline` → `bindComputeDescriptorSet` → `dispatch(gx, gy, gz)` (each
 group runs the shader's `local_size`), outside any render pass. The resources it reads /
 writes are ordinary descriptors — a `DescriptorBinding` with `ShaderStage::Compute`
 (`Compute` is a third `ShaderStage` flag, standing alone from the graphics stages) over a
 `BufferUsage::Storage` SSBO (write) + an optional uniform. To run one-shot compute (or any
 transfer), `Device::submitSync(record)` records into a transient command buffer, submits,
-and waits the queue idle — the public counterpart of the internal `oneShotSubmit`, locking
-the device mutex around submit+wait. It stalls the queue, so it's a load-time / at-most-
+and waits the queue idle; `submitSync(commandBuffer)` submits an already recorded buffer
+through the same backend path. This is the public counterpart of `vulkan::Device::submitOneShot`, locking
+the queue mutex around submit+wait. It stalls the queue, so it's a load-time / at-most-
 per-frame tool, externally-synchronized like `waitIdle`. To make a compute write visible
 to a later read (or to fence a write against an earlier read) without a queue round-trip,
 `CommandBuffer::bufferBarrier(buffer, srcStage, dstStage)` wraps a buffer memory barrier —
@@ -218,14 +234,13 @@ view spans all levels, so a mipmapped texture is a *sampling* resource, not a
 `Uniform`/`TransferDst`/`Staging`/`Storage` are host-visible/coherent (CPU-mapped). `write()`
 hides the difference — a direct `map`+`memcpy` for host-visible, or, for device-local, a
 synchronous **staging** upload. `map()`/`unmap()` work on host-visible buffers only. The
-staging dance — a host-visible `Staging` buffer plus the one-shot command submit
-(`acm::detail::oneShotSubmit` in [acmVkOneShot.h](src/acmVkOneShot.h), which waits the
-queue idle, so it's load-time) — is shared by device-local `Buffer::write` and
-`Texture::upload`.
+staging dance — a host-visible `Staging` buffer plus
+`vulkan::Device::submitOneShot` (which waits the queue idle, so it is load-time) — is
+shared by device-local `Buffer::write` and `Texture::upload`.
 
 **Memory comes from a pooling sub-allocator**, not one `vkAllocateMemory` per resource.
-`acm::detail::MemoryAllocator` ([acmVkMemory.h](src/acmVkMemory.h) /
-[.cpp](src/acmVkMemory.cpp)) — one instance per `Device` — carves `Texture`/`Buffer`
+`acm::vulkan::MemoryAllocator` ([Memory.h](private/archimedes/vulkan/Memory.h) /
+[.cpp](src/vulkan/Memory.cpp)) — one instance per `Device` — carves `Texture`/`Buffer`
 allocations out of large (64 MB) `VkDeviceMemory` blocks via a per-block first-fit free
 list (coalesced on free), so thousands of resources share a handful of allocations
 (staying under `maxMemoryAllocationCount`, avoiding per-resource allocation cost). A
@@ -235,9 +250,10 @@ the block (no per-resource `vkMapMemory`). Resources bind to `allocation.memory`
 `allocation.offset` and, on teardown, enqueue `allocator->free(...)` (which returns the
 range to the pool) onto the device's deferred queue; the allocator's blocks are
 `vkFreeMemory`d when the `Device` is destroyed, after that queue is flushed.
-`Device::memoryAllocator()` exposes it to the resource types (`Texture`, `Buffer`, and
-`RenderTarget`'s owned MSAA attachment images all go through it); `memoryBlockCount()`
-is for diagnostics/tests. The `findMemoryType` helper backs the allocator.
+The allocator is private to `vulkan::Device`; `Texture`, `Buffer`, and `RenderTarget`'s
+owned attachments use it through their backend owner. `memoryBlockCount()` is the one
+backend-neutral public diagnostic used by tests. Memory-type selection is private to the
+allocator.
 
 **Render-to-texture:** `device.createRenderTarget(texture, finish)` builds an
 *offscreen* `RenderTarget` that **owns** a render pass + framebuffer over the
@@ -337,24 +353,14 @@ binding. Fill it with `Buffer::write(...)`, point a binding at it with
 uniform-supplied color.
 
 A uniform that changes **every frame** can't be a single buffer: the GPU may still
-be reading frame N's value while the CPU writes frame N+1. **`acm::UniformRing`**
-([acmUniformRing.h](include/archimedes/acmUniformRing.h)) bundles the fix — N
-host-visible uniform buffers behind N one-binding descriptor sets sharing one layout,
-N defaulting to `Renderer::MaxFramesInFlight`. `device.createUniformRing(bytes, binding,
-stage, frames)` builds it (defaults: binding 0, vertex stage, MaxFramesInFlight deep);
-build the pipeline with `ring.descriptorLayout()`, then per frame call
-`ring.update(frameIndex, &data, size)` and `bindDescriptorSet(pipeline, ring.descriptorSet(frameIndex))`.
-Writing slot `frameIndex` is safe because the renderer already waited that slot's
-fence. `test_uniform_ring.cpp` writes two slots distinct colors and confirms each
-renders its own — proving the ring's per-slot buffers don't clobber each other. (The
-testbed cube needs a *mixed* uniform+sampler set, which `UniformRing` doesn't cover, so
-it hand-rolls the same per-frame pattern — see `MainDelegate`.) `UniformRing` is a
-pure composition of other `acm` handles (layout + a buffer/set per frame), so it adds
-no Vulkan teardown of its own. It deliberately covers only the single-uniform set; for
-a set mixing a uniform + a sampler, drive `DescriptorSet` directly.
+be reading frame N's value while the CPU writes frame N+1. Callers keep one buffer and
+descriptor set per frame in flight, then select them with the frame index passed to the
+renderer callback. Writing that slot is safe because the renderer already waited for
+its fence. `ComputeTextureExample` demonstrates this with a descriptor set containing
+both a storage image and a per-frame time uniform.
 
 **`PipelineConfig`** ([acmPipeline.h](include/archimedes/acmPipeline.h)) bundles the
-pipeline's inputs — `vertex`/`fragment` shaders, `renderPass`, optional `vertexLayout`,
+pipeline's inputs — `vertex`/`fragment` shaders, a `target`, optional `vertexLayout`,
 optional `descriptorLayout`, `depthTest`, and the fixed-function knobs `topology`,
 `cullMode`, `frontFace`, `blend`, `polygonMode`, `lineWidth`, `samples`,
 `minSampleShading` — so independent optional knobs don't become a combinatorial pile of
@@ -362,18 +368,21 @@ optional `descriptorLayout`, `depthTest`, and the fixed-function knobs `topology
 (`TriangleList`, `CullMode::None`, `FrontFace::Clockwise`, `BlendMode::Opaque`,
 `PolygonMode::Fill`, width 1, 1 sample, no sample shading), so existing callers are
 unchanged; the neutral enums live in [acmTypes.h](include/archimedes/acmTypes.h) and
-convert in [acmVkConvert.cpp](src/acmVkConvert.cpp). `polygonMode`/`lineWidth`/
+convert in [Convert.cpp](src/vulkan/Convert.cpp). `polygonMode`/`lineWidth`/
 `minSampleShading` are gated on the device's enabled features (see above) and fall back
 when unsupported. `device.createPipeline(config)` is the general
-form; `createPipeline(vert, frag, renderPass)` stays as the convenience that takes the
+form; `createPipeline(vert, frag, target)` stays as the convenience that takes the
 defaults (no vertex input, no descriptors, no depth).
 
-The **render pass is owned by `SwapChain`** (one, shared) and created once in
-[acmSwapChain.cpp](src/acmSwapChain.cpp); `RenderTarget` borrows it (does not
-destroy it). `SwapChain::vkRenderPass()` exposes it for pipeline creation;
-`RenderTarget::vkRenderPass()` returns the same borrowed handle for convenience
-when recording. Teardown order (via the device's deferred queue): each target's
-framebuffer + view, then the render pass, then the swapchain.
+The **render pass is owned by the backend `SwapChain` record** (one, shared) and created
+in [Device.cpp](src/vulkan/Device.cpp); its backend `RenderTarget` records borrow it.
+Pipeline creation takes a `RenderTarget`, keeping the Vulkan render-pass and framebuffer
+out of public target/pipeline headers. On swapchain recreation or destruction, the
+backend erases every target generation before retiring the shared objects, so copied
+target handles become invalid rather than referring to a dead swapchain image. Teardown
+order (via the device's deferred queue): each target's framebuffer + view, then the
+render pass, then the swapchain. `Renderer` retains the swapchain ID and performs
+acquire/submit/present through `vulkan::Device`; neither public class exposes Vulkan.
 
 `SwapChain::recreate()` rebuilds the `VkSwapchainKHR` + render targets at the
 surface's current size (re-querying `currentExtent`), **keeping** the render pass
@@ -451,12 +460,12 @@ symbols unresolved; the **testbed** links `Vulkan::Loader` to resolve them.
 On macOS, Vulkan runs through **MoltenVK** (a portability driver). The code
 already accounts for the two non-obvious requirements; preserve them:
 
-- **Instance** ([acmInstance.cpp](src/acmInstance.cpp)): when
+- **Instance** ([Instance.cpp](src/vulkan/Instance.cpp)): when
   `VK_KHR_portability_enumeration` is available, it is enabled (along with
   `VK_KHR_get_physical_device_properties2`) and the
   `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` flag is set — otherwise
   `vkCreateInstance` returns `VK_ERROR_INCOMPATIBLE_DRIVER`.
-- **Device** ([acmDevice.cpp](src/acmDevice.cpp)): `VK_KHR_portability_subset`
+- **Device** ([Device.cpp](src/vulkan/Device.cpp)): `VK_KHR_portability_subset`
   is enabled whenever the physical device advertises it (spec-required). The
   name macro lives behind `VK_ENABLE_BETA_EXTENSIONS`, so the literal string is
   matched instead.
@@ -545,8 +554,7 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   them back, a **vertex/index buffer** test that draws an indexed triangle from
   `Buffer`s, a **uniform buffer** test that drives the vertex (`mat4`) and fragment
   (`vec4` color) stages from one `DescriptorSet` and checks the pixel is the uniform
-  color, a **uniform ring** test that writes two `acm::UniformRing` slots distinct
-  colors and confirms each slot renders its own (no clobber), a **depth** test
+  color, a **depth** test
   that draws a near then a far triangle and checks the far one was depth-rejected, and
   a **pipeline-state** test that draws the triangle under back-face culling at both
   windings and checks flipping `FrontFace` flips visibility, a **wireframe** test
@@ -575,6 +583,10 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   surface, so it SKIPs where the swapchain-backed renderer tests do). The compute /
   dynamic-uniform / storage-image tests are device-only (no surface), so they run anywhere
   with a graphics/compute queue.
+  `test_command_recording_benchmark.cpp` is a Release-oriented production-path
+  benchmark: it records 10,000 public `CommandBuffer` draw sequences per sample against
+  real Buffer/Pipeline/RenderTarget resources without submitting. Run it with the
+  `[benchmark]` Catch2 filter; it SKIPs when no live driver is available.
   `test/CMakeLists.txt` points `VK_ICD_FILENAMES` at the vendored MoltenVK ICD
   (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not fails) when no
   driver / extension / capability is present, so a GPU-less CI stays green — and
@@ -582,6 +594,13 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   (e.g. some Windows ICDs) since they need a swapchain for the render pass. (Note:
   ctest reports a Catch2 `SKIP` as "Passed"; run the binary with the ICD env to
   confirm assertions actually execute.)
+
+  A sandboxed automation process may not be granted Metal access even when its Apple
+  Silicon host is Metal-capable. In that environment MoltenVK reports
+  `VK_ERROR_INCOMPATIBLE_DRIVER` / "Metal is not available" and the GPU tests skip.
+  Record this as an execution-environment limitation, not as a hardware limitation of
+  the host machine; visual and benchmark verification still require a process with
+  live Metal access.
 
 Shared `[gpu]` scaffolding lives in [test/vk_test_helpers.h](test/vk_test_helpers.h)
 — headless-surface + graphics-GPU selection, plus `buildHeadlessStack()` (the full
@@ -606,7 +625,7 @@ enabled (`ARCHIMEDES_BUILD_TESTBED`, default ON for top-level builds), GLFW +
 Vulkan-Loader + MoltenVK + glslang — archives cached in `.cache/fetch/`,
 sources extracted into `build/_deps/` (both git-ignored). `CMAKE_BUILD_TYPE`
 defaults to `Release`; `Debug` (NDEBUG unset) additionally compiles the Vulkan
-validation-layer / debug-messenger paths in [acmInstance.cpp](src/acmInstance.cpp).
+validation-layer / debug-messenger paths in [Instance.cpp](src/vulkan/Instance.cpp).
 
 Run the testbed via the generated launcher (it sets `VK_ICD_FILENAMES` to the
 staged MoltenVK ICD):
@@ -628,9 +647,11 @@ the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 - **C++17.** `target_compile_features(... cxx_std_17)`.
 - **Headers** use `#pragma once` (no include guards).
-- **Naming:** classes `PascalCase` in namespace `acm`; files `acm<Name>.{h,cpp}`;
-  the pImpl struct is always `struct impl`, the member always `m`. Vulkan
-  accessors are named `vk<Thing>()` (e.g. `vkInstance()`, `vkDevice()`).
+- **Naming:** public classes are `PascalCase` in namespace `acm` with files
+  `acm<Name>.{h,cpp}`. Private Vulkan owners are in `acm::vulkan` with matching
+  `private/archimedes/vulkan` and `src/vulkan` paths. Public platform integration uses
+  `nativeInstance()` plus `native::InstanceHandle` / `native::SurfaceHandle`; raw
+  backend names stay inside the selected backend.
 - **Formatting:** [.clang-format](.clang-format) — Allman braces, tabs (width 4),
   no column limit, `All` namespace indentation, left pointer alignment. Run
   clang-format (v21) on touched files; `editor.formatOnSave` is on in VS Code.
@@ -671,18 +692,17 @@ the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   thread-safe (see [WORK.md](WORK.md) for the parked best-fit/defrag work). The staging
   uploads (device-local `Buffer::write`, `Texture::upload`) each still spin up a
   *throwaway* `Staging` buffer (now pooled) +
-  command pool via `oneShotSubmit` and **wait the queue idle**: correct and simple, but
+  command pool via `vulkan::Device::submitOneShot` and **wait the queue idle**: correct and simple, but
   a load-time tool, not something to call per frame.
 - Descriptors cover uniform / dynamic-uniform / storage buffers + combined-image-samplers
   + storage images, multi-stage bindings, and arrays, but not yet input attachments.
   `BufferUsage::Storage` is host-visible only (no device-local storage path). Storage
   images are color-only, accessed in `GENERAL`, with layout transitions driven by hand via
   `CommandBuffer::transitionImage` (no automatic tracking). Each `DescriptorSet` owns its
-  own one-set pool (no shared pool). Per-frame uniform updates are bundled by
-  `acm::UniformRing`, but only for a *single-uniform* set — a set mixing a uniform + a
-  sampler still needs the buffers / `DescriptorSet` driven by hand, and there's no
-  equivalent ring for per-frame *texture* descriptors. (See [WORK.md](WORK.md) for the
-  parked remainder.)
+  own one-set pool (no shared pool). Per-frame buffers and descriptor sets are managed
+  explicitly by callers using the renderer's fence-safe frame index; there is no
+  general per-frame resource abstraction. (See [WORK.md](WORK.md) for the parked
+  remainder.)
 - `Buffer` usage is single-purpose: `BufferUsage` has no combined flags, and each
   usage's heap is fixed (vertex/index are always device-local, so there's no
   host-visible / per-frame-dynamic vertex path; uniform/readback are always

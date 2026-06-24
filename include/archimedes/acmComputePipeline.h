@@ -1,37 +1,35 @@
 #pragma once
 
-#include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmShader.h"
-#include "archimedes/acmVkFwd.h"
+#include "archimedes/acmHandle.h"
+#include "archimedes/acmNative.h"
 
 namespace acm
 {
-	// A compute pipeline: a single compute-stage shader + a pipeline layout. No render
-	// pass, no fixed-function state — just `dispatch`. Built from a compute `Shader`
-	// (any SPIR-V compute module) and an optional `DescriptorSetLayout` describing the
-	// resources it reads/writes (typically a storage buffer + a small uniform). Record
-	// `bindComputePipeline` -> `bindComputeDescriptorSet` -> `dispatch` on a
-	// CommandBuffer, then submit (e.g. via Device::submitSync for one-shot work).
 	class ComputePipeline
 	{
 	public:
-		ComputePipeline() {}
+		ComputePipeline();
+		ComputePipeline(const acm::ComputePipeline& other);
+		ComputePipeline& operator=(const acm::ComputePipeline& other);
+		ComputePipeline(acm::ComputePipeline&& other) noexcept;
+		ComputePipeline& operator=(acm::ComputePipeline&& other) noexcept;
+		~ComputePipeline();
 
-		inline void reset() { m.reset(); m_error = {}; }
-		inline bool valid() const { return m != nullptr; }
-		acm::Error error() const { return m_error; }
-
-		VkPipeline vkPipeline() const;
-		VkPipelineLayout vkPipelineLayout() const;
+		void reset();
+		bool valid() const;
+		acm::Error error() const;
+		const acm::Handle& handle() const { return m_handle; }
+		acm::native::ComputePipeline* native() const { return m_resource; }
 
 	private:
-		friend class Device; // only Device::createComputePipeline builds one
-		ComputePipeline(acm::Device device, acm::Shader compute, acm::DescriptorSetLayout layout);
+		friend acm::native::Device;
+		ComputePipeline(acm::native::ComputePipeline* resource, acm::Handle handle);
+		explicit ComputePipeline(acm::Error error);
 
-		struct impl;
-		std::shared_ptr<impl> m;
+		acm::native::ComputePipeline* m_resource{nullptr};
+		acm::Handle m_handle;
 		acm::Error m_error;
 	};
 } // namespace acm
