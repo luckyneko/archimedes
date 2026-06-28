@@ -3,7 +3,7 @@
 # MoltenVK ICD) is vendored, so this needs no system Vulkan install.
 
 include(addGLFW)
-include(addVulkanRuntime)
+acm_require_vulkan_runtime()
 include(addGlslang)
 
 add_executable(testbed

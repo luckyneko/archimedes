@@ -4,7 +4,7 @@
 
 # Brings in Vulkan::Loader (to resolve archimedes' vk* symbols) and, on macOS,
 # the ACM_MOLTENVK_ICD path used to point the loader at the vendored driver.
-include(addVulkanRuntime)
+acm_require_vulkan_runtime()
 
 add_executable(test-${PROJECT_NAME}
     test_version.cpp

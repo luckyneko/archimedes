@@ -399,15 +399,23 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
 
 - **spdlog** — [cmake/addspdlog.cmake](cmake/addspdlog.cmake) (copied from
   thorax). Provides `spdlog::spdlog`. Logging surface used throughout.
-- **Vulkan headers** — [cmake/addVulkan.cmake](cmake/addVulkan.cmake). Prefers a
-  real SDK via `find_package(Vulkan)`; otherwise vendors **Vulkan-Headers**
-  (pinned via `VULKAN_HEADERS_VER`) and exposes `Vulkan::Headers`. This is all
-  the **library** needs.
-- **Vulkan runtime** (testbed only) —
-  [cmake/addVulkanRuntime.cmake](cmake/addVulkanRuntime.cmake). Builds
-  **Vulkan-Loader** from source against the vendored headers (→ `Vulkan::Loader`)
-  and downloads a prebuilt **MoltenVK** ICD. Provides
-  `acm_stage_vulkan_runtime(<target>)`.
+- **Vulkan** — [cmake/acmVulkan.cmake](cmake/acmVulkan.cmake). Vulkan is the one
+  dependency archimedes passes through to consumers, exposed as `acm_`-prefixed
+  getter functions (so a parent project reuses them after `add_subdirectory`
+  without touching archimedes' module path):
+  - `acm_require_vulkan_headers()` — prefers a real SDK via `find_package(Vulkan)`,
+    else vendors **Vulkan-Headers**; exposes `Vulkan::Headers`. All the **library**
+    needs (it calls this itself).
+  - `acm_require_vulkan_runtime()` — builds **Vulkan-Loader** from source against
+    the headers (→ `Vulkan::Loader`, cross-platform) and, on macOS, fetches a
+    prebuilt **MoltenVK** ICD. A runnable target that creates a `VkInstance` calls
+    this.
+  - `acm_stage_vulkan_runtime(<target>)` — stages the MoltenVK ICD next to a binary
+    (macOS; a no-op elsewhere).
+
+  Each getter is idempotent (no-op if the target already exists, so a consumer can
+  supply its own Vulkan) and version-locked to a single `ARCHIMEDES_VULKAN_SDK`
+  pin shared by headers + loader (and `addGlslang`), so nothing can skew.
 - **GLFW** (testbed only) — [cmake/addGLFW.cmake](cmake/addGLFW.cmake). Windowing
   + Vulkan surface; exposes `glfw`.
 - **glslang** (testbed only) — [cmake/addGlslang.cmake](cmake/addGlslang.cmake).
@@ -430,8 +438,9 @@ symbols unresolved; the **testbed** links `Vulkan::Loader` to resolve them.
 
 ### Testbed runtime (fully vendored, no system install)
 
-[cmake/addVulkanRuntime.cmake](cmake/addVulkanRuntime.cmake) realizes the
-"no system install" goal end to end:
+`acm_require_vulkan_runtime()` / `acm_stage_vulkan_runtime()` in
+[cmake/acmVulkan.cmake](cmake/acmVulkan.cmake) realize the "no system install"
+goal end to end:
 
 - **Loader**: built from the pinned `Vulkan-Loader` source (codegen off, so no
   Python). Its second Apple-only `vulkan-framework` target is set
