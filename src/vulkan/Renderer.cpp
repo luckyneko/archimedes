@@ -20,7 +20,7 @@ bool acm::vulkan::Renderer::create(acm::vulkan::Device& owner, const acm::SwapCh
 	m_commandBuffers.reserve(acm::Renderer::MaxFramesInFlight);
 	for (uint32_t index = 0; index < acm::Renderer::MaxFramesInFlight; ++index)
 	{
-		acm::CommandBuffer commandBuffer = owner.allocateCommandBuffer(m_commandPool.native(), m_commandPool.handle());
+		acm::CommandBuffer commandBuffer = owner.allocateCommandBuffer(m_commandPool);
 		if (!commandBuffer.valid())
 			return false;
 		m_commandBuffers.push_back(std::move(commandBuffer));
@@ -75,11 +75,11 @@ acm::Error acm::vulkan::Renderer::render(const acm::Handle& handle, const std::f
 		return error;
 	if (prePass)
 		prePass(commandBuffer, uint32_t(m_currentFrame));
-	commandBuffer.beginRenderPass(target);
+	commandBuffer.beginRendering(target);
 	commandBuffer.setViewportAndScissor(target.getExtent());
 	if (record)
 		record(commandBuffer, uint32_t(m_currentFrame));
-	commandBuffer.endRenderPass();
+	commandBuffer.endRendering();
 	if (acm::Error error = commandBuffer.end())
 		return error;
 

@@ -32,7 +32,7 @@ TEST_CASE("CommandPool allocates a recordable buffer", "[acm][gpu]")
 	acm::CommandBuffer cmd = pool.allocate();
 	REQUIRE(cmd.valid());
 
-	// A bare begin/end (no render pass) is a valid recording — must not crash.
+	// A bare begin/end (no rendering scope) is a valid recording — must not crash.
 	cmd.begin();
 	cmd.end();
 
@@ -109,14 +109,14 @@ TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 	for (int i = 0; i < 3; ++i)
 	{
 		renderer.render(
-			[&](acm::CommandBuffer& cmd, uint32_t) // pre-pass: compute, outside the render pass
+			[&](acm::CommandBuffer& cmd, uint32_t) // pre-pass: compute, outside dynamic rendering
 			{
 				cmd.bindComputePipeline(compute);
 				cmd.bindComputeDescriptorSet(compute, computeSet);
 				cmd.dispatch(kCount / 64, 1, 1);
 				cmd.bufferBarrier(storage, acm::ShaderStage::Compute, acm::ShaderStage::Vertex);
 			},
-			[&](acm::CommandBuffer& cmd, uint32_t) // draws, inside the render pass
+			[&](acm::CommandBuffer& cmd, uint32_t) // draws, inside dynamic rendering
 			{
 				cmd.bindPipeline(graphics);
 				cmd.draw(3);

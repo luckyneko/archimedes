@@ -70,7 +70,6 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		config.target = target;
 		config.descriptorLayout = layout;
 		config.depthTest = true;
-		config.samples = samples;
 		acm::Pipeline pipeline = device.createPipeline(config);
 		REQUIRE(pipeline.valid());
 
@@ -100,14 +99,14 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		REQUIRE(cmd.valid());
 
 		cmd.begin();
-		cmd.beginRenderPass(target);
+		cmd.beginRendering(target);
 		cmd.setViewportAndScissor(extent);
 		cmd.bindPipeline(pipeline);
 		cmd.bindDescriptorSet(pipeline, nearSet); // near green first
 		cmd.draw(3);
 		cmd.bindDescriptorSet(pipeline, farSet); // far red second — must be depth-rejected
 		cmd.draw(3);
-		cmd.endRenderPass();
+		cmd.endRendering();
 		cmd.copyTextureToBuffer(color, readback);
 		cmd.end();
 

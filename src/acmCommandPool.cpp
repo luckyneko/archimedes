@@ -88,5 +88,5 @@ acm::Error acm::CommandPool::error() const
 
 acm::CommandBuffer acm::CommandPool::allocate()
 {
-	return m_resource->owner().allocateCommandBuffer(m_resource, m_handle);
+	return m_resource ? m_resource->owner().allocateCommandBuffer(*this) : acm::CommandBuffer{};
 }

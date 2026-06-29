@@ -45,7 +45,7 @@ namespace acm
 	};
 
 	// What an offscreen RenderTarget leaves its texture ready for once the render
-	// pass ends — drives the color attachment's final layout, so no manual barrier
+	// rendering ends — drives the color attachment's final layout, so no manual barrier
 	// is needed. Sampled => SHADER_READ_ONLY (read it in a later draw); CopySrc =>
 	// TRANSFER_SRC (copy it to a buffer / another image).
 	enum class RenderTargetFinish

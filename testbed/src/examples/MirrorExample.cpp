@@ -32,7 +32,7 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 {
 	m_views = views;
 
-	// Offscreen color texture + its render target (owns a render pass; depth for the cube).
+	// Offscreen color texture + its depth-bearing render target.
 	m_offscreenColor = device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{kRttSize, kRttSize});
 	m_offscreenTarget = device.createRenderTarget(m_offscreenColor, acm::RenderTargetFinish::Sampled, /*depth*/ true);
 	if (!m_offscreenColor.valid() || !m_offscreenTarget.valid())
@@ -120,14 +120,14 @@ void MirrorExample::onRenderView(uint32_t viewIndex, float)
 	m_views[viewIndex]->renderer().render(
 		[&](acm::CommandBuffer& cmd, uint32_t) // pre-pass: render the cube into the offscreen texture
 		{
-			cmd.beginRenderPass(m_offscreenTarget, 0.06f, 0.10f, 0.12f, 1.0f);
+			cmd.beginRendering(m_offscreenTarget, 0.06f, 0.10f, 0.12f, 1.0f);
 			cmd.setViewportAndScissor(acm::Extent2D{kRttSize, kRttSize});
 			cmd.bindPipeline(m_cubePipeline);
 			cmd.bindDescriptorSet(m_cubePipeline, m_cubeDescriptor);
 			cmd.bindVertexBuffer(m_cubeVertices);
 			cmd.bindIndexBuffer(m_cubeIndices);
 			cmd.drawIndexed(m_cubeIndexCount);
-			cmd.endRenderPass(); // RenderTargetFinish::Sampled leaves it SHADER_READ_ONLY
+			cmd.endRendering(); // RenderTargetFinish::Sampled leaves it SHADER_READ_ONLY
 		},
 		[&](acm::CommandBuffer& cmd, uint32_t) // main pass: sample it fullscreen
 		{

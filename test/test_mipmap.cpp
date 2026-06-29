@@ -70,12 +70,12 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 		acm::CommandPool pool = device.createCommandPool();
 		acm::CommandBuffer cmd = pool.allocate();
 		cmd.begin();
-		cmd.beginRenderPass(target);
+		cmd.beginRendering(target);
 		cmd.setViewportAndScissor(extent);
 		cmd.bindPipeline(pipeline);
 		cmd.bindDescriptorSet(pipeline, descriptors);
 		cmd.draw(3);
-		cmd.endRenderPass();
+		cmd.endRendering();
 		cmd.copyTextureToBuffer(out, readback);
 		cmd.end();
 
@@ -87,6 +87,7 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 	acm::Texture flat = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent, /*mipmapped*/ false);
 	REQUIRE(mipped.mipLevels() > 1);
 	REQUIRE(flat.mipLevels() == 1);
+	REQUIRE_FALSE(device.createRenderTarget(mipped, acm::RenderTargetFinish::CopySrc).valid());
 	mipped.upload(pixels.data(), pixels.size()); // generates the chain
 	flat.upload(pixels.data(), pixels.size());
 

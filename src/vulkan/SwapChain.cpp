@@ -10,19 +10,17 @@
 #include <limits>
 #include <utility>
 
-bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, acm::vulkan::Surface& surface, const acm::Handle& surfaceHandle, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
+bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
 {
-	if (&surface.owner() != &owner.instance() || !surface.retain(surfaceHandle))
+	if (!surface.valid() || !surface.native() || &surface.native()->owner() != &owner.instance())
 		return false;
-	m_surfaceResource = &surface;
-	m_surface = surfaceHandle;
+	m_surface = surface;
 	m_format = format;
 	m_presentMode = presentMode;
 	m_desiredExtent = desiredExtent;
 	m_depth = depth;
 	m_samples = samples;
-	m_renderPass = createRenderPass(owner);
-	return m_renderPass && rebuild(owner);
+	return rebuild(owner);
 }
 
 bool acm::vulkan::SwapChain::recreate(const acm::Handle& handle)
@@ -38,7 +36,7 @@ bool acm::vulkan::SwapChain::recreate(const acm::Handle& handle)
 
 bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 {
-	const VkSurfaceKHR surface = m_surfaceResource ? m_surfaceResource->vkSurface(m_surface) : VK_NULL_HANDLE;
+	const VkSurfaceKHR surface = m_surface.valid() ? m_surface.native()->vkSurface(m_surface.handle()) : VK_NULL_HANDLE;
 	if (!surface)
 		return false;
 	VkSurfaceCapabilitiesKHR capabilities = {};
@@ -84,7 +82,7 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 	targets.reserve(images.size());
 	for (VkImage image : images)
 	{
-		acm::RenderTarget target = owner.createRenderTarget(m_renderPass, image, m_format.format, {extent.width, extent.height}, m_depth, m_samples);
+		acm::RenderTarget target = owner.createRenderTarget(image, m_format.format, {extent.width, extent.height}, m_depth, m_samples);
 		if (!target.valid())
 		{
 			for (acm::RenderTarget& created : targets)
@@ -108,82 +106,6 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 	m_extent = {extent.width, extent.height};
 	m_renderTargets = std::move(targets);
 	return true;
-}
-
-VkRenderPass acm::vulkan::SwapChain::createRenderPass(acm::vulkan::Device& owner) const
-{
-	const VkSampleCountFlagBits samples = owner.sampleCount(m_samples);
-	const VkFormat depthFormat = m_depth ? acm::vulkan::toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
-	const bool multisampled = samples != VK_SAMPLE_COUNT_1_BIT;
-	std::vector<VkAttachmentDescription> attachments;
-	VkAttachmentDescription color = {};
-	color.format = acm::vulkan::toVk(m_format.format);
-	color.samples = samples;
-	color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	color.storeOp = multisampled ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
-	color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	color.finalLayout = multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	attachments.push_back(color);
-	if (multisampled)
-	{
-		VkAttachmentDescription resolve = {};
-		resolve.format = acm::vulkan::toVk(m_format.format);
-		resolve.samples = VK_SAMPLE_COUNT_1_BIT;
-		resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		resolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		attachments.push_back(resolve);
-	}
-	const uint32_t depthIndex = uint32_t(attachments.size());
-	if (m_depth)
-	{
-		VkAttachmentDescription depth = {};
-		depth.format = depthFormat;
-		depth.samples = samples;
-		depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depth.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments.push_back(depth);
-	}
-	VkAttachmentReference colorReference = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-	VkAttachmentReference resolveReference = {1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-	VkAttachmentReference depthReference = {depthIndex, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &colorReference;
-	subpass.pResolveAttachments = multisampled ? &resolveReference : nullptr;
-	subpass.pDepthStencilAttachment = m_depth ? &depthReference : nullptr;
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	if (m_depth)
-	{
-		dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		dependency.dstStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		dependency.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	}
-	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = uint32_t(attachments.size());
-	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.subpassCount = 1;
-	renderPassInfo.pSubpasses = &subpass;
-	renderPassInfo.dependencyCount = 1;
-	renderPassInfo.pDependencies = &dependency;
-	VkRenderPass renderPass = VK_NULL_HANDLE;
-	return vkCreateRenderPass(owner.vkDevice(), &renderPassInfo, nullptr, &renderPass) == VK_SUCCESS ? renderPass : VK_NULL_HANDLE;
 }
 
 acm::SurfaceFormat acm::vulkan::SwapChain::format(const acm::Handle& handle) const
@@ -231,20 +153,16 @@ void acm::vulkan::SwapChain::retire(acm::vulkan::Device& owner)
 {
 	retireTargets(owner);
 	const VkDevice device = owner.vkDevice();
-	const VkRenderPass renderPass = std::exchange(m_renderPass, VK_NULL_HANDLE);
 	const VkSwapchainKHR swapChain = std::exchange(m_swapChain, VK_NULL_HANDLE);
-	if (renderPass)
-		owner.enqueueDestroy([device, renderPass]
-							 { vkDestroyRenderPass(device, renderPass, nullptr); });
 	if (swapChain)
 		owner.enqueueDestroy([device, swapChain]
 							 { vkDestroySwapchainKHR(device, swapChain, nullptr); });
-	if (m_surfaceResource)
+	if (m_surface.valid())
 	{
-		auto* surface = std::exchange(m_surfaceResource, nullptr);
-		const acm::Handle surfaceHandle = std::exchange(m_surface, {});
-		owner.enqueueDestroy([surface, surfaceHandle]
-							 { surface->release(surfaceHandle); });
+		acm::Surface surface = m_surface;
+		m_surface.reset();
+		owner.enqueueDestroy([surface]() mutable
+							 { surface.reset(); });
 	}
 	m_extent = {};
 }

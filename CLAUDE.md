@@ -86,8 +86,8 @@ switching.
 `acm::Instance` and `acm::Device` are unique, move-only owning roots. Each holds a
 `unique_ptr` to its heap-stable named backend; moving a root therefore preserves child
 backend pointers. There is no shared ownership. A `vulkan::Device` borrows its
-`vulkan::Instance`, and dependent resources retain both the dependency's stable slot
-pointer and its `Handle`. Destruction order
+`vulkan::Instance`, and dependent resources retain public `acm::Type` wrappers when they
+need to keep another Archimedes resource alive. Destruction order
 is strict: `Instance` outlives every `Device` and `Surface`; `Device` outlives every
 Device resource. Reset child resources before resetting their root.
 
@@ -124,10 +124,9 @@ Instance ── enumerates ──> GPU[] (physical devices, queue families)
    └── createDevice(GPU, queueIdx) ─────────────> Device    // logical device + queue
           │
           ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
-          │        │   owns the one shared VkRenderPass; builds a RenderTarget per
-          │        │   swapchain image via the Device's stable target pool:
-          ├────────┴── vulkan::SwapChain builds each target from the borrowed image + shared pass
-          │                                             // view + framebuffer (+ per-image depth / MSAA color buffers)
+          │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
+          ├────────┴── vulkan::SwapChain builds each target from the borrowed image
+          │                                             // view + dynamic-rendering metadata (+ per-image depth / MSAA color buffers)
           ├── createShader(spirv) ──────────────────> Shader      // VkShaderModule from SPIR-V bytecode
           ├── createPipeline(vert, frag, target) ─────> Pipeline   // owns VkPipeline + VkPipelineLayout; dynamic viewport/scissor
           ├── createComputePipeline(compute, layout) ─> ComputePipeline // owns a compute VkPipeline + layout; bind -> dispatch
@@ -138,17 +137,17 @@ Instance ── enumerates ──> GPU[] (physical devices, queue families)
           │        // submit -> present
           ├── createTexture(format, extent[, mipmapped, storage]) ─> Texture // owned VkImage + memory + view; .upload(pixels) for color (+ mip chain); storage => compute-writable
           ├── createBuffer(size, usage) ────────────> Buffer      // owned VkBuffer; heap by usage (device-local vertex/index, host-visible uniform/readback)
-          ├── createRenderTarget(Texture, finish[, depth, samples]) ─> RenderTarget // offscreen: owns its render pass (+ depth / MSAA buffers)
+          ├── createRenderTarget(Texture, finish[, depth, samples]) ─> RenderTarget // offscreen: records dynamic rendering (+ depth / MSAA buffers)
           ├── createSampler([maxAnisotropy]) ───────> Sampler     // owned VkSampler (+ optional anisotropic filtering)
           ├── createDescriptorSetLayout(bindings) ──> DescriptorSetLayout // typed/staged bindings (n-sampler convenience form too)
           └── createDescriptorSet(layout) ──────────> DescriptorSet // owns pool + set; .setTexture(...) / .setBuffer(...)
 ```
 
 A `CommandBuffer` is a recording handle over a named backend owner containing its
-`VkCommandBuffer`. It retains the parent `CommandPool` handle and queues
+`VkCommandBuffer`. It retains the parent `CommandPool` wrapper and queues
 `vkFreeCommandBuffers` before
 releasing that pool. `Renderer::render(record)` drives one frame and calls
-`record(cmd, frameIndex)` with the render pass already begun — the demo just records
+`record(cmd, frameIndex)` with dynamic rendering already begun — the demo just records
 draws. `frameIndex` is the frame-in-flight slot (0..`Renderer::MaxFramesInFlight`-1)
 the renderer just waited the fence on, so per-slot resources — a ring of dynamic
 uniform buffers — can be safely rewritten for this frame. Size any such ring to
@@ -171,12 +170,12 @@ are parked, to fence a shared-resource update against in-flight reads).
 
 **Compute.** `device.createComputePipeline(compute, layout)` builds an
 `acm::ComputePipeline` — a single compute-stage `Shader` + a pipeline layout from a
-`DescriptorSetLayout`, no render pass / fixed-function state. Vulkan creation and
+`DescriptorSetLayout`, no rendering scope / fixed-function state. Vulkan creation and
 ownership live in the private `vulkan::ComputePipeline`; `vulkan::Device` only allocates
 its stable slot and supplies shared context. The public class only retains its handle.
 Record it on a `CommandBuffer`
 with `bindComputePipeline` → `bindComputeDescriptorSet` → `dispatch(gx, gy, gz)` (each
-group runs the shader's `local_size`), outside any render pass. The resources it reads /
+group runs the shader's `local_size`), outside any rendering scope. The resources it reads /
 writes are ordinary descriptors — a `DescriptorBinding` with `ShaderStage::Compute`
 (`Compute` is a third `ShaderStage` flag, standing alone from the graphics stages) over a
 `BufferUsage::Storage` SSBO (write) + an optional uniform. To run one-shot compute (or any
@@ -195,7 +194,7 @@ Fragment)` → draw that reads the result) and across submissions in queue submi
 `bufferBarrier(Compute, Vertex)` after, so the shared mesh is synced by barriers against
 the previous/next frames' reads rather than a per-frame device wait-idle). To fold a
 per-frame compute pass into a swapchain frame without a separate submit, `Renderer::render`
-takes an optional `prePass` callback that records *before* the render pass begins (compute,
+takes an optional `prePass` callback that records *before* dynamic rendering begins (compute,
 barriers, image transitions) into the same command buffer as the draws — so a compute write
 in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
@@ -203,9 +202,10 @@ in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `GPU`, `GPUQueueFamily`, `GPUSurfaceSupport`, and `GPUFeatures`
 ([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
-`apiVersion` is at least 1.3 and which support the core `synchronization2` feature;
+`apiVersion` is at least 1.3 and which support the core `synchronization2` and
+`dynamicRendering` features;
 the reported version is available as `GPU::apiVersion`. Device creation enables
-`synchronization2`, and command-buffer buffer/image barriers use
+`synchronization2` and `dynamicRendering`, and command-buffer buffer/image barriers use
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
 submissions use `VkSubmitInfo2` through the device-owned submission path.
 `GPUFeatures` is the curated subset of optional device features the renderer can use
@@ -224,8 +224,8 @@ per-format query owned by `Texture`.
 
 **Owned images are `Texture`; there is no separate `acm::Image`.** Swapchain
 images are *borrowed* (the driver frees them with `vkDestroySwapchainKHR`), so the
-swapchain `RenderTarget` is built directly from a borrowed `VkImage` + the shared
-render pass. An **`acm::Texture`** ([acmTexture.cpp](src/acmTexture.cpp)) is the
+swapchain `RenderTarget` is built directly from a borrowed `VkImage`. An
+**`acm::Texture`** ([acmTexture.cpp](src/acmTexture.cpp)) is the
 *owned* counterpart — `VkImage` + device-local `VkDeviceMemory` + a view — and is the
 one owned-image type (`Texture` = image + view, the bundle you actually use; a bare
 `Image` would just be the resource). It picks usage + view aspect by format: a color
@@ -239,7 +239,7 @@ A **mipmapped** texture (`createTexture(..., mipmapped=true)`, color only) gets 
 mip chain (`floor(log2 max(w,h)) + 1` levels); `upload` then generates the rest by
 **blitting** each level down from the one above (linear filter) in the same submit. Its
 view spans all levels, so a mipmapped texture is a *sampling* resource, not a
-`RenderTarget` attachment (a framebuffer needs a single-level view). `acm::Buffer`
+`RenderTarget` attachment (rendering targets need single-level views). `acm::Buffer`
 ([acmBuffer.cpp](src/acmBuffer.cpp)) owns a `VkBuffer` whose **heap is chosen by
 `BufferUsage`**: `Vertex`/`Index` are device-local (written once, read many),
 `Uniform`/`TransferDst`/`Staging`/`Storage` are host-visible/coherent (CPU-mapped). `write()`
@@ -267,34 +267,31 @@ backend-neutral public diagnostic used by tests. Memory-type selection is privat
 allocator.
 
 **Render-to-texture:** `device.createRenderTarget(texture, finish)` builds an
-*offscreen* `RenderTarget` that **owns** a render pass + framebuffer over the
-texture's view. `finish` (`acm::RenderTargetFinish`) sets the color attachment's
-final layout so the result is usable with no manual barrier — `Sampled` →
+*offscreen* `RenderTarget` that records Vulkan dynamic rendering over the texture's
+view. `finish` (`acm::RenderTargetFinish`) sets the color attachment's final layout so
+the result is usable with no manual barrier — `Sampled` →
 `SHADER_READ_ONLY` (read it in a later pass), `CopySrc` → `TRANSFER_SRC` (copy via
-`CommandBuffer::copyTextureToBuffer`). (`RenderTarget` thus borrows its render pass
-in the swapchain case and owns it offscreen — see `ownsRenderPass`.)
+`CommandBuffer::copyTextureToBuffer`).
 
 **Depth buffering** is opt-in via a `depth` flag on render-target / swapchain creation
 (`createRenderTarget(texture, finish, depth)`, `createSwapChain(..., depth)`). When
 set, the `RenderTarget` owns a depth `Texture` (`D32_Sfloat`, attachment 1) and its
-render pass gains a depth attachment (cleared each pass, not stored); the swapchain
-gives **each** per-image target its own depth buffer (one shared depth-bearing render
-pass). The matching pipeline must set `PipelineConfig::depthTest = true` (test + write,
-compare `LESS`); `CommandBuffer::beginRenderPass` supplies the depth clear (1.0) when
+dynamic rendering scope gains a depth attachment (cleared each pass, not stored); the
+swapchain gives **each** per-image target its own depth buffer. The matching pipeline
+must set `PipelineConfig::depthTest = true` (test + write,
+compare `LESS`); `CommandBuffer::beginRendering` supplies the depth clear (1.0) when
 `RenderTarget::hasDepth()`. Keep the two in sync — a depth-testing pipeline needs a
 depth-bearing pass and vice versa. `test_depth.cpp` proves it: a near triangle drawn
 first, a far one drawn second, far depth-rejected so the center stays the near color.
 
 **MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on the same factories
 (`createRenderTarget(..., depth, samples)`, `createSwapChain(..., depth, samples)`). A
-request is clamped to `Device::maxSampleCount()` — and both the `RenderTarget` and the
-`Pipeline` (`PipelineConfig::samples`) clamp the *same* `SampleCount` the same way, so
-they stay consistent without the caller querying. When samples > 1 the `RenderTarget`
+request is clamped to `Device::maxSampleCount()`, and `PipelineConfig::target` supplies
+that exact resolved sample count to the pipeline, so callers cannot configure a mismatch.
+When samples > 1 the `RenderTarget`
 owns a multisampled color image (and, with depth, a multisampled depth image) that the
-subpass renders into and **resolves** into the single-sampled target — the swapchain
-image, or the offscreen `Texture`. The render pass then has a 3rd attachment slot
-order `[msaaColor, resolve, depth]`, which is why `beginRenderPass`'s depth clear index
-and `RenderTarget::isMultisampled()` exist. `test_msaa.cpp` proves it: the same
+dynamic rendering scope renders into and **resolves** into the single-sampled target —
+the swapchain image, or the offscreen `Texture`. `test_msaa.cpp` proves it: the same
 triangle at 1x has only hard edges (no partial-coverage pixels) while 4x resolves its
 edges to intermediate values. `PipelineConfig::minSampleShading` ( > 0, needs the
 `sampleRateShading` feature) additionally turns on **per-sample shading** — running the
@@ -373,32 +370,33 @@ both a storage image and a per-frame time uniform.
 **`PipelineConfig`** ([acmPipeline.h](include/archimedes/acmPipeline.h)) bundles the
 pipeline's inputs — `vertex`/`fragment` shaders, a `target`, optional `vertexLayout`,
 optional `descriptorLayout`, `depthTest`, and the fixed-function knobs `topology`,
-`cullMode`, `frontFace`, `blend`, `polygonMode`, `lineWidth`, `samples`,
+`cullMode`, `frontFace`, `blend`, `polygonMode`, `lineWidth`,
 `minSampleShading` — so independent optional knobs don't become a combinatorial pile of
 `createPipeline` overloads. The knobs default to the original smoke-test state
 (`TriangleList`, `CullMode::None`, `FrontFace::Clockwise`, `BlendMode::Opaque`,
-`PolygonMode::Fill`, width 1, 1 sample, no sample shading), so existing callers are
-unchanged; the neutral enums live in [acmTypes.h](include/archimedes/acmTypes.h) and
+`PolygonMode::Fill`, width 1, no sample shading); the target supplies the sample count.
+The neutral enums live in [acmTypes.h](include/archimedes/acmTypes.h) and
 convert in [Convert.cpp](src/vulkan/Convert.cpp). `polygonMode`/`lineWidth`/
 `minSampleShading` are gated on the device's enabled features (see above) and fall back
 when unsupported. `device.createPipeline(config)` is the general
 form; `createPipeline(vert, frag, target)` stays as the convenience that takes the
 defaults (no vertex input, no descriptors, no depth).
 
-The **render pass is owned by the backend `SwapChain` record** (one, shared) and created
-in [Device.cpp](src/vulkan/Device.cpp); its backend `RenderTarget` records borrow it.
-Pipeline creation takes a `RenderTarget`, keeping the Vulkan render-pass and framebuffer
-out of public target/pipeline headers. On swapchain recreation or destruction, the
-backend erases every target generation before retiring the shared objects, so copied
-target handles become invalid rather than referring to a dead swapchain image. Teardown
-order (via the device's deferred queue): each target's framebuffer + view, then the
-render pass, then the swapchain. `Renderer` retains the swapchain ID and performs
-acquire/submit/present through `vulkan::Device`; neither public class exposes Vulkan.
+Backend `RenderTarget` records dynamic rendering metadata: color/depth formats for
+pipeline creation, image views for `vkCmdBeginRendering`, explicit synchronization2
+layout transitions, and the target's final color layout. Pipeline creation takes a
+`RenderTarget`, keeping Vulkan formats/views/layouts out of public target/pipeline
+headers. On swapchain recreation or destruction, the backend erases every target
+generation before retiring the shared objects, so copied target handles become invalid
+rather than referring to a dead swapchain image. Teardown order (via the device's
+deferred queue): each target's view + owned depth/MSAA images, then the swapchain.
+`Renderer` retains the swapchain wrapper and performs acquire/submit/present through
+`vulkan::Device`; neither public class exposes Vulkan.
 
 `SwapChain::recreate()` rebuilds the `VkSwapchainKHR` + render targets at the
-surface's current size (re-querying `currentExtent`), **keeping** the render pass
-(format is unchanged), then retires the old swapchain/targets through the deferred
-queue after a `vkDeviceWaitIdle`. The `acm::Renderer` calls it when acquire/present
+surface's current size (re-querying `currentExtent`), then retires the old
+swapchain/targets through the deferred queue after a `vkDeviceWaitIdle`. The
+`acm::Renderer` calls it when acquire/present
 report `VK_ERROR_OUT_OF_DATE_KHR`/`VK_SUBOPTIMAL_KHR`; a zero-extent (minimized)
 surface makes it return `false` so the renderer skips the frame and retries. The
 `Pipeline` uses **dynamic** viewport/scissor (set per-frame in
@@ -604,7 +602,7 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not fails) when no
   driver / extension / capability is present, so a GPU-less CI stays green — and
   the pipeline/render tests SKIP on drivers lacking `VK_EXT_headless_surface`
-  (e.g. some Windows ICDs) since they need a swapchain for the render pass. (Note:
+  (e.g. some Windows ICDs) since they need a swapchain-backed target. (Note:
   ctest reports a Catch2 `SKIP` as "Passed"; run the binary with the ICD env to
   confirm assertions actually execute.)
 
@@ -728,5 +726,6 @@ the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   query / fallback), depth state is fixed (test + write, compare `LESS` — no
   configurable compare op, depth-only-no-write, or depth bias), the depth buffer is
   cleared-and-discarded (storeOp `DONT_CARE`, so it can't be sampled/read back), and
-  `depthTest` on the pipeline must be kept in sync with the render pass by hand (a
-  mismatch is a validation error, not a caught one).
+  `depthTest` on the pipeline must be kept in sync with the render target. A
+  depth-testing pipeline against a non-depth target is rejected, but a non-depth-testing
+  pipeline can still render into a depth target.

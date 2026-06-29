@@ -189,7 +189,7 @@ void acm::vulkan::Instance::enumerateGPUs()
 		features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		features.pNext = &vulkan13Features;
 		vkGetPhysicalDeviceFeatures2(physicalDevice, &features);
-		if (!vulkan13Features.synchronization2)
+		if (!vulkan13Features.synchronization2 || !vulkan13Features.dynamicRendering)
 			continue;
 
 		m_physicalDevices.push_back(physicalDevice);
@@ -223,7 +223,7 @@ void acm::vulkan::Instance::enumerateGPUs()
 	}
 
 	if (m_gpus.empty())
-		m_error = acm::Error("no Vulkan 1.3 physical device with synchronization2 available");
+		m_error = acm::Error("no Vulkan 1.3 physical device with synchronization2 and dynamicRendering available");
 }
 
 VkPhysicalDevice acm::vulkan::Instance::physicalDevice(uint32_t index) const

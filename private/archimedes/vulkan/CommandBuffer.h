@@ -1,6 +1,8 @@
 #pragma once
 
+#include "archimedes/acmCommandPool.h"
 #include "archimedes/acmError.h"
+#include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmTypes.h"
 #include "archimedes/HandleMap.h"
 
@@ -20,13 +22,13 @@ namespace acm::vulkan
 	class CommandBuffer : public acm::ResourceSlot<acm::vulkan::CommandBuffer, acm::vulkan::Device>
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, acm::vulkan::CommandPool& pool, const acm::Handle& poolHandle);
+		bool create(acm::vulkan::Device& owner, const acm::CommandPool& pool);
 		VkCommandBuffer vkCommandBuffer(const acm::Handle& handle) const;
 
 		acm::Error begin(const acm::Handle& handle);
 		acm::Error end(const acm::Handle& handle);
-		void beginRenderPass(const acm::Handle& handle, const acm::vulkan::RenderTarget& target, const acm::Handle& targetHandle, float r, float g, float b, float a);
-		void endRenderPass(const acm::Handle& handle);
+		void beginRendering(const acm::Handle& handle, const acm::RenderTarget& target, float r, float g, float b, float a);
+		void endRendering(const acm::Handle& handle);
 		void setViewportAndScissor(const acm::Handle& handle, acm::Extent2D extent);
 		void bindPipeline(const acm::Handle& handle, const acm::vulkan::Pipeline& pipeline, const acm::Handle& pipelineHandle);
 		void bindDescriptorSet(const acm::Handle& handle, const acm::vulkan::Pipeline& pipeline, const acm::Handle& pipelineHandle, const acm::vulkan::DescriptorSet& set, const acm::Handle& setHandle, const uint32_t* dynamicOffset);
@@ -43,8 +45,8 @@ namespace acm::vulkan
 		void retire(acm::vulkan::Device& owner);
 
 	private:
-		acm::vulkan::CommandPool* m_poolResource{nullptr};
-		acm::Handle m_pool;
+		acm::CommandPool m_pool;
+		acm::RenderTarget m_renderTarget;
 		VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
 	};
 } // namespace acm::vulkan

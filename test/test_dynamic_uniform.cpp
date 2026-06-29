@@ -66,12 +66,12 @@ TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 	acm::CommandPool pool = device.createCommandPool();
 	acm::CommandBuffer cmd = pool.allocate();
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors, uint32_t(stride)); // dynamic offset -> element 1
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(color, readback);
 	cmd.end();
 

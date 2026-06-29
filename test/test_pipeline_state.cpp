@@ -79,11 +79,11 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 
 		v.readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
 
-		cmd.beginRenderPass(v.target); // clears to black
+		cmd.beginRendering(v.target); // clears to black
 		cmd.setViewportAndScissor(extent);
 		cmd.bindPipeline(v.pipeline);
 		cmd.draw(3);
-		cmd.endRenderPass();
+		cmd.endRendering();
 		cmd.copyTextureToBuffer(v.tex, v.readback);
 	}
 

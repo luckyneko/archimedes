@@ -83,12 +83,12 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	acm::CommandPool pool = device.createCommandPool();
 	acm::CommandBuffer cmd = pool.allocate();
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.end();
 	submitAndWait(device, cmd);
 
@@ -140,12 +140,12 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 	acm::CommandPool pool = device.createCommandPool();
 	acm::CommandBuffer cmd = pool.allocate();
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(color, readback);
 	cmd.end();
 	submitAndWait(device, cmd);
@@ -206,12 +206,12 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	acm::CommandPool pool = device.createCommandPool();
 	acm::CommandBuffer cmd = pool.allocate();
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(out, readback);
 	cmd.end();
 	submitAndWait(device, cmd);

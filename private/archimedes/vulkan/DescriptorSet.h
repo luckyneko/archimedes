@@ -1,5 +1,6 @@
 #pragma once
 
+#include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/HandleMap.h"
 
 #include <vulkan/vulkan.h>
@@ -15,7 +16,7 @@ namespace acm::vulkan
 	class DescriptorSet : public acm::ResourceSlot<acm::vulkan::DescriptorSet, acm::vulkan::Device>
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, acm::vulkan::DescriptorSetLayout& layout, const acm::Handle& layoutHandle);
+		bool create(acm::vulkan::Device& owner, const acm::DescriptorSetLayout& layout);
 		VkDescriptorSet vkDescriptorSet(const acm::Handle& handle) const;
 		void setTexture(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Texture& texture, const acm::Handle& textureHandle, const acm::vulkan::Sampler& sampler, const acm::Handle& samplerHandle, uint32_t arrayElement);
 		void setBuffer(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Buffer& buffer, const acm::Handle& bufferHandle, uint32_t arrayElement);
@@ -26,8 +27,7 @@ namespace acm::vulkan
 	private:
 		VkDescriptorType bufferType(uint32_t binding) const;
 
-		acm::vulkan::DescriptorSetLayout* m_layoutResource{nullptr};
-		acm::Handle m_layout;
+		acm::DescriptorSetLayout m_layout;
 		VkDescriptorPool m_pool{VK_NULL_HANDLE};
 		VkDescriptorSet m_set{VK_NULL_HANDLE};
 	};

@@ -73,18 +73,18 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 
 	cmd.begin();
 
-	cmd.beginRenderPass(targetA);
+	cmd.beginRendering(targetA);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeA);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 
-	cmd.beginRenderPass(targetB);
+	cmd.beginRendering(targetB);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeB);
 	cmd.bindDescriptorSet(pipeB, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 
 	cmd.copyTextureToBuffer(texB, readback);
 	cmd.end();

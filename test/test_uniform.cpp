@@ -76,12 +76,12 @@ TEST_CASE("a uniform buffer drives shader output", "[acm][gpu]")
 	REQUIRE(cmd.valid());
 
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(texture, readback);
 	cmd.end();
 

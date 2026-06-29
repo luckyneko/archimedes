@@ -107,16 +107,16 @@ acm::Error acm::CommandBuffer::end()
 	return m_resource ? m_resource->end(m_handle) : acm::Error("invalid command buffer");
 }
 
-void acm::CommandBuffer::beginRenderPass(const acm::RenderTarget& target, float r, float g, float b, float a)
-{
-	if (m_resource && target.native())
-		m_resource->beginRenderPass(m_handle, *target.native(), target.handle(), r, g, b, a);
-}
-
-void acm::CommandBuffer::endRenderPass()
+void acm::CommandBuffer::beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a)
 {
 	if (m_resource)
-		m_resource->endRenderPass(m_handle);
+		m_resource->beginRendering(m_handle, target, r, g, b, a);
+}
+
+void acm::CommandBuffer::endRendering()
+{
+	if (m_resource)
+		m_resource->endRendering(m_handle);
 }
 
 void acm::CommandBuffer::setViewportAndScissor(acm::Extent2D extent)

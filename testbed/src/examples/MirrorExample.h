@@ -6,8 +6,8 @@
 
 // Render-to-texture. A spinning cube is rendered into an offscreen RenderTarget
 // (RenderTargetFinish::Sampled) during the renderer's pre-pass, then that texture is
-// sampled fullscreen in the main pass — two render passes in one command buffer.
-// Exercises the offscreen RenderTarget path (its own render pass + depth) and sampling an
+// sampled fullscreen in the main pass — two rendering scopes in one command buffer.
+// Exercises the offscreen RenderTarget path (dynamic rendering + depth) and sampling an
 // RTT result. Single window. The shared offscreen texture is rewritten + read each frame,
 // so onUpdate idles the device first (simple-correct; a ring would remove the stall).
 class MirrorExample : public Example

@@ -10,12 +10,12 @@
 #include <cassert>
 #include <map>
 
-bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, acm::vulkan::DescriptorSetLayout& layout, const acm::Handle& layoutHandle)
+bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::DescriptorSetLayout& layout)
 {
-	if (&layout.owner() != &owner)
+	if (!layout.valid() || !layout.native() || &layout.native()->owner() != &owner)
 		return false;
-	const auto* bindings = layout.bindings(layoutHandle);
-	const VkDescriptorSetLayout vkLayout = layout.vkLayout(layoutHandle);
+	const auto* bindings = layout.native()->bindings(layout.handle());
+	const VkDescriptorSetLayout vkLayout = layout.native()->vkLayout(layout.handle());
 	if (!bindings || !vkLayout)
 		return false;
 
@@ -42,10 +42,7 @@ bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, acm::vulkan:
 	allocationInfo.pSetLayouts = &vkLayout;
 	if (vkAllocateDescriptorSets(owner.vkDevice(), &allocationInfo, &m_set) != VK_SUCCESS)
 		return false;
-	if (!layout.retain(layoutHandle))
-		return false;
-	m_layoutResource = &layout;
-	m_layout = layoutHandle;
+	m_layout = layout;
 	return true;
 }
 
@@ -142,7 +139,7 @@ void acm::vulkan::DescriptorSet::setStorageImage(const acm::Handle& handle, uint
 
 VkDescriptorType acm::vulkan::DescriptorSet::bufferType(uint32_t binding) const
 {
-	const auto* bindings = m_layoutResource ? m_layoutResource->bindings(m_layout) : nullptr;
+	const auto* bindings = m_layout.valid() ? m_layout.native()->bindings(m_layout.handle()) : nullptr;
 	if (bindings)
 		for (const acm::DescriptorBinding& candidate : *bindings)
 			if (candidate.binding == binding)
@@ -153,8 +150,6 @@ VkDescriptorType acm::vulkan::DescriptorSet::bufferType(uint32_t binding) const
 
 void acm::vulkan::DescriptorSet::retire(acm::vulkan::Device& owner)
 {
-	acm::vulkan::DescriptorSetLayout* layoutResource = std::exchange(m_layoutResource, nullptr);
-	const acm::Handle layout = std::exchange(m_layout, {});
 	const VkDescriptorPool pool = std::exchange(m_pool, VK_NULL_HANDLE);
 	m_set = VK_NULL_HANDLE;
 	if (pool)
@@ -164,6 +159,5 @@ void acm::vulkan::DescriptorSet::retire(acm::vulkan::Device& owner)
 		owner.enqueueDestroy([device, retiredPool]
 							 { vkDestroyDescriptorPool(device, retiredPool, nullptr); });
 	}
-	if (layoutResource)
-		layoutResource->release(layout);
+	m_layout.reset();
 }

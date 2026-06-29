@@ -7,7 +7,7 @@
 #include <utility>
 
 // Integration: builds an acm::Shader + acm::Pipeline against a headless
-// swapchain's render pass, using the precompiled SPIR-V in test_spirv.h. SKIPs
+// swapchain target, using the precompiled SPIR-V in test_spirv.h. SKIPs
 // without a live driver / headless surface / swapchain support.
 
 TEST_CASE("Shader rejects empty SPIR-V, accepts valid", "[acm][gpu]")
@@ -39,6 +39,13 @@ TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 
 	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.getRenderTarget(0));
 	REQUIRE(pipeline.valid());
+
+	acm::PipelineConfig incompatible;
+	incompatible.vertex = vert;
+	incompatible.fragment = frag;
+	incompatible.target = s.swapChain.getRenderTarget(0);
+	incompatible.depthTest = true;
+	REQUIRE_FALSE(s.device.createPipeline(incompatible).valid());
 
 	acm::Pipeline retained = pipeline;
 	pipeline.reset();

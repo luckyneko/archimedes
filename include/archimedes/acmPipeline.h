@@ -13,7 +13,8 @@ namespace acm
 {
 	// Everything a graphics pipeline is built from. `vertexLayout` defaults to empty
 	// (no vertex input -- geometry from the shader); `descriptorLayout` defaults to
-	// null (empty pipeline layout). The target supplies the compatible render pass.
+	// null (empty pipeline layout). The target supplies the compatible attachment
+	// formats and sample count.
 	struct PipelineConfig
 	{
 		acm::Shader vertex;
@@ -32,10 +33,8 @@ namespace acm
 		// needs wideLines. Without the feature the pipeline falls back (Fill / width 1).
 		acm::PolygonMode polygonMode{acm::PolygonMode::Fill};
 		float lineWidth{1.0f};
-		// MSAA sample count -- must match the render target's (clamped the same way).
-		acm::SampleCount samples{acm::SampleCount::One};
 		// Per-sample shading fraction (0 = off; 1 = shade every sample). > 0 needs the
-		// sampleRateShading feature and samples > 1; ignored otherwise.
+		// sampleRateShading feature and a multisampled target; ignored otherwise.
 		float minSampleShading{0.0f};
 	};
 

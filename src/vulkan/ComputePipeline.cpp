@@ -6,13 +6,15 @@
 
 #include <utility>
 
-bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, acm::vulkan::Shader& compute, const acm::Handle& computeHandle, acm::vulkan::DescriptorSetLayout* layout, const acm::Handle& layoutHandle)
+bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
 {
-	if (&compute.owner() != &owner || (layout && &layout->owner() != &owner))
+	if (!compute.valid() || !compute.native() || &compute.native()->owner() != &owner)
 		return false;
-	const VkShaderModule shaderModule = compute.vkShaderModule(computeHandle);
-	const VkDescriptorSetLayout setLayout = layout ? layout->vkLayout(layoutHandle) : VK_NULL_HANDLE;
-	if (!shaderModule || (layout && !setLayout))
+	if (layout.valid() && (!layout.native() || &layout.native()->owner() != &owner))
+		return false;
+	const VkShaderModule shaderModule = compute.native()->vkShaderModule(compute.handle());
+	const VkDescriptorSetLayout setLayout = layout.valid() ? layout.native()->vkLayout(layout.handle()) : VK_NULL_HANDLE;
+	if (!shaderModule || (layout.valid() && !setLayout))
 		return false;
 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
@@ -37,13 +39,7 @@ bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, acm::vulka
 	if (vkCreateComputePipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
 		return false;
 
-	if (layout)
-	{
-		m_descriptorLayoutResource = layout;
-		m_descriptorLayout = layoutHandle;
-		if (!layout->retain(layoutHandle))
-			return false;
-	}
+	m_descriptorLayout = layout;
 	return true;
 }
 
@@ -68,10 +64,5 @@ void acm::vulkan::ComputePipeline::retire(acm::vulkan::Device& owner)
 	if (layout)
 		owner.enqueueDestroy([device, layout]
 							 { vkDestroyPipelineLayout(device, layout, nullptr); });
-	if (m_descriptorLayoutResource)
-	{
-		auto* descriptorLayout = std::exchange(m_descriptorLayoutResource, nullptr);
-		const acm::Handle descriptorLayoutHandle = std::exchange(m_descriptorLayout, {});
-		descriptorLayout->release(descriptorLayoutHandle);
-	}
+	m_descriptorLayout.reset();
 }

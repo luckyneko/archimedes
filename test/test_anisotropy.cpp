@@ -74,12 +74,12 @@ TEST_CASE("an anisotropic sampler samples correctly", "[acm][gpu]")
 	REQUIRE(cmd.valid());
 
 	cmd.begin();
-	cmd.beginRenderPass(targetB);
+	cmd.beginRendering(targetB);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindDescriptorSet(pipeline, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(texB, readback);
 	cmd.end();
 

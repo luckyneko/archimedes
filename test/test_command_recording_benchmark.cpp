@@ -36,7 +36,7 @@ TEST_CASE("production command-recording benchmark", "[acm][gpu][benchmark]")
 	BENCHMARK("record 10000 production draw sequences")
 	{
 		REQUIRE_FALSE(commandBuffer.begin());
-		commandBuffer.beginRenderPass(target);
+		commandBuffer.beginRendering(target);
 		commandBuffer.setViewportAndScissor(extent);
 		for (uint32_t draw = 0; draw < 10000; ++draw)
 		{
@@ -44,7 +44,7 @@ TEST_CASE("production command-recording benchmark", "[acm][gpu][benchmark]")
 			commandBuffer.bindVertexBuffer(vertexBuffer);
 			commandBuffer.draw(3);
 		}
-		commandBuffer.endRenderPass();
+		commandBuffer.endRendering();
 		REQUIRE_FALSE(commandBuffer.end());
 		return commandBuffer.valid();
 	};

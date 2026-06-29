@@ -75,6 +75,7 @@ acm::vulkan::Device::Device(acm::vulkan::Instance& instance, const acm::GPU& gpu
 	VkPhysicalDeviceVulkan13Features vulkan13Features = {};
 	vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	vulkan13Features.synchronization2 = VK_TRUE;
+	vulkan13Features.dynamicRendering = VK_TRUE;
 	VkPhysicalDeviceFeatures2 deviceFeatures = {};
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.pNext = &vulkan13Features;
@@ -356,7 +357,7 @@ acm::DescriptorSet acm::vulkan::Device::createDescriptorSet(const acm::Descripto
 	if (!layout.valid() || &layout.native()->owner() != this)
 		return acm::DescriptorSet(acm::Error("failed to create descriptor set from invalid layout"));
 	auto inserted = m_descriptorSets.emplace([this, &layout](acm::vulkan::DescriptorSet& descriptorSet)
-											 { return descriptorSet.create(*this, *layout.native(), layout.handle()); });
+											 { return descriptorSet.create(*this, layout); });
 	if (!inserted.resource)
 		return acm::DescriptorSet(acm::Error("failed to create descriptor set"));
 	return acm::DescriptorSet(inserted.resource, inserted.handle);
@@ -378,16 +379,16 @@ acm::ComputePipeline acm::vulkan::Device::createComputePipeline(const acm::Shade
 	if (layout.valid() && &layout.native()->owner() != this)
 		return acm::ComputePipeline(acm::Error("failed to create compute pipeline from invalid descriptor layout"));
 	auto inserted = m_computePipelines.emplace([this, &compute, &layout](acm::vulkan::ComputePipeline& pipeline)
-											   { return pipeline.create(*this, *compute.native(), compute.handle(), layout.valid() ? layout.native() : nullptr, layout.handle()); });
+											   { return pipeline.create(*this, compute, layout); });
 	if (!inserted.resource)
 		return acm::ComputePipeline(acm::Error("failed to create compute pipeline"));
 	return acm::ComputePipeline(inserted.resource, inserted.handle);
 }
 
-acm::RenderTarget acm::vulkan::Device::createRenderTarget(VkRenderPass renderPass, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
+acm::RenderTarget acm::vulkan::Device::createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
 {
-	auto inserted = m_renderTargets.emplace([this, renderPass, image, format, extent, depth, samples](acm::vulkan::RenderTarget& target)
-											{ return target.create(*this, renderPass, image, format, extent, depth, samples); });
+	auto inserted = m_renderTargets.emplace([this, image, format, extent, depth, samples](acm::vulkan::RenderTarget& target)
+											{ return target.create(*this, image, format, extent, depth, samples); });
 	if (!inserted.resource)
 		return acm::RenderTarget(acm::Error("failed to create render target"));
 	return acm::RenderTarget(inserted.resource, inserted.handle);
@@ -398,7 +399,7 @@ acm::RenderTarget acm::vulkan::Device::createRenderTarget(const acm::Texture& te
 	if (!texture.valid() || &texture.native()->owner() != this)
 		return acm::RenderTarget(acm::Error("failed to create render target from invalid texture"));
 	auto inserted = m_renderTargets.emplace([this, &texture, finish, depth, samples](acm::vulkan::RenderTarget& target)
-											{ return target.create(*this, *texture.native(), texture.handle(), finish, depth, samples); });
+											{ return target.create(*this, texture, finish, depth, samples); });
 	if (!inserted.resource)
 		return acm::RenderTarget(acm::Error("failed to create render target"));
 	return acm::RenderTarget(inserted.resource, inserted.handle);
@@ -409,7 +410,7 @@ acm::SwapChain acm::vulkan::Device::createSwapChain(const acm::Surface& surface,
 	if (!surface.valid() || &surface.native()->owner() != m_instance)
 		return acm::SwapChain(acm::Error("failed to create swapchain from invalid surface"));
 	auto inserted = m_swapChains.emplace([this, &surface, format, presentMode, desiredExtent, depth, samples](acm::vulkan::SwapChain& swapChain)
-										 { return swapChain.create(*this, *surface.native(), surface.handle(), format, presentMode, desiredExtent, depth, samples); });
+										 { return swapChain.create(*this, surface, format, presentMode, desiredExtent, depth, samples); });
 	if (!inserted.resource)
 		return acm::SwapChain(acm::Error("failed to create swapchain"));
 	return acm::SwapChain(inserted.resource, inserted.handle);
@@ -424,13 +425,13 @@ acm::CommandPool acm::vulkan::Device::createCommandPool()
 	return acm::CommandPool(inserted.resource, inserted.handle);
 }
 
-acm::CommandBuffer acm::vulkan::Device::allocateCommandBuffer(acm::vulkan::CommandPool* poolResource, const acm::Handle& pool)
+acm::CommandBuffer acm::vulkan::Device::allocateCommandBuffer(const acm::CommandPool& pool)
 {
-	if (!poolResource || &poolResource->owner() != this || !poolResource->valid(pool))
+	if (!pool.valid() || &pool.native()->owner() != this)
 		return acm::CommandBuffer(acm::Error("failed to allocate from invalid command pool"));
 
-	auto inserted = m_commandBuffers.emplace([this, poolResource, pool](acm::vulkan::CommandBuffer& commandBuffer)
-											 { return commandBuffer.create(*this, *poolResource, pool); });
+	auto inserted = m_commandBuffers.emplace([this, &pool](acm::vulkan::CommandBuffer& commandBuffer)
+											 { return commandBuffer.create(*this, pool); });
 	if (!inserted.resource)
 		return acm::CommandBuffer(acm::Error("failed to retain command pool"));
 	return acm::CommandBuffer(inserted.resource, inserted.handle);

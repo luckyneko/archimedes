@@ -122,12 +122,12 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	cmd.bindComputeDescriptorSet(compute, descriptors);
 	cmd.dispatch(1);
 	cmd.bufferBarrier(storage, acm::ShaderStage::Compute, acm::ShaderStage::Fragment);
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(graphics);
 	cmd.bindDescriptorSet(graphics, descriptors);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(color, readback);
 	cmd.end();
 

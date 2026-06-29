@@ -88,7 +88,6 @@ bool InstancedCubesExample::onInit(acm::Device& device, const std::vector<Render
 	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depthTest = true;
-	config.samples = acm::SampleCount::Four;
 	config.cullMode = acm::CullMode::None;
 	config.vertexLayout.stride = sizeof(tb::CubeVertex);
 	config.vertexLayout.attributes = {

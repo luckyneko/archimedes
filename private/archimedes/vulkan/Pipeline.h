@@ -1,5 +1,6 @@
 #pragma once
 
+#include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/HandleMap.h"
 
@@ -19,8 +20,7 @@ namespace acm::vulkan
 		void retire(acm::vulkan::Device& owner);
 
 	private:
-		acm::vulkan::DescriptorSetLayout* m_descriptorLayoutResource{nullptr};
-		acm::Handle m_descriptorLayout;
+		acm::DescriptorSetLayout m_descriptorLayout;
 		VkPipelineLayout m_layout{VK_NULL_HANDLE};
 		VkPipeline m_pipeline{VK_NULL_HANDLE};
 	};

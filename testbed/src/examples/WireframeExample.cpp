@@ -58,7 +58,6 @@ bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderConte
 	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depthTest = true;
-	config.samples = acm::SampleCount::Four;
 	config.cullMode = acm::CullMode::None;		 // see all edges
 	config.polygonMode = acm::PolygonMode::Line; // wireframe (feature-gated)
 	config.lineWidth = 2.0f;					 // wide lines (feature-gated)

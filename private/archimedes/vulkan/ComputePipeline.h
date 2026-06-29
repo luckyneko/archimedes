@@ -1,5 +1,7 @@
 #pragma once
 
+#include "archimedes/acmDescriptorSetLayout.h"
+#include "archimedes/acmShader.h"
 #include "archimedes/HandleMap.h"
 
 #include <vulkan/vulkan.h>
@@ -13,14 +15,13 @@ namespace acm::vulkan
 	class ComputePipeline : public acm::ResourceSlot<acm::vulkan::ComputePipeline, acm::vulkan::Device>
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, acm::vulkan::Shader& compute, const acm::Handle& computeHandle, acm::vulkan::DescriptorSetLayout* layout, const acm::Handle& layoutHandle);
+		bool create(acm::vulkan::Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		VkPipeline vkPipeline(const acm::Handle& handle) const;
 		VkPipelineLayout vkLayout(const acm::Handle& handle) const;
 		void retire(acm::vulkan::Device& owner);
 
 	private:
-		acm::vulkan::DescriptorSetLayout* m_descriptorLayoutResource{nullptr};
-		acm::Handle m_descriptorLayout;
+		acm::DescriptorSetLayout m_descriptorLayout;
 		VkPipelineLayout m_layout{VK_NULL_HANDLE};
 		VkPipeline m_pipeline{VK_NULL_HANDLE};
 	};

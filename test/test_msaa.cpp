@@ -58,7 +58,6 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		config.vertex = device.createShader(acmtest::triangleVertSpirv());
 		config.fragment = device.createShader(acmtest::triangleFragSpirv());
 		config.target = target;
-		config.samples = samples;
 		acm::Pipeline pipeline = device.createPipeline(config);
 		REQUIRE(pipeline.valid());
 
@@ -67,11 +66,11 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		acm::CommandPool pool = device.createCommandPool();
 		acm::CommandBuffer cmd = pool.allocate();
 		cmd.begin();
-		cmd.beginRenderPass(target);
+		cmd.beginRendering(target);
 		cmd.setViewportAndScissor(extent);
 		cmd.bindPipeline(pipeline);
 		cmd.draw(3);
-		cmd.endRenderPass();
+		cmd.endRendering();
 		cmd.copyTextureToBuffer(tex, readback);
 		cmd.end();
 
@@ -128,7 +127,6 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	config.vertex = device.createShader(acmtest::triangleVertSpirv());
 	config.fragment = device.createShader(acmtest::triangleFragSpirv());
 	config.target = target;
-	config.samples = acm::SampleCount::Four;
 	config.minSampleShading = 1.0f; // shade every sample
 	acm::Pipeline pipeline = device.createPipeline(config);
 	REQUIRE(pipeline.valid());
@@ -137,11 +135,11 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	acm::CommandPool pool = device.createCommandPool();
 	acm::CommandBuffer cmd = pool.allocate();
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(tex, readback);
 	cmd.end();
 

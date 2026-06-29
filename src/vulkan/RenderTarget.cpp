@@ -6,92 +6,92 @@
 #include "archimedes/vulkan/Texture.h"
 
 #include <utility>
-#include <vector>
 
-bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkRenderPass renderPass, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
+bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
 {
-	if (!renderPass || !image || format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
+	if (!image || format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
 		return false;
-	m_renderPass = renderPass;
+	m_colorImage = image;
+	m_colorFormat = acm::vulkan::toVk(format);
 	m_extent = extent;
 	m_depth = depth;
-	const VkSampleCountFlagBits vkSamples = owner.sampleCount(samples);
-	m_multisampled = vkSamples != VK_SAMPLE_COUNT_1_BIT;
-	const VkFormat colorFormat = acm::vulkan::toVk(format);
+	m_depthFormat = depth ? acm::vulkan::toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
+	m_samples = owner.sampleCount(samples);
+	m_finalColorLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	m_finalColorAccess = VK_ACCESS_2_NONE;
+	m_finalColorStage = VK_PIPELINE_STAGE_2_NONE;
 
 	VkImageViewCreateInfo imageViewInfo = {};
 	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	imageViewInfo.image = image;
 	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imageViewInfo.format = colorFormat;
+	imageViewInfo.format = m_colorFormat;
 	imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	imageViewInfo.subresourceRange.levelCount = 1;
 	imageViewInfo.subresourceRange.layerCount = 1;
-	if (vkCreateImageView(owner.vkDevice(), &imageViewInfo, nullptr, &m_imageView) != VK_SUCCESS)
+	if (vkCreateImageView(owner.vkDevice(), &imageViewInfo, nullptr, &m_colorView) != VK_SUCCESS)
 		return false;
+	m_ownsColorView = true;
 
-	constexpr acm::Format DepthFormat = acm::Format::D32_Sfloat;
-	if (m_depth)
-	{
-		if (m_multisampled)
-		{
-			if (!createAttachment(owner, m_msaaDepth, acm::vulkan::toVk(DepthFormat), extent, vkSamples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT))
-				return false;
-		}
-		else
-		{
-			acm::Texture depthTexture = owner.createTexture(DepthFormat, extent, false, false);
-			if (!depthTexture.valid() || !depthTexture.native()->retain(depthTexture.handle()))
-				return false;
-			m_depthTextureResource = depthTexture.native();
-			m_depthTexture = depthTexture.handle();
-		}
-	}
-	if (m_multisampled && !createAttachment(owner, m_msaaColor, colorFormat, extent, vkSamples, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT))
-		return false;
-	return createFramebuffer(owner, m_imageView);
+	return createTransientAttachments(owner);
 }
 
-bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, acm::vulkan::Texture& texture, const acm::Handle& textureHandle, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
+bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
 {
-	if (&texture.owner() != &owner)
+	if (!texture.valid() || !texture.native() || &texture.native()->owner() != &owner)
 		return false;
-	const acm::Format format = texture.format(textureHandle);
-	const acm::Extent2D extent = texture.extent(textureHandle);
-	const VkImageView colorView = texture.vkImageView(textureHandle);
-	if (format == acm::Format::Undefined || extent.width == 0 || extent.height == 0 || !colorView || !texture.retain(textureHandle))
+	const acm::Format format = texture.native()->format(texture.handle());
+	const acm::Extent2D extent = texture.native()->extent(texture.handle());
+	const uint32_t mipLevels = texture.native()->mipLevels(texture.handle());
+	const VkImage colorImage = texture.native()->vkImage(texture.handle());
+	const VkImageView colorView = texture.native()->vkImageView(texture.handle());
+	if (format == acm::Format::Undefined || format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
 		return false;
-	m_textureResource = &texture;
-	m_texture = textureHandle;
+	m_texture = texture;
+	m_colorImage = colorImage;
+	m_colorView = colorView;
+	m_colorFormat = acm::vulkan::toVk(format);
 	m_extent = extent;
 	m_depth = depth;
-	const VkSampleCountFlagBits vkSamples = owner.sampleCount(samples);
-	m_multisampled = vkSamples != VK_SAMPLE_COUNT_1_BIT;
-	const VkFormat colorFormat = acm::vulkan::toVk(format);
-	constexpr acm::Format DepthFormat = acm::Format::D32_Sfloat;
-	const VkFormat depthFormat = depth ? acm::vulkan::toVk(DepthFormat) : VK_FORMAT_UNDEFINED;
+	m_depthFormat = depth ? acm::vulkan::toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
+	m_samples = owner.sampleCount(samples);
+	if (finish == acm::RenderTargetFinish::Sampled)
+	{
+		m_finalColorLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		m_finalColorAccess = VK_ACCESS_2_SHADER_READ_BIT;
+		m_finalColorStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	}
+	else
+	{
+		m_finalColorLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		m_finalColorAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
+		m_finalColorStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	}
 
+	return createTransientAttachments(owner);
+}
+
+bool acm::vulkan::RenderTarget::createTransientAttachments(acm::vulkan::Device& owner)
+{
+	const bool multisampled = m_samples != VK_SAMPLE_COUNT_1_BIT;
 	if (m_depth)
 	{
-		if (m_multisampled)
+		if (multisampled)
 		{
-			if (!createAttachment(owner, m_msaaDepth, depthFormat, extent, vkSamples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT))
+			if (!createAttachment(owner, m_msaaDepth, m_depthFormat, m_extent, m_samples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT))
 				return false;
 		}
 		else
 		{
-			acm::Texture depthTexture = owner.createTexture(DepthFormat, extent, false, false);
-			if (!depthTexture.valid() || !depthTexture.native()->retain(depthTexture.handle()))
+			acm::Texture depthTexture = owner.createTexture(acm::Format::D32_Sfloat, m_extent, false, false);
+			if (!depthTexture.valid())
 				return false;
-			m_depthTextureResource = depthTexture.native();
-			m_depthTexture = depthTexture.handle();
+			m_depthTexture = depthTexture;
 		}
 	}
-	if (m_multisampled && !createAttachment(owner, m_msaaColor, colorFormat, extent, vkSamples, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT))
+	if (multisampled && !createAttachment(owner, m_msaaColor, m_colorFormat, m_extent, m_samples, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT))
 		return false;
-	m_renderPass = createOffscreenRenderPass(owner, colorFormat, finish, depthFormat, vkSamples);
-	m_ownsRenderPass = m_renderPass != VK_NULL_HANDLE;
-	return m_renderPass && createFramebuffer(owner, colorView);
+	return true;
 }
 
 bool acm::vulkan::RenderTarget::createAttachment(acm::vulkan::Device& owner, Attachment& attachment, VkFormat format, acm::Extent2D extent, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect)
@@ -128,121 +128,84 @@ bool acm::vulkan::RenderTarget::createAttachment(acm::vulkan::Device& owner, Att
 	return vkCreateImageView(owner.vkDevice(), &viewInfo, nullptr, &attachment.view) == VK_SUCCESS;
 }
 
-bool acm::vulkan::RenderTarget::createFramebuffer(acm::vulkan::Device& owner, VkImageView colorView)
+VkImage acm::vulkan::RenderTarget::colorAttachmentImage() const
 {
-	VkImageView attachments[3];
-	uint32_t attachmentCount = 0;
-	if (m_multisampled)
-	{
-		attachments[attachmentCount++] = m_msaaColor.view;
-		attachments[attachmentCount++] = colorView;
-		if (m_depth)
-			attachments[attachmentCount++] = m_msaaDepth.view;
-	}
-	else
-	{
-		attachments[attachmentCount++] = colorView;
-		if (m_depth)
-		{
-			const VkImageView depthView = m_depthTextureResource ? m_depthTextureResource->vkImageView(m_depthTexture) : VK_NULL_HANDLE;
-			if (!depthView)
-				return false;
-			attachments[attachmentCount++] = depthView;
-		}
-	}
-	VkFramebufferCreateInfo framebufferInfo = {};
-	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	framebufferInfo.renderPass = m_renderPass;
-	framebufferInfo.attachmentCount = attachmentCount;
-	framebufferInfo.pAttachments = attachments;
-	framebufferInfo.width = m_extent.width;
-	framebufferInfo.height = m_extent.height;
-	framebufferInfo.layers = 1;
-	return vkCreateFramebuffer(owner.vkDevice(), &framebufferInfo, nullptr, &m_framebuffer) == VK_SUCCESS;
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaColor.image : m_colorImage;
 }
 
-VkRenderPass acm::vulkan::RenderTarget::createOffscreenRenderPass(acm::vulkan::Device& owner, VkFormat colorFormat, acm::RenderTargetFinish finish, VkFormat depthFormat, VkSampleCountFlagBits samples)
+VkImageView acm::vulkan::RenderTarget::colorAttachmentView() const
 {
-	const bool sampled = finish == acm::RenderTargetFinish::Sampled;
-	const bool depth = depthFormat != VK_FORMAT_UNDEFINED;
-	const bool multisampled = samples != VK_SAMPLE_COUNT_1_BIT;
-	const VkImageLayout finalColor = sampled ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	std::vector<VkAttachmentDescription> attachments;
-	VkAttachmentDescription color = {};
-	color.format = colorFormat;
-	color.samples = samples;
-	color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	color.storeOp = multisampled ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
-	color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	color.finalLayout = multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : finalColor;
-	attachments.push_back(color);
-	if (multisampled)
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaColor.view : m_colorView;
+}
+
+VkImage acm::vulkan::RenderTarget::depthAttachmentImage() const
+{
+	if (!m_depth)
+		return VK_NULL_HANDLE;
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.image : (m_depthTexture.valid() ? m_depthTexture.native()->vkImage(m_depthTexture.handle()) : VK_NULL_HANDLE);
+}
+
+VkImageView acm::vulkan::RenderTarget::depthAttachmentView() const
+{
+	if (!m_depth)
+		return VK_NULL_HANDLE;
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.view : (m_depthTexture.valid() ? m_depthTexture.native()->vkImageView(m_depthTexture.handle()) : VK_NULL_HANDLE);
+}
+
+VkImageMemoryBarrier2 acm::vulkan::RenderTarget::imageBarrier(VkImage image, VkImageAspectFlags aspect, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccess, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage)
+{
+	VkImageMemoryBarrier2 barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	barrier.srcStageMask = srcStage;
+	barrier.srcAccessMask = srcAccess;
+	barrier.dstStageMask = dstStage;
+	barrier.dstAccessMask = dstAccess;
+	barrier.oldLayout = oldLayout;
+	barrier.newLayout = newLayout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = aspect;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.layerCount = 1;
+	return barrier;
+}
+
+void acm::vulkan::RenderTarget::recordBeginTransitions(VkCommandBuffer commandBuffer) const
+{
+	VkImageMemoryBarrier2 barriers[3] = {};
+	uint32_t barrierCount = 0;
+	if (const VkImage image = colorAttachmentImage())
 	{
-		VkAttachmentDescription resolve = {};
-		resolve.format = colorFormat;
-		resolve.samples = VK_SAMPLE_COUNT_1_BIT;
-		resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		resolve.finalLayout = finalColor;
-		attachments.push_back(resolve);
+		barriers[barrierCount++] = imageBarrier(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
-	const uint32_t depthIndex = uint32_t(attachments.size());
-	if (depth)
+	if (m_samples != VK_SAMPLE_COUNT_1_BIT && m_colorImage)
 	{
-		VkAttachmentDescription depthDescription = {};
-		depthDescription.format = depthFormat;
-		depthDescription.samples = samples;
-		depthDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		depthDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depthDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments.push_back(depthDescription);
+		barriers[barrierCount++] = imageBarrier(m_colorImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
-	VkAttachmentReference colorReference = {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-	VkAttachmentReference resolveReference = {1, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
-	VkAttachmentReference depthReference = {depthIndex, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &colorReference;
-	subpass.pResolveAttachments = multisampled ? &resolveReference : nullptr;
-	subpass.pDepthStencilAttachment = depth ? &depthReference : nullptr;
-	std::vector<VkSubpassDependency> dependencies;
-	VkSubpassDependency colorDependency = {};
-	colorDependency.srcSubpass = 0;
-	colorDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
-	colorDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	colorDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	colorDependency.dstStageMask = sampled ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
-	colorDependency.dstAccessMask = sampled ? VK_ACCESS_SHADER_READ_BIT : VK_ACCESS_TRANSFER_READ_BIT;
-	dependencies.push_back(colorDependency);
-	if (depth)
+	if (const VkImage image = depthAttachmentImage())
 	{
-		VkSubpassDependency depthDependency = {};
-		depthDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		depthDependency.dstSubpass = 0;
-		depthDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-		depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		dependencies.push_back(depthDependency);
+		barriers[barrierCount++] = imageBarrier(image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT);
 	}
-	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = uint32_t(attachments.size());
-	renderPassInfo.pAttachments = attachments.data();
-	renderPassInfo.subpassCount = 1;
-	renderPassInfo.pSubpasses = &subpass;
-	renderPassInfo.dependencyCount = uint32_t(dependencies.size());
-	renderPassInfo.pDependencies = dependencies.data();
-	VkRenderPass renderPass = VK_NULL_HANDLE;
-	return vkCreateRenderPass(owner.vkDevice(), &renderPassInfo, nullptr, &renderPass) == VK_SUCCESS ? renderPass : VK_NULL_HANDLE;
+	if (barrierCount == 0)
+		return;
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.imageMemoryBarrierCount = barrierCount;
+	dependency.pImageMemoryBarriers = barriers;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
+}
+
+void acm::vulkan::RenderTarget::recordEndTransition(VkCommandBuffer commandBuffer) const
+{
+	if (!m_colorImage || m_finalColorLayout == VK_IMAGE_LAYOUT_UNDEFINED)
+		return;
+	VkImageMemoryBarrier2 barrier = imageBarrier(m_colorImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, m_finalColorLayout, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, m_finalColorAccess, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, m_finalColorStage);
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.imageMemoryBarrierCount = 1;
+	dependency.pImageMemoryBarriers = &barrier;
+	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
 acm::Extent2D acm::vulkan::RenderTarget::extent(const acm::Handle& handle) const
@@ -257,74 +220,95 @@ bool acm::vulkan::RenderTarget::hasDepth(const acm::Handle& handle) const
 
 bool acm::vulkan::RenderTarget::multisampled(const acm::Handle& handle) const
 {
-	return accessible(handle) && m_multisampled;
+	return accessible(handle) && m_samples != VK_SAMPLE_COUNT_1_BIT;
 }
 
-VkRenderPass acm::vulkan::RenderTarget::vkRenderPass(const acm::Handle& handle) const
+VkFormat acm::vulkan::RenderTarget::colorFormat(const acm::Handle& handle) const
 {
-	return accessible(handle) ? m_renderPass : VK_NULL_HANDLE;
+	return accessible(handle) ? m_colorFormat : VK_FORMAT_UNDEFINED;
 }
 
-VkFramebuffer acm::vulkan::RenderTarget::vkFramebuffer(const acm::Handle& handle) const
+VkFormat acm::vulkan::RenderTarget::depthFormat(const acm::Handle& handle) const
 {
-	return accessible(handle) ? m_framebuffer : VK_NULL_HANDLE;
+	return accessible(handle) ? m_depthFormat : VK_FORMAT_UNDEFINED;
 }
 
-void acm::vulkan::RenderTarget::beginRenderPass(const acm::Handle& handle, VkCommandBuffer commandBuffer, float r, float g, float b, float a) const
+bool acm::vulkan::RenderTarget::beginRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer, float r, float g, float b, float a) const
 {
-	if (!accessible(handle))
-		return;
-	VkClearValue clears[3] = {};
-	clears[0].color = {{r, g, b, a}};
-	uint32_t clearCount = 1;
+	if (!accessible(handle) || !commandBuffer || !m_colorView || !m_colorImage)
+		return false;
+	const VkImageView colorView = colorAttachmentView();
+	if (!colorView)
+		return false;
+	recordBeginTransitions(commandBuffer);
+
+	VkRenderingAttachmentInfo colorAttachment = {};
+	colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	colorAttachment.imageView = colorView;
+	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = m_samples != VK_SAMPLE_COUNT_1_BIT ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.clearValue.color = {{r, g, b, a}};
+	if (m_samples != VK_SAMPLE_COUNT_1_BIT)
+	{
+		colorAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+		colorAttachment.resolveImageView = m_colorView;
+		colorAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+
+	VkRenderingAttachmentInfo depthAttachment = {};
 	if (m_depth)
 	{
-		const uint32_t depthIndex = m_multisampled ? 2u : 1u;
-		clears[depthIndex].depthStencil = {1.0f, 0};
-		clearCount = depthIndex + 1;
+		const VkImageView depthView = depthAttachmentView();
+		if (!depthView)
+			return false;
+		depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachment.imageView = depthView;
+		depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.clearValue.depthStencil = {1.0f, 0};
 	}
-	VkRenderPassBeginInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = m_renderPass;
-	renderPassInfo.framebuffer = m_framebuffer;
-	renderPassInfo.renderArea.extent = {m_extent.width, m_extent.height};
-	renderPassInfo.clearValueCount = clearCount;
-	renderPassInfo.pClearValues = clears;
-	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.renderArea.extent = {m_extent.width, m_extent.height};
+	renderingInfo.layerCount = 1;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &colorAttachment;
+	renderingInfo.pDepthAttachment = m_depth ? &depthAttachment : nullptr;
+	vkCmdBeginRendering(commandBuffer, &renderingInfo);
+	return true;
+}
+
+void acm::vulkan::RenderTarget::endRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer) const
+{
+	if (!accessible(handle) || !commandBuffer)
+		return;
+	vkCmdEndRendering(commandBuffer);
+	recordEndTransition(commandBuffer);
 }
 
 void acm::vulkan::RenderTarget::retire(acm::vulkan::Device& owner)
 {
 	const VkDevice device = owner.vkDevice();
-	const VkFramebuffer framebuffer = std::exchange(m_framebuffer, VK_NULL_HANDLE);
-	const VkImageView imageView = std::exchange(m_imageView, VK_NULL_HANDLE);
-	const VkRenderPass renderPass = std::exchange(m_renderPass, VK_NULL_HANDLE);
-	const bool ownsRenderPass = std::exchange(m_ownsRenderPass, false);
-	if (framebuffer)
-		owner.enqueueDestroy([device, framebuffer]
-							 { vkDestroyFramebuffer(device, framebuffer, nullptr); });
-	if (imageView)
-		owner.enqueueDestroy([device, imageView]
-							 { vkDestroyImageView(device, imageView, nullptr); });
+	const VkImageView colorView = std::exchange(m_colorView, VK_NULL_HANDLE);
+	const bool ownsColorView = std::exchange(m_ownsColorView, false);
+	if (ownsColorView && colorView)
+		owner.enqueueDestroy([device, colorView]
+							 { vkDestroyImageView(device, colorView, nullptr); });
 	retireAttachment(owner, std::exchange(m_msaaColor, {}));
 	retireAttachment(owner, std::exchange(m_msaaDepth, {}));
-	if (ownsRenderPass && renderPass)
-		owner.enqueueDestroy([device, renderPass]
-							 { vkDestroyRenderPass(device, renderPass, nullptr); });
-	if (m_depthTextureResource)
-	{
-		auto* depthTexture = std::exchange(m_depthTextureResource, nullptr);
-		const acm::Handle depthTextureHandle = std::exchange(m_depthTexture, {});
-		depthTexture->release(depthTextureHandle);
-	}
-	if (m_textureResource)
-	{
-		auto* texture = std::exchange(m_textureResource, nullptr);
-		const acm::Handle textureHandle = std::exchange(m_texture, {});
-		texture->release(textureHandle);
-	}
+	m_depthTexture.reset();
+	m_texture.reset();
+	m_colorImage = VK_NULL_HANDLE;
+	m_colorFormat = VK_FORMAT_UNDEFINED;
+	m_depthFormat = VK_FORMAT_UNDEFINED;
+	m_finalColorLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	m_finalColorAccess = VK_ACCESS_2_NONE;
+	m_finalColorStage = VK_PIPELINE_STAGE_2_NONE;
 	m_depth = false;
-	m_multisampled = false;
+	m_samples = VK_SAMPLE_COUNT_1_BIT;
 	m_extent = {};
 }
 

@@ -76,13 +76,13 @@ TEST_CASE("indexed draw from vertex + index buffers", "[acm][gpu]")
 	REQUIRE(cmd.valid());
 
 	cmd.begin();
-	cmd.beginRenderPass(target);
+	cmd.beginRendering(target);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeline);
 	cmd.bindVertexBuffer(vertexBuffer);
 	cmd.bindIndexBuffer(indexBuffer);
 	cmd.drawIndexed(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(texture, readback);
 	cmd.end();
 

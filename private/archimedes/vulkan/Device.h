@@ -67,13 +67,13 @@ namespace acm::vulkan
 
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 
-		acm::RenderTarget createRenderTarget(VkRenderPass renderPass, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
+		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
 
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
 
 		acm::CommandPool createCommandPool();
-		acm::CommandBuffer allocateCommandBuffer(acm::vulkan::CommandPool* poolResource, const acm::Handle& pool);
+		acm::CommandBuffer allocateCommandBuffer(const acm::CommandPool& pool);
 		acm::Error submitCommandBufferSync(const acm::CommandBuffer& commandBuffer);
 
 		acm::Renderer createRenderer(const acm::SwapChain& swapChain);

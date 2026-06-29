@@ -30,7 +30,7 @@ namespace acm
 
 		// Factories — the only way to build children of a Device.
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
-		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One); // offscreen: owns its render pass
+		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
 		acm::Shader createShader(const std::vector<char>& spirv);
 		// Convenience: a pipeline with no vertex input and no descriptors (geometry
 		// from the shader). For vertex buffers / descriptors, use the config form.
@@ -61,7 +61,7 @@ namespace acm
 		// The curated optional features actually enabled on this device (the subset of
 		// the GPU's that the renderer turned on). Check before using, e.g., wireframe.
 		const acm::GPUFeatures& enabledFeatures() const;
-		// The highest MSAA sample count usable for color+depth framebuffers here. A
+		// The highest MSAA sample count usable for color+depth rendering targets here. A
 		// SampleCount request beyond this is clamped down to it.
 		acm::SampleCount maxSampleCount() const;
 		// Required alignment (bytes) for a dynamic uniform buffer offset — size each

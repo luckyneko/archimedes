@@ -78,7 +78,6 @@ bool RippleMeshExample::onInit(acm::Device& device, const std::vector<RenderCont
 		config.target = m_views[i]->renderTarget();
 		config.descriptorLayout = m_layout;
 		config.depthTest = true;
-		config.samples = acm::SampleCount::Four;
 		config.cullMode = acm::CullMode::None; // the rippling grid is viewed from both sides
 		// Empty vertexLayout: geometry comes from the SSBO via gl_VertexIndex.
 		vd.pipeline = device.createPipeline(config);

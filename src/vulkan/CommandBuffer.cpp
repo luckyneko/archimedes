@@ -12,15 +12,13 @@
 
 #include <utility>
 
-bool acm::vulkan::CommandBuffer::create(acm::vulkan::Device& owner, acm::vulkan::CommandPool& pool, const acm::Handle& poolHandle)
+bool acm::vulkan::CommandBuffer::create(acm::vulkan::Device& owner, const acm::CommandPool& pool)
 {
-	if (&pool.owner() != &owner)
+	if (!pool.valid() || !pool.native() || &pool.native()->owner() != &owner)
 		return false;
-	const VkCommandPool vkPool = pool.vkCommandPool(poolHandle);
+	const VkCommandPool vkPool = pool.native()->vkCommandPool(pool.handle());
 	if (!vkPool)
 		return false;
-	m_poolResource = &pool;
-	m_pool = poolHandle;
 	VkCommandBufferAllocateInfo allocationInfo = {};
 	allocationInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocationInfo.commandPool = vkPool;
@@ -28,13 +26,8 @@ bool acm::vulkan::CommandBuffer::create(acm::vulkan::Device& owner, acm::vulkan:
 	allocationInfo.commandBufferCount = 1;
 	if (vkAllocateCommandBuffers(owner.vkDevice(), &allocationInfo, &m_commandBuffer) != VK_SUCCESS)
 		return false;
-	if (pool.retain(poolHandle))
-		return true;
-	vkFreeCommandBuffers(owner.vkDevice(), vkPool, 1, &m_commandBuffer);
-	m_poolResource = nullptr;
-	m_pool = {};
-	m_commandBuffer = VK_NULL_HANDLE;
-	return false;
+	m_pool = pool;
+	return true;
 }
 
 VkCommandBuffer acm::vulkan::CommandBuffer::vkCommandBuffer(const acm::Handle& handle) const
@@ -62,17 +55,23 @@ acm::Error acm::vulkan::CommandBuffer::end(const acm::Handle& handle)
 	return {};
 }
 
-void acm::vulkan::CommandBuffer::beginRenderPass(const acm::Handle& handle, const acm::vulkan::RenderTarget& target, const acm::Handle& targetHandle, float r, float g, float b, float a)
+void acm::vulkan::CommandBuffer::beginRendering(const acm::Handle& handle, const acm::RenderTarget& target, float r, float g, float b, float a)
 {
-	if (!accessible(handle) || &owner() != &target.owner())
+	if (!accessible(handle) || m_renderTarget.valid() || !target.valid() || !target.native() || &owner() != &target.native()->owner())
 		return;
-	target.beginRenderPass(targetHandle, m_commandBuffer, r, g, b, a);
+	if (!target.native()->beginRendering(target.handle(), m_commandBuffer, r, g, b, a))
+		return;
+	m_renderTarget = target;
 }
 
-void acm::vulkan::CommandBuffer::endRenderPass(const acm::Handle& handle)
+void acm::vulkan::CommandBuffer::endRendering(const acm::Handle& handle)
 {
+	acm::RenderTarget target = std::move(m_renderTarget);
+	m_renderTarget.reset();
+	if (!target.valid() || !target.native())
+		return;
 	if (accessible(handle))
-		vkCmdEndRenderPass(m_commandBuffer);
+		target.native()->endRendering(target.handle(), m_commandBuffer);
 }
 
 void acm::vulkan::CommandBuffer::setViewportAndScissor(const acm::Handle& handle, acm::Extent2D extent)
@@ -208,10 +207,9 @@ void acm::vulkan::CommandBuffer::transitionImage(const acm::Handle& handle, cons
 
 void acm::vulkan::CommandBuffer::retire(acm::vulkan::Device& owner)
 {
-	acm::vulkan::CommandPool* poolResource = std::exchange(m_poolResource, nullptr);
-	const acm::Handle pool = std::exchange(m_pool, {});
+	m_renderTarget.reset();
 	const VkCommandBuffer commandBuffer = std::exchange(m_commandBuffer, VK_NULL_HANDLE);
-	const VkCommandPool commandPool = poolResource ? poolResource->vkCommandPool(pool) : VK_NULL_HANDLE;
+	const VkCommandPool commandPool = m_pool.valid() ? m_pool.native()->vkCommandPool(m_pool.handle()) : VK_NULL_HANDLE;
 	if (commandPool && commandBuffer)
 	{
 		const VkDevice device = owner.vkDevice();
@@ -220,6 +218,5 @@ void acm::vulkan::CommandBuffer::retire(acm::vulkan::Device& owner)
 		owner.enqueueDestroy([device, retiredPool, retiredBuffer]
 							 { vkFreeCommandBuffers(device, retiredPool, 1, &retiredBuffer); });
 	}
-	if (poolResource)
-		poolResource->release(pool);
+	m_pool.reset();
 }

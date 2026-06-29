@@ -60,18 +60,18 @@ TEST_CASE("wireframe polygon mode draws only edges", "[acm][gpu]")
 	REQUIRE(cmd.valid());
 
 	cmd.begin();
-	cmd.beginRenderPass(targetFill);
+	cmd.beginRendering(targetFill);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeFill);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(texFill, rbFill);
 
-	cmd.beginRenderPass(targetWire);
+	cmd.beginRendering(targetWire);
 	cmd.setViewportAndScissor(extent);
 	cmd.bindPipeline(pipeWire);
 	cmd.draw(3);
-	cmd.endRenderPass();
+	cmd.endRendering();
 	cmd.copyTextureToBuffer(texWire, rbWire);
 	cmd.end();
 

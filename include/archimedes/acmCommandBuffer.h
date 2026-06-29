@@ -29,8 +29,8 @@ namespace acm
 		acm::Error begin();
 		acm::Error end();
 
-		void beginRenderPass(const acm::RenderTarget& target, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f);
-		void endRenderPass();
+		void beginRendering(const acm::RenderTarget& target, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f);
+		void endRendering();
 		void setViewportAndScissor(acm::Extent2D extent);
 		void bindPipeline(const acm::Pipeline& pipeline);
 		void bindDescriptorSet(const acm::Pipeline& pipeline, const acm::DescriptorSet& set);
