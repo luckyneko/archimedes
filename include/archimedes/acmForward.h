@@ -6,7 +6,6 @@ namespace acm
 {
 	class Buffer;
 	class Error;
-	class Handle;
 	class CommandBuffer;
 	class CommandPool;
 	class ComputePipeline;

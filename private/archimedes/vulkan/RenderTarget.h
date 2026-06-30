@@ -2,7 +2,6 @@
 
 #include "archimedes/acmTexture.h"
 #include "archimedes/acmTypes.h"
-#include "archimedes/HandleMap.h"
 #include "archimedes/vulkan/Memory.h"
 
 #include <vulkan/vulkan.h>
@@ -12,19 +11,20 @@ namespace acm::vulkan
 	class Device;
 	class Texture;
 
-	class RenderTarget : public acm::ResourceSlot<acm::vulkan::RenderTarget, acm::vulkan::Device>
+	class RenderTarget
 	{
 	public:
 		bool create(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		bool create(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
-		acm::Extent2D extent(const acm::Handle& handle) const;
-		bool hasDepth(const acm::Handle& handle) const;
-		bool multisampled(const acm::Handle& handle) const;
-		VkSampleCountFlagBits sampleCount(const acm::Handle& handle) const { return accessible(handle) ? m_samples : VK_SAMPLE_COUNT_1_BIT; }
-		VkFormat colorFormat(const acm::Handle& handle) const;
-		VkFormat depthFormat(const acm::Handle& handle) const;
-		bool beginRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer, float r, float g, float b, float a) const;
-		void endRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer) const;
+		acm::vulkan::Device& owner() const { return *m_owner; }
+		acm::Extent2D extent() const;
+		bool hasDepth() const;
+		bool multisampled() const;
+		VkSampleCountFlagBits sampleCount() const { return m_samples; }
+		VkFormat colorFormat() const;
+		VkFormat depthFormat() const;
+		bool beginRendering(VkCommandBuffer commandBuffer, float r, float g, float b, float a) const;
+		void endRendering(VkCommandBuffer commandBuffer) const;
 		void retire(acm::vulkan::Device& owner);
 
 	private:
@@ -46,6 +46,7 @@ namespace acm::vulkan
 		void recordEndTransition(VkCommandBuffer commandBuffer) const;
 		static void retireAttachment(acm::vulkan::Device& owner, const Attachment& attachment);
 
+		acm::vulkan::Device* m_owner{nullptr};
 		acm::Texture m_texture;
 		acm::Texture m_depthTexture;
 		VkImage m_colorImage{VK_NULL_HANDLE};

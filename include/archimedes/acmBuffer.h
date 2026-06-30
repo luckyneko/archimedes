@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
 
@@ -29,8 +29,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::Buffer* native() const { return m_resource; }
+		acm::native::Buffer* native() const;
 
 		size_t size() const;
 		void* map(); // host-visible buffers only; returns a pointer to the (coherent) mapping (else nullptr)
@@ -41,11 +40,10 @@ namespace acm
 
 	private:
 		friend acm::native::Device;
-		Buffer(acm::native::Buffer* resource, acm::Handle handle);
+		Buffer(acm::ResourceRef<acm::native::Buffer> resource);
 		explicit Buffer(acm::Error error);
 
-		acm::native::Buffer* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::Buffer> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

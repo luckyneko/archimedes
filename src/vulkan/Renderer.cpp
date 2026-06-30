@@ -13,6 +13,7 @@ bool acm::vulkan::Renderer::create(acm::vulkan::Device& owner, const acm::SwapCh
 {
 	if (!swapChain.valid() || &swapChain.native()->owner() != &owner)
 		return false;
+	m_owner = &owner;
 	m_swapChain = swapChain;
 	m_commandPool = owner.createCommandPool();
 	if (!m_commandPool.valid())
@@ -40,9 +41,9 @@ bool acm::vulkan::Renderer::create(acm::vulkan::Device& owner, const acm::SwapCh
 	return true;
 }
 
-acm::Error acm::vulkan::Renderer::render(const acm::Handle& handle, const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
+acm::Error acm::vulkan::Renderer::render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
 {
-	if (!accessible(handle) || !m_swapChain.valid())
+	if (!m_swapChain.valid())
 		return acm::Error("invalid renderer");
 	if (m_needsRecreate)
 	{
@@ -54,7 +55,7 @@ acm::Error acm::vulkan::Renderer::render(const acm::Handle& handle, const std::f
 	Frame& frame = m_frames[m_currentFrame];
 	vkWaitForFences(owner().vkDevice(), 1, &frame.inFlight, VK_TRUE, std::numeric_limits<uint64_t>::max());
 	uint32_t imageIndex = 0;
-	const VkResult acquire = m_swapChain.native()->acquireNextImage(m_swapChain.handle(), frame.imageAvailable, imageIndex);
+	const VkResult acquire = m_swapChain.native()->acquireNextImage(frame.imageAvailable, imageIndex);
 	if (acquire == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		m_needsRecreate = true;
@@ -83,8 +84,8 @@ acm::Error acm::vulkan::Renderer::render(const acm::Handle& handle, const std::f
 	if (acm::Error error = commandBuffer.end())
 		return error;
 
-	const VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer(commandBuffer.handle());
-	const VkSwapchainKHR vkSwapChain = m_swapChain.native()->vkSwapChain(m_swapChain.handle());
+	const VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer();
+	const VkSwapchainKHR vkSwapChain = m_swapChain.native()->vkSwapChain();
 	if (!vkCommand || !vkSwapChain)
 		return acm::Error("renderer resources became invalid");
 	if (acm::Error error = owner().submitFrame(vkCommand, frame.imageAvailable, frame.renderFinished, frame.inFlight, vkSwapChain, imageIndex, m_needsRecreate))
@@ -114,4 +115,5 @@ void acm::vulkan::Renderer::retire(acm::vulkan::Device& owner)
 	m_swapChain.reset();
 	m_currentFrame = 0;
 	m_needsRecreate = false;
+	m_owner = nullptr;
 }

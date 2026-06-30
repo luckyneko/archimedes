@@ -9,9 +9,8 @@
 
 acm::DescriptorSet::DescriptorSet() = default;
 
-acm::DescriptorSet::DescriptorSet(acm::native::DescriptorSet* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::DescriptorSet::DescriptorSet(acm::ResourceRef<acm::native::DescriptorSet> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -20,67 +19,25 @@ acm::DescriptorSet::DescriptorSet(acm::Error error)
 {
 }
 
-acm::DescriptorSet::DescriptorSet(const acm::DescriptorSet& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::DescriptorSet::DescriptorSet(const acm::DescriptorSet& other) = default;
 
-acm::DescriptorSet& acm::DescriptorSet::operator=(const acm::DescriptorSet& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::DescriptorSet& acm::DescriptorSet::operator=(const acm::DescriptorSet& other) = default;
 
-acm::DescriptorSet::DescriptorSet(acm::DescriptorSet&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::DescriptorSet::DescriptorSet(acm::DescriptorSet&& other) noexcept = default;
 
-acm::DescriptorSet& acm::DescriptorSet::operator=(acm::DescriptorSet&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::DescriptorSet& acm::DescriptorSet::operator=(acm::DescriptorSet&& other) noexcept = default;
 
-acm::DescriptorSet::~DescriptorSet()
-{
-	reset();
-}
+acm::DescriptorSet::~DescriptorSet() = default;
 
 void acm::DescriptorSet::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::DescriptorSet::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::DescriptorSet::error() const
@@ -88,26 +45,35 @@ acm::Error acm::DescriptorSet::error() const
 	return m_error;
 }
 
+acm::native::DescriptorSet* acm::DescriptorSet::native() const
+{
+	return m_resource.access();
+}
+
 void acm::DescriptorSet::setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement)
 {
-	if (m_resource && texture.native() && sampler.native())
-		m_resource->setTexture(m_handle, binding, *texture.native(), texture.handle(), *sampler.native(), sampler.handle(), arrayElement);
+	if (auto* resource = m_resource.access())
+		if (texture.native() && sampler.native())
+			resource->setTexture(binding, *texture.native(), *sampler.native(), arrayElement);
 }
 
 void acm::DescriptorSet::setBuffer(uint32_t binding, const acm::Buffer& buffer, uint32_t arrayElement)
 {
-	if (m_resource && buffer.native())
-		m_resource->setBuffer(m_handle, binding, *buffer.native(), buffer.handle(), arrayElement);
+	if (auto* resource = m_resource.access())
+		if (buffer.native())
+			resource->setBuffer(binding, *buffer.native(), arrayElement);
 }
 
 void acm::DescriptorSet::setDynamicBuffer(uint32_t binding, const acm::Buffer& buffer, size_t elementSize, uint32_t arrayElement)
 {
-	if (m_resource && buffer.native())
-		m_resource->setDynamicBuffer(m_handle, binding, *buffer.native(), buffer.handle(), elementSize, arrayElement);
+	if (auto* resource = m_resource.access())
+		if (buffer.native())
+			resource->setDynamicBuffer(binding, *buffer.native(), elementSize, arrayElement);
 }
 
 void acm::DescriptorSet::setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement)
 {
-	if (m_resource && texture.native())
-		m_resource->setStorageImage(m_handle, binding, *texture.native(), texture.handle(), arrayElement);
+	if (auto* resource = m_resource.access())
+		if (texture.native())
+			resource->setStorageImage(binding, *texture.native(), arrayElement);
 }

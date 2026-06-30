@@ -3,7 +3,7 @@
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmShader.h"
@@ -51,16 +51,14 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::Pipeline* native() const { return m_resource; }
+		acm::native::Pipeline* native() const;
 
 	private:
 		friend acm::native::Device;
-		Pipeline(acm::native::Pipeline* resource, acm::Handle handle);
+		Pipeline(acm::ResourceRef<acm::native::Pipeline> resource);
 		explicit Pipeline(acm::Error error);
 
-		acm::native::Pipeline* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::Pipeline> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

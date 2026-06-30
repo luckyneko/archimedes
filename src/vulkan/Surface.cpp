@@ -7,6 +7,7 @@ bool acm::vulkan::Surface::create(acm::vulkan::Instance& owner, VkSurfaceKHR sur
 {
 	if (!surface)
 		return false;
+	m_owner = &owner;
 	m_surface = surface;
 	const auto& gpus = owner.gpus();
 	m_gpuSupport.resize(gpus.size());
@@ -59,21 +60,21 @@ bool acm::vulkan::Surface::create(acm::vulkan::Instance& owner, VkSurfaceKHR sur
 	return true;
 }
 
-const std::vector<acm::GPUSurfaceSupport>& acm::vulkan::Surface::support(const acm::Handle& handle) const
+const std::vector<acm::GPUSurfaceSupport>& acm::vulkan::Surface::support() const
 {
-	static const std::vector<acm::GPUSurfaceSupport> empty;
-	return accessible(handle) ? m_gpuSupport : empty;
+	return m_gpuSupport;
 }
 
-VkSurfaceKHR acm::vulkan::Surface::vkSurface(const acm::Handle& handle) const
+VkSurfaceKHR acm::vulkan::Surface::vkSurface() const
 {
-	return accessible(handle) ? m_surface : VK_NULL_HANDLE;
+	return m_surface;
 }
 
 void acm::vulkan::Surface::retire(acm::vulkan::Instance& owner)
 {
 	const VkSurfaceKHR retiredSurface = std::exchange(m_surface, VK_NULL_HANDLE);
 	m_gpuSupport.clear();
+	m_owner = nullptr;
 	if (retiredSurface)
 		vkDestroySurfaceKHR(owner.nativeInstance(), retiredSurface, nullptr);
 }

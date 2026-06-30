@@ -12,8 +12,9 @@ bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm:
 		return false;
 	if (layout.valid() && (!layout.native() || &layout.native()->owner() != &owner))
 		return false;
-	const VkShaderModule shaderModule = compute.native()->vkShaderModule(compute.handle());
-	const VkDescriptorSetLayout setLayout = layout.valid() ? layout.native()->vkLayout(layout.handle()) : VK_NULL_HANDLE;
+	m_owner = &owner;
+	const VkShaderModule shaderModule = compute.native()->vkShaderModule();
+	const VkDescriptorSetLayout setLayout = layout.valid() ? layout.native()->vkLayout() : VK_NULL_HANDLE;
 	if (!shaderModule || (layout.valid() && !setLayout))
 		return false;
 
@@ -43,14 +44,14 @@ bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm:
 	return true;
 }
 
-VkPipeline acm::vulkan::ComputePipeline::vkPipeline(const acm::Handle& handle) const
+VkPipeline acm::vulkan::ComputePipeline::vkPipeline() const
 {
-	return accessible(handle) ? m_pipeline : VK_NULL_HANDLE;
+	return m_pipeline;
 }
 
-VkPipelineLayout acm::vulkan::ComputePipeline::vkLayout(const acm::Handle& handle) const
+VkPipelineLayout acm::vulkan::ComputePipeline::vkLayout() const
 {
-	return accessible(handle) ? m_layout : VK_NULL_HANDLE;
+	return m_layout;
 }
 
 void acm::vulkan::ComputePipeline::retire(acm::vulkan::Device& owner)
@@ -58,6 +59,7 @@ void acm::vulkan::ComputePipeline::retire(acm::vulkan::Device& owner)
 	const VkDevice device = owner.vkDevice();
 	const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
 	const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
+	m_owner = nullptr;
 	if (pipeline)
 		owner.enqueueDestroy([device, pipeline]
 							 { vkDestroyPipeline(device, pipeline, nullptr); });

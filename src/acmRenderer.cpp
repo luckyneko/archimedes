@@ -7,9 +7,8 @@
 
 acm::Renderer::Renderer() = default;
 
-acm::Renderer::Renderer(acm::native::Renderer* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::Renderer::Renderer(acm::ResourceRef<acm::native::Renderer> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -18,67 +17,25 @@ acm::Renderer::Renderer(acm::Error error)
 {
 }
 
-acm::Renderer::Renderer(const acm::Renderer& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::Renderer::Renderer(const acm::Renderer& other) = default;
 
-acm::Renderer& acm::Renderer::operator=(const acm::Renderer& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::Renderer& acm::Renderer::operator=(const acm::Renderer& other) = default;
 
-acm::Renderer::Renderer(acm::Renderer&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::Renderer::Renderer(acm::Renderer&& other) noexcept = default;
 
-acm::Renderer& acm::Renderer::operator=(acm::Renderer&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::Renderer& acm::Renderer::operator=(acm::Renderer&& other) noexcept = default;
 
-acm::Renderer::~Renderer()
-{
-	reset();
-}
+acm::Renderer::~Renderer() = default;
 
 void acm::Renderer::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::Renderer::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::Renderer::error() const
@@ -86,12 +43,21 @@ acm::Error acm::Renderer::error() const
 	return m_error;
 }
 
+acm::native::Renderer* acm::Renderer::native() const
+{
+	return m_resource.access();
+}
+
 acm::Error acm::Renderer::render(const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
 {
-	return m_resource ? m_resource->render(m_handle, {}, record) : acm::Error("invalid renderer");
+	if (auto* resource = m_resource.access())
+		return resource->render({}, record);
+	return acm::Error("invalid renderer");
 }
 
 acm::Error acm::Renderer::render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
 {
-	return m_resource ? m_resource->render(m_handle, prePass, record) : acm::Error("invalid renderer");
+	if (auto* resource = m_resource.access())
+		return resource->render(prePass, record);
+	return acm::Error("invalid renderer");
 }

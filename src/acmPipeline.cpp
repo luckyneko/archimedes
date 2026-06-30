@@ -6,9 +6,8 @@
 
 acm::Pipeline::Pipeline() = default;
 
-acm::Pipeline::Pipeline(acm::native::Pipeline* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::Pipeline::Pipeline(acm::ResourceRef<acm::native::Pipeline> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -17,70 +16,33 @@ acm::Pipeline::Pipeline(acm::Error error)
 {
 }
 
-acm::Pipeline::Pipeline(const acm::Pipeline& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::Pipeline::Pipeline(const acm::Pipeline& other) = default;
 
-acm::Pipeline& acm::Pipeline::operator=(const acm::Pipeline& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::Pipeline& acm::Pipeline::operator=(const acm::Pipeline& other) = default;
 
-acm::Pipeline::Pipeline(acm::Pipeline&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::Pipeline::Pipeline(acm::Pipeline&& other) noexcept = default;
 
-acm::Pipeline& acm::Pipeline::operator=(acm::Pipeline&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::Pipeline& acm::Pipeline::operator=(acm::Pipeline&& other) noexcept = default;
 
-acm::Pipeline::~Pipeline()
-{
-	reset();
-}
+acm::Pipeline::~Pipeline() = default;
 
 void acm::Pipeline::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::Pipeline::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::Pipeline::error() const
 {
 	return m_error;
+}
+
+acm::native::Pipeline* acm::Pipeline::native() const
+{
+	return m_resource.access();
 }

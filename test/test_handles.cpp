@@ -4,12 +4,11 @@
 #include <type_traits>
 #include <utility>
 
-// Pure handle semantics -- no Vulkan device required. Every acm:: resource is a
-// value handle: default-constructed is null/invalid regardless of its backend.
+// Pure resource wrapper semantics -- no Vulkan device required. Every acm:: resource is
+// a value handle: default-constructed is null/invalid regardless of its backend.
 
 TEST_CASE("default-constructed handles are invalid", "[acm][handle]")
 {
-	REQUIRE_FALSE(acm::Handle().valid());
 	REQUIRE_FALSE(acm::Instance().valid());
 	REQUIRE_FALSE(acm::Device().valid());
 	REQUIRE_FALSE(acm::Surface().valid());

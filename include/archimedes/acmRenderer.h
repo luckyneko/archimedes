@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 
 #include <cstdint>
@@ -25,8 +25,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::Renderer* native() const { return m_resource; }
+		acm::native::Renderer* native() const;
 
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& record);
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& prePass,
@@ -34,11 +33,10 @@ namespace acm
 
 	private:
 		friend acm::native::Device;
-		Renderer(acm::native::Renderer* resource, acm::Handle handle);
+		Renderer(acm::ResourceRef<acm::native::Renderer> resource);
 		explicit Renderer(acm::Error error);
 
-		acm::native::Renderer* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::Renderer> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -11,6 +11,7 @@ bool acm::vulkan::Buffer::create(acm::vulkan::Device& owner, size_t size, acm::B
 {
 	if (size == 0)
 		return false;
+	m_owner = &owner;
 	m_size = size;
 	m_hostVisible = isHostVisible(usage);
 
@@ -39,25 +40,23 @@ bool acm::vulkan::Buffer::isHostVisible(acm::BufferUsage usage)
 	return usage == acm::BufferUsage::Uniform || usage == acm::BufferUsage::TransferDst || usage == acm::BufferUsage::Staging || usage == acm::BufferUsage::Storage;
 }
 
-size_t acm::vulkan::Buffer::size(const acm::Handle& handle) const
+size_t acm::vulkan::Buffer::size() const
 {
-	return accessible(handle) ? m_size : 0;
+	return m_size;
 }
 
-void* acm::vulkan::Buffer::map(const acm::Handle& handle)
+void* acm::vulkan::Buffer::map()
 {
-	return accessible(handle) && m_hostVisible ? m_allocation.mapped : nullptr;
+	return m_hostVisible ? m_allocation.mapped : nullptr;
 }
 
-VkBuffer acm::vulkan::Buffer::vkBuffer(const acm::Handle& handle) const
+VkBuffer acm::vulkan::Buffer::vkBuffer() const
 {
-	return accessible(handle) ? m_buffer : VK_NULL_HANDLE;
+	return m_buffer;
 }
 
-acm::Error acm::vulkan::Buffer::write(const acm::Handle& handle, const void* data, size_t size)
+acm::Error acm::vulkan::Buffer::write(const void* data, size_t size)
 {
-	if (!accessible(handle))
-		return acm::Error("Buffer::write: invalid buffer");
 	const size_t bytes = std::min(size, m_size);
 	if (m_hostVisible)
 	{
@@ -70,9 +69,9 @@ acm::Error acm::vulkan::Buffer::write(const acm::Handle& handle, const void* dat
 	acm::Buffer staging = owner().createBuffer(bytes, acm::BufferUsage::Staging);
 	if (!staging.valid())
 		return acm::Error("Buffer::write: failed to create staging buffer");
-	if (acm::Error error = staging.native()->write(staging.handle(), data, bytes))
+	if (acm::Error error = staging.native()->write(data, bytes))
 		return error;
-	return owner().copyBuffer(staging.native()->vkBuffer(staging.handle()), m_buffer, VkDeviceSize(bytes));
+	return owner().copyBuffer(staging.native()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
 }
 
 void acm::vulkan::Buffer::retire(acm::vulkan::Device& owner)
@@ -81,6 +80,7 @@ void acm::vulkan::Buffer::retire(acm::vulkan::Device& owner)
 	const acm::vulkan::Allocation allocation = std::exchange(m_allocation, {});
 	m_size = 0;
 	m_hostVisible = true;
+	m_owner = nullptr;
 	const VkDevice device = owner.vkDevice();
 	if (buffer)
 	{

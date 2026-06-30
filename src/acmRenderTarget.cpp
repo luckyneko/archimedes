@@ -6,9 +6,8 @@
 
 acm::RenderTarget::RenderTarget() = default;
 
-acm::RenderTarget::RenderTarget(acm::native::RenderTarget* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::RenderTarget::RenderTarget(acm::ResourceRef<acm::native::RenderTarget> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -17,67 +16,25 @@ acm::RenderTarget::RenderTarget(acm::Error error)
 {
 }
 
-acm::RenderTarget::RenderTarget(const acm::RenderTarget& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::RenderTarget::RenderTarget(const acm::RenderTarget& other) = default;
 
-acm::RenderTarget& acm::RenderTarget::operator=(const acm::RenderTarget& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::RenderTarget& acm::RenderTarget::operator=(const acm::RenderTarget& other) = default;
 
-acm::RenderTarget::RenderTarget(acm::RenderTarget&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::RenderTarget::RenderTarget(acm::RenderTarget&& other) noexcept = default;
 
-acm::RenderTarget& acm::RenderTarget::operator=(acm::RenderTarget&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::RenderTarget& acm::RenderTarget::operator=(acm::RenderTarget&& other) noexcept = default;
 
-acm::RenderTarget::~RenderTarget()
-{
-	reset();
-}
+acm::RenderTarget::~RenderTarget() = default;
 
 void acm::RenderTarget::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::RenderTarget::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::RenderTarget::error() const
@@ -85,17 +42,28 @@ acm::Error acm::RenderTarget::error() const
 	return m_error;
 }
 
+acm::native::RenderTarget* acm::RenderTarget::native() const
+{
+	return m_resource.access();
+}
+
 acm::Extent2D acm::RenderTarget::getExtent() const
 {
-	return m_resource ? m_resource->extent(m_handle) : acm::Extent2D{};
+	if (auto* resource = m_resource.access())
+		return resource->extent();
+	return acm::Extent2D{};
 }
 
 bool acm::RenderTarget::hasDepth() const
 {
-	return m_resource && m_resource->hasDepth(m_handle);
+	if (auto* resource = m_resource.access())
+		return resource->hasDepth();
+	return false;
 }
 
 bool acm::RenderTarget::isMultisampled() const
 {
-	return m_resource && m_resource->multisampled(m_handle);
+	if (auto* resource = m_resource.access())
+		return resource->multisampled();
+	return false;
 }

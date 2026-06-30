@@ -14,6 +14,7 @@ bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, const acm::Surfa
 {
 	if (!surface.valid() || !surface.native() || &surface.native()->owner() != &owner.instance())
 		return false;
+	m_owner = &owner;
 	m_surface = surface;
 	m_format = format;
 	m_presentMode = presentMode;
@@ -23,10 +24,8 @@ bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, const acm::Surfa
 	return rebuild(owner);
 }
 
-bool acm::vulkan::SwapChain::recreate(const acm::Handle& handle)
+bool acm::vulkan::SwapChain::recreate()
 {
-	if (!accessible(handle))
-		return false;
 	owner().waitIdle();
 	if (!rebuild(owner()))
 		return false;
@@ -36,7 +35,7 @@ bool acm::vulkan::SwapChain::recreate(const acm::Handle& handle)
 
 bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 {
-	const VkSurfaceKHR surface = m_surface.valid() ? m_surface.native()->vkSurface(m_surface.handle()) : VK_NULL_HANDLE;
+	const VkSurfaceKHR surface = m_surface.valid() ? m_surface.native()->vkSurface() : VK_NULL_HANDLE;
 	if (!surface)
 		return false;
 	VkSurfaceCapabilitiesKHR capabilities = {};
@@ -86,7 +85,7 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 		if (!target.valid())
 		{
 			for (acm::RenderTarget& created : targets)
-				created.native()->forceInvalidate(created.handle());
+				owner.invalidateRenderTarget(created);
 			const VkDevice device = owner.vkDevice();
 			owner.enqueueDestroy([device, newSwapChain]
 								 { vkDestroySwapchainKHR(device, newSwapChain, nullptr); });
@@ -108,44 +107,42 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 	return true;
 }
 
-acm::SurfaceFormat acm::vulkan::SwapChain::format(const acm::Handle& handle) const
+acm::SurfaceFormat acm::vulkan::SwapChain::format() const
 {
-	return accessible(handle) ? m_format : acm::SurfaceFormat{};
+	return m_format;
 }
 
-acm::Extent2D acm::vulkan::SwapChain::extent(const acm::Handle& handle) const
+acm::Extent2D acm::vulkan::SwapChain::extent() const
 {
-	return accessible(handle) ? m_extent : acm::Extent2D{};
+	return m_extent;
 }
 
-size_t acm::vulkan::SwapChain::renderTargetCount(const acm::Handle& handle) const
+size_t acm::vulkan::SwapChain::renderTargetCount() const
 {
-	return accessible(handle) ? m_renderTargets.size() : 0;
+	return m_renderTargets.size();
 }
 
-acm::RenderTarget acm::vulkan::SwapChain::renderTarget(const acm::Handle& handle, size_t index) const
+acm::RenderTarget acm::vulkan::SwapChain::renderTarget(size_t index) const
 {
-	if (!accessible(handle) || index >= m_renderTargets.size())
+	if (index >= m_renderTargets.size())
 		return {};
 	return m_renderTargets[index];
 }
 
-VkResult acm::vulkan::SwapChain::acquireNextImage(const acm::Handle& handle, VkSemaphore semaphore, uint32_t& imageIndex) const
+VkResult acm::vulkan::SwapChain::acquireNextImage(VkSemaphore semaphore, uint32_t& imageIndex) const
 {
-	if (!accessible(handle))
-		return VK_ERROR_OUT_OF_DATE_KHR;
 	return vkAcquireNextImageKHR(owner().vkDevice(), m_swapChain, std::numeric_limits<uint64_t>::max(), semaphore, VK_NULL_HANDLE, &imageIndex);
 }
 
-VkSwapchainKHR acm::vulkan::SwapChain::vkSwapChain(const acm::Handle& handle) const
+VkSwapchainKHR acm::vulkan::SwapChain::vkSwapChain() const
 {
-	return accessible(handle) ? m_swapChain : VK_NULL_HANDLE;
+	return m_swapChain;
 }
 
 void acm::vulkan::SwapChain::retireTargets(acm::vulkan::Device& owner)
 {
 	for (acm::RenderTarget& target : m_renderTargets)
-		target.native()->forceInvalidate(target.handle());
+		owner.invalidateRenderTarget(target);
 	m_renderTargets.clear();
 }
 
@@ -165,4 +162,5 @@ void acm::vulkan::SwapChain::retire(acm::vulkan::Device& owner)
 							 { surface.reset(); });
 	}
 	m_extent = {};
+	m_owner = nullptr;
 }

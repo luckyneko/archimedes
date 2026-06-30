@@ -7,6 +7,7 @@ bool acm::vulkan::DescriptorSetLayout::create(acm::vulkan::Device& owner, const 
 {
 	if (bindings.empty())
 		return false;
+	m_owner = &owner;
 	std::vector<VkDescriptorSetLayoutBinding> vkBindings(bindings.size());
 	for (size_t index = 0; index < bindings.size(); ++index)
 	{
@@ -25,20 +26,21 @@ bool acm::vulkan::DescriptorSetLayout::create(acm::vulkan::Device& owner, const 
 	return true;
 }
 
-const std::vector<acm::DescriptorBinding>* acm::vulkan::DescriptorSetLayout::bindings(const acm::Handle& handle) const
+const std::vector<acm::DescriptorBinding>* acm::vulkan::DescriptorSetLayout::bindings() const
 {
-	return accessible(handle) ? &m_bindings : nullptr;
+	return &m_bindings;
 }
 
-VkDescriptorSetLayout acm::vulkan::DescriptorSetLayout::vkLayout(const acm::Handle& handle) const
+VkDescriptorSetLayout acm::vulkan::DescriptorSetLayout::vkLayout() const
 {
-	return accessible(handle) ? m_layout : VK_NULL_HANDLE;
+	return m_layout;
 }
 
 void acm::vulkan::DescriptorSetLayout::retire(acm::vulkan::Device& owner)
 {
 	m_bindings.clear();
 	const VkDescriptorSetLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
+	m_owner = nullptr;
 	if (!layout)
 		return;
 	const VkDevice device = owner.vkDevice();

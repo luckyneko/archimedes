@@ -11,6 +11,7 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkImage image
 {
 	if (!image || format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
 		return false;
+	m_owner = &owner;
 	m_colorImage = image;
 	m_colorFormat = acm::vulkan::toVk(format);
 	m_extent = extent;
@@ -40,11 +41,12 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, const acm::Te
 {
 	if (!texture.valid() || !texture.native() || &texture.native()->owner() != &owner)
 		return false;
-	const acm::Format format = texture.native()->format(texture.handle());
-	const acm::Extent2D extent = texture.native()->extent(texture.handle());
-	const uint32_t mipLevels = texture.native()->mipLevels(texture.handle());
-	const VkImage colorImage = texture.native()->vkImage(texture.handle());
-	const VkImageView colorView = texture.native()->vkImageView(texture.handle());
+	m_owner = &owner;
+	const acm::Format format = texture.native()->format();
+	const acm::Extent2D extent = texture.native()->extent();
+	const uint32_t mipLevels = texture.native()->mipLevels();
+	const VkImage colorImage = texture.native()->vkImage();
+	const VkImageView colorView = texture.native()->vkImageView();
 	if (format == acm::Format::Undefined || format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
 		return false;
 	m_texture = texture;
@@ -142,14 +144,14 @@ VkImage acm::vulkan::RenderTarget::depthAttachmentImage() const
 {
 	if (!m_depth)
 		return VK_NULL_HANDLE;
-	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.image : (m_depthTexture.valid() ? m_depthTexture.native()->vkImage(m_depthTexture.handle()) : VK_NULL_HANDLE);
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.image : (m_depthTexture.valid() ? m_depthTexture.native()->vkImage() : VK_NULL_HANDLE);
 }
 
 VkImageView acm::vulkan::RenderTarget::depthAttachmentView() const
 {
 	if (!m_depth)
 		return VK_NULL_HANDLE;
-	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.view : (m_depthTexture.valid() ? m_depthTexture.native()->vkImageView(m_depthTexture.handle()) : VK_NULL_HANDLE);
+	return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.view : (m_depthTexture.valid() ? m_depthTexture.native()->vkImageView() : VK_NULL_HANDLE);
 }
 
 VkImageMemoryBarrier2 acm::vulkan::RenderTarget::imageBarrier(VkImage image, VkImageAspectFlags aspect, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccess, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage)
@@ -208,34 +210,34 @@ void acm::vulkan::RenderTarget::recordEndTransition(VkCommandBuffer commandBuffe
 	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
-acm::Extent2D acm::vulkan::RenderTarget::extent(const acm::Handle& handle) const
+acm::Extent2D acm::vulkan::RenderTarget::extent() const
 {
-	return accessible(handle) ? m_extent : acm::Extent2D{};
+	return m_extent;
 }
 
-bool acm::vulkan::RenderTarget::hasDepth(const acm::Handle& handle) const
+bool acm::vulkan::RenderTarget::hasDepth() const
 {
-	return accessible(handle) && m_depth;
+	return m_depth;
 }
 
-bool acm::vulkan::RenderTarget::multisampled(const acm::Handle& handle) const
+bool acm::vulkan::RenderTarget::multisampled() const
 {
-	return accessible(handle) && m_samples != VK_SAMPLE_COUNT_1_BIT;
+	return m_samples != VK_SAMPLE_COUNT_1_BIT;
 }
 
-VkFormat acm::vulkan::RenderTarget::colorFormat(const acm::Handle& handle) const
+VkFormat acm::vulkan::RenderTarget::colorFormat() const
 {
-	return accessible(handle) ? m_colorFormat : VK_FORMAT_UNDEFINED;
+	return m_colorFormat;
 }
 
-VkFormat acm::vulkan::RenderTarget::depthFormat(const acm::Handle& handle) const
+VkFormat acm::vulkan::RenderTarget::depthFormat() const
 {
-	return accessible(handle) ? m_depthFormat : VK_FORMAT_UNDEFINED;
+	return m_depthFormat;
 }
 
-bool acm::vulkan::RenderTarget::beginRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer, float r, float g, float b, float a) const
+bool acm::vulkan::RenderTarget::beginRendering(VkCommandBuffer commandBuffer, float r, float g, float b, float a) const
 {
-	if (!accessible(handle) || !commandBuffer || !m_colorView || !m_colorImage)
+	if (!commandBuffer || !m_colorView || !m_colorImage)
 		return false;
 	const VkImageView colorView = colorAttachmentView();
 	if (!colorView)
@@ -281,9 +283,9 @@ bool acm::vulkan::RenderTarget::beginRendering(const acm::Handle& handle, VkComm
 	return true;
 }
 
-void acm::vulkan::RenderTarget::endRendering(const acm::Handle& handle, VkCommandBuffer commandBuffer) const
+void acm::vulkan::RenderTarget::endRendering(VkCommandBuffer commandBuffer) const
 {
-	if (!accessible(handle) || !commandBuffer)
+	if (!commandBuffer)
 		return;
 	vkCmdEndRendering(commandBuffer);
 	recordEndTransition(commandBuffer);
@@ -310,6 +312,7 @@ void acm::vulkan::RenderTarget::retire(acm::vulkan::Device& owner)
 	m_depth = false;
 	m_samples = VK_SAMPLE_COUNT_1_BIT;
 	m_extent = {};
+	m_owner = nullptr;
 }
 
 void acm::vulkan::RenderTarget::retireAttachment(acm::vulkan::Device& owner, const Attachment& attachment)

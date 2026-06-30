@@ -9,7 +9,7 @@ include(addVulkanRuntime)
 add_executable(test-${PROJECT_NAME}
     test_version.cpp
     test_handles.cpp
-    test_handle_map.cpp
+    test_resource_pool.cpp
     test_command_recording_benchmark.cpp
     test_instance.cpp
     test_device.cpp

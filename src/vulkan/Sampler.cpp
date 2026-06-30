@@ -6,6 +6,7 @@
 
 bool acm::vulkan::Sampler::create(acm::vulkan::Device& owner, float maxAnisotropy)
 {
+	m_owner = &owner;
 	const bool anisotropic = maxAnisotropy > 1.0f && owner.enabledFeatures().samplerAnisotropy;
 	float anisotropy = 1.0f;
 	if (anisotropic)
@@ -29,14 +30,15 @@ bool acm::vulkan::Sampler::create(acm::vulkan::Device& owner, float maxAnisotrop
 	return vkCreateSampler(owner.vkDevice(), &samplerInfo, nullptr, &m_sampler) == VK_SUCCESS;
 }
 
-VkSampler acm::vulkan::Sampler::vkSampler(const acm::Handle& handle) const
+VkSampler acm::vulkan::Sampler::vkSampler() const
 {
-	return accessible(handle) ? m_sampler : VK_NULL_HANDLE;
+	return m_sampler;
 }
 
 void acm::vulkan::Sampler::retire(acm::vulkan::Device& owner)
 {
 	const VkSampler retiredSampler = std::exchange(m_sampler, VK_NULL_HANDLE);
+	m_owner = nullptr;
 	if (!retiredSampler)
 		return;
 	const VkDevice device = owner.vkDevice();

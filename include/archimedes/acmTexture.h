@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
 
@@ -33,8 +33,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::Texture* native() const { return m_resource; }
+		acm::native::Texture* native() const;
 
 		// Uploads CPU pixels (tightly packed, matching the texture's format/extent) via
 		// a staging buffer + one-shot copy. For a mipmapped texture it then generates
@@ -50,11 +49,10 @@ namespace acm
 		friend acm::native::Device;
 		// `storage` (color only) adds STORAGE usage so a compute shader can write the
 		// image via a StorageImage descriptor.
-		Texture(acm::native::Texture* resource, acm::Handle handle);
+		Texture(acm::ResourceRef<acm::native::Texture> resource);
 		explicit Texture(acm::Error error);
 
-		acm::native::Texture* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::Texture> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

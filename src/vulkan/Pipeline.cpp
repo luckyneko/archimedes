@@ -21,16 +21,17 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 		return false;
 	if (config.depthTest && !config.target.hasDepth())
 		return false;
+	m_owner = &owner;
 
 	VkPipelineShaderStageCreateInfo vertStage = {};
 	vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertStage.module = config.vertex.native()->vkShaderModule(config.vertex.handle());
+	vertStage.module = config.vertex.native()->vkShaderModule();
 	vertStage.pName = "main";
 	VkPipelineShaderStageCreateInfo fragStage = {};
 	fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragStage.module = config.fragment.native()->vkShaderModule(config.fragment.handle());
+	fragStage.module = config.fragment.native()->vkShaderModule();
 	fragStage.pName = "main";
 	if (!vertStage.module || !fragStage.module)
 		return false;
@@ -82,7 +83,7 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.rasterizationSamples = config.target.native()->sampleCount(config.target.handle());
+	multisampling.rasterizationSamples = config.target.native()->sampleCount();
 	if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
 	{
 		multisampling.sampleShadingEnable = VK_TRUE;
@@ -110,16 +111,16 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 	depthStencil.depthTestEnable = VK_TRUE;
 	depthStencil.depthWriteEnable = VK_TRUE;
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-	const VkFormat colorFormat = config.target.native()->colorFormat(config.target.handle());
+	const VkFormat colorFormat = config.target.native()->colorFormat();
 	if (colorFormat == VK_FORMAT_UNDEFINED)
 		return false;
 	VkPipelineRenderingCreateInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachmentFormats = &colorFormat;
-	renderingInfo.depthAttachmentFormat = config.target.native()->depthFormat(config.target.handle());
+	renderingInfo.depthAttachmentFormat = config.target.native()->depthFormat();
 
-	const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.native()->vkLayout(config.descriptorLayout.handle()) : VK_NULL_HANDLE;
+	const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.native()->vkLayout() : VK_NULL_HANDLE;
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	if (setLayout)
@@ -151,14 +152,14 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 	return true;
 }
 
-VkPipeline acm::vulkan::Pipeline::vkPipeline(const acm::Handle& handle) const
+VkPipeline acm::vulkan::Pipeline::vkPipeline() const
 {
-	return accessible(handle) ? m_pipeline : VK_NULL_HANDLE;
+	return m_pipeline;
 }
 
-VkPipelineLayout acm::vulkan::Pipeline::vkLayout(const acm::Handle& handle) const
+VkPipelineLayout acm::vulkan::Pipeline::vkLayout() const
 {
-	return accessible(handle) ? m_layout : VK_NULL_HANDLE;
+	return m_layout;
 }
 
 void acm::vulkan::Pipeline::retire(acm::vulkan::Device& owner)
@@ -166,6 +167,7 @@ void acm::vulkan::Pipeline::retire(acm::vulkan::Device& owner)
 	const VkDevice device = owner.vkDevice();
 	const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
 	const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
+	m_owner = nullptr;
 	if (pipeline)
 		owner.enqueueDestroy([device, pipeline]
 							 { vkDestroyPipeline(device, pipeline, nullptr); });

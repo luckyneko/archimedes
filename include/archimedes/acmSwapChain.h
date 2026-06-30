@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
 
@@ -23,8 +23,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::SwapChain* native() const { return m_resource; }
+		acm::native::SwapChain* native() const;
 
 		bool recreate();
 		acm::SurfaceFormat getFormat() const;
@@ -34,11 +33,10 @@ namespace acm
 
 	private:
 		friend acm::native::Device;
-		SwapChain(acm::native::SwapChain* resource, acm::Handle handle);
+		SwapChain(acm::ResourceRef<acm::native::SwapChain> resource);
 		explicit SwapChain(acm::Error error);
 
-		acm::native::SwapChain* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::SwapChain> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

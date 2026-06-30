@@ -47,7 +47,8 @@ pipeline/render/RTT/sampling/vertex-buffer/uniform/depth paths.
 ### The `acm::` handle pattern
 
 There are no per-resource pImpls. Public resource wrappers hold a stable typed backend
-slot pointer plus an index/generation `Handle`. The forward declarations and aliases in
+`ResourceRef<native::T>`, which contains a stable resource slot pointer plus an
+index/generation `ResourceSlotID`. The forward declarations and aliases in
 [acmNative.h](include/archimedes/acmNative.h) currently select `acm::vulkan` without
 including Vulkan headers. Platform integration uses the backend-neutral
 `native::InstanceHandle` and `native::SurfaceHandle` aliases.
@@ -61,27 +62,36 @@ public:
 	Resource& operator=(const Resource&);
 	~Resource();
 private:
-	native::Resource* m_resource{};
-	Handle m_handle; // index + generation
+	ResourceRef<native::Resource> m_resource;
 };
 ```
 
-Each named private resource derives from `ResourceSlot<Resource, Owner>` and is allocated
-directly by a block-based `HandleMap`; there is no separate public state/payload struct.
+Each owner keeps block-based `ResourcePool<T>` instances. A pool contains composed
+`ResourceSlot<T>` objects: the slot owns the backend payload and the mutex-protected
+index/generation/reference-count state; the payload class does not inherit from the slot.
 Blocks never move, so a wrapper's slot pointer remains stable until its owning root is
-destroyed. A lock-free packed 64-bit atomic stores generation and reference count. Copies
-retain with a generation-aware CAS, access performs one acquire load, and the final
-release advances the generation before retiring the resource. Forced
-invalidation performs the same transition, making every old wrapper stale and making
-later stale releases harmless. Pool allocation and free-list mutation are protected by
-that pool's mutex. Resource copies do not allocate and hot command recording performs no
-indexed map lookup, lock, reference mutation, or Device forwarding.
+destroyed. `ResourcePool<T>` is owner-agnostic and takes a retire callback; backend
+payloads store a borrowed owner pointer only when their operations need one. `ResourceRef<T>`
+copies retain under the slot mutex, `access()` validates the current generation before
+returning the slot payload, and the final release advances the generation before retiring the payload. `ResourceRef`
+does not expose `operator->`; `access()` returns `nullptr` when the ref is stale/invalid,
+and public wrapper code must branch on that pointer before calling backend operations.
+Forced retirement performs the same transition, making every old wrapper stale and
+making later stale releases harmless. Pool allocation and free-list mutation are protected
+by that pool's mutex. Resource copies do not allocate and command recording performs no
+indexed map lookup or Device forwarding.
 
-The trivial internal `native()` accessor returns the selected backend slot pointer;
-`handle()` remains available for validation and diagnostics. `native()` is an internal
-compile-time backend seam, not a public native-handle API. Backend selection must remain
-compile-time: do not add virtual dispatch, type erasure, casts, or runtime renderer
-switching.
+The type-owned headers are [acmResourceRef.h](include/archimedes/acmResourceRef.h),
+[ResourceSlot.h](include/archimedes/ResourceSlot.h), and
+[ResourcePool.h](private/archimedes/ResourcePool.h). `ResourceRef<T>` stores only a
+slot pointer and `ResourceSlotID`; copy/reset/valid/forced-retire delegate directly to the
+slot, while access returns the payload after validation. `ResourcePool<T>` allocates slots and configures their retire callback,
+which retires the payload and recycles the slot. The trivial internal `native()` accessor
+returns `m_resource.access()` from the matching `src/acm*.cpp`, where the backend type is
+complete. `native()` is an internal compile-time backend seam, not a public native-handle
+API. Slot IDs remain internal to `ResourceRef`/`ResourceSlot`; public wrappers do not
+expose them. Backend selection must remain compile-time: do not add virtual dispatch,
+type erasure, casts, or runtime renderer switching.
 
 `acm::Instance` and `acm::Device` are unique, move-only owning roots. Each holds a
 `unique_ptr` to its heap-stable named backend; moving a root therefore preserves child
@@ -113,7 +123,7 @@ resource owners. Public Archimedes declarations live in
 ### Object graph / ownership
 
 Arrows are the `createX` factories (the parent builds the child). Resources live in
-private backend tables and require their public owning root to outlive them. The graph
+private backend pools and require their public owning root to outlive them. The graph
 is a lifetime hierarchy, not shared ownership.
 
 ```
@@ -172,7 +182,8 @@ are parked, to fence a shared-resource update against in-flight reads).
 `acm::ComputePipeline` — a single compute-stage `Shader` + a pipeline layout from a
 `DescriptorSetLayout`, no rendering scope / fixed-function state. Vulkan creation and
 ownership live in the private `vulkan::ComputePipeline`; `vulkan::Device` only allocates
-its stable slot and supplies shared context. The public class only retains its handle.
+its stable slot and supplies shared context. The public wrapper only retains its
+`ResourceRef`.
 Record it on a `CommandBuffer`
 with `bindComputePipeline` → `bindComputeDescriptorSet` → `dispatch(gx, gy, gz)` (each
 group runs the shader's `local_size`), outside any rendering scope. The resources it reads /
@@ -387,7 +398,7 @@ pipeline creation, image views for `vkCmdBeginRendering`, explicit synchronizati
 layout transitions, and the target's final color layout. Pipeline creation takes a
 `RenderTarget`, keeping Vulkan formats/views/layouts out of public target/pipeline
 headers. On swapchain recreation or destruction, the backend erases every target
-generation before retiring the shared objects, so copied target handles become invalid
+generation before retiring the shared objects, so copied target wrappers become invalid
 rather than referring to a dead swapchain image. Teardown order (via the device's
 deferred queue): each target's view + owned depth/MSAA images, then the swapchain.
 `Renderer` retains the swapchain wrapper and performs acquire/submit/present through
@@ -549,7 +560,7 @@ Shaders live in [testbed/shaders/](testbed/shaders/) and are compiled by
 Catch2 suite, gated by `ARCHIMEDES_BUILD_TESTING` (default ON top-level). The
 library is a thin wrapper over `vk*`, so coverage splits in two:
 
-- **Pure unit** (`[acm]`, `[handle]`, `[version]`) — handle validity/reset/share
+- **Pure unit** (`[acm]`, `[handle]`, `[version]`) — wrapper validity/reset/share
   semantics and `Version`. No driver needed.
 - **Integration** (`[gpu]`) — mostly headless via a **headless surface**
   (`vkCreateHeadlessSurfaceEXT` — no window): `acm::Instance`/`Device` creation +
@@ -694,7 +705,7 @@ the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - Swapchain recreation is driven purely by `VK_ERROR_OUT_OF_DATE_KHR` /
   `VK_SUBOPTIMAL_KHR` return codes (reliable on MoltenVK). There's no explicit
   resize-flag fallback for drivers that never report out-of-date on resize.
-- `[gpu]` tests cover handle semantics, instance/device/surface/swapchain, command
+- `[gpu]` tests cover wrapper semantics, instance/device/surface/swapchain, command
   pool/buffer, pipeline, the renderer frame loop, and render-to-texture (the RTT
   test reads pixels back and checks them; the swapchain-backed tests only assert
   success/validity). The swapchain-backed cases need a headless-surface-capable

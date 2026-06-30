@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 
 namespace acm
@@ -20,16 +20,14 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::ComputePipeline* native() const { return m_resource; }
+		acm::native::ComputePipeline* native() const;
 
 	private:
 		friend acm::native::Device;
-		ComputePipeline(acm::native::ComputePipeline* resource, acm::Handle handle);
+		ComputePipeline(acm::ResourceRef<acm::native::ComputePipeline> resource);
 		explicit ComputePipeline(acm::Error error);
 
-		acm::native::ComputePipeline* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::ComputePipeline> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

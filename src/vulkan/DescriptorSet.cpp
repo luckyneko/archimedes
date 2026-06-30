@@ -14,8 +14,9 @@ bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::D
 {
 	if (!layout.valid() || !layout.native() || &layout.native()->owner() != &owner)
 		return false;
-	const auto* bindings = layout.native()->bindings(layout.handle());
-	const VkDescriptorSetLayout vkLayout = layout.native()->vkLayout(layout.handle());
+	m_owner = &owner;
+	const auto* bindings = layout.native()->bindings();
+	const VkDescriptorSetLayout vkLayout = layout.native()->vkLayout();
 	if (!bindings || !vkLayout)
 		return false;
 
@@ -46,17 +47,17 @@ bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::D
 	return true;
 }
 
-VkDescriptorSet acm::vulkan::DescriptorSet::vkDescriptorSet(const acm::Handle& handle) const
+VkDescriptorSet acm::vulkan::DescriptorSet::vkDescriptorSet() const
 {
-	return accessible(handle) ? m_set : VK_NULL_HANDLE;
+	return m_set;
 }
 
-void acm::vulkan::DescriptorSet::setTexture(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Texture& texture, const acm::Handle& textureHandle, const acm::vulkan::Sampler& sampler, const acm::Handle& samplerHandle, uint32_t arrayElement)
+void acm::vulkan::DescriptorSet::setTexture(uint32_t binding, const acm::vulkan::Texture& texture, const acm::vulkan::Sampler& sampler, uint32_t arrayElement)
 {
-	if (!accessible(handle) || &owner() != &texture.owner() || &owner() != &sampler.owner())
+	if (&owner() != &texture.owner() || &owner() != &sampler.owner())
 		return;
-	const VkImageView imageView = texture.vkImageView(textureHandle);
-	const VkSampler vkSampler = sampler.vkSampler(samplerHandle);
+	const VkImageView imageView = texture.vkImageView();
+	const VkSampler vkSampler = sampler.vkSampler();
 	if (!imageView || !vkSampler)
 		return;
 	VkDescriptorImageInfo imageInfo = {};
@@ -74,11 +75,11 @@ void acm::vulkan::DescriptorSet::setTexture(const acm::Handle& handle, uint32_t 
 	vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
 }
 
-void acm::vulkan::DescriptorSet::setBuffer(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Buffer& buffer, const acm::Handle& bufferHandle, uint32_t arrayElement)
+void acm::vulkan::DescriptorSet::setBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, uint32_t arrayElement)
 {
-	if (!accessible(handle) || &owner() != &buffer.owner())
+	if (&owner() != &buffer.owner())
 		return;
-	const VkBuffer vkBuffer = buffer.vkBuffer(bufferHandle);
+	const VkBuffer vkBuffer = buffer.vkBuffer();
 	if (!vkBuffer)
 		return;
 	VkDescriptorBufferInfo bufferInfo = {};
@@ -95,11 +96,11 @@ void acm::vulkan::DescriptorSet::setBuffer(const acm::Handle& handle, uint32_t b
 	vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
 }
 
-void acm::vulkan::DescriptorSet::setDynamicBuffer(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Buffer& buffer, const acm::Handle& bufferHandle, size_t elementSize, uint32_t arrayElement)
+void acm::vulkan::DescriptorSet::setDynamicBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, size_t elementSize, uint32_t arrayElement)
 {
-	if (!accessible(handle) || &owner() != &buffer.owner())
+	if (&owner() != &buffer.owner())
 		return;
-	const VkBuffer vkBuffer = buffer.vkBuffer(bufferHandle);
+	const VkBuffer vkBuffer = buffer.vkBuffer();
 	if (!vkBuffer)
 		return;
 	VkDescriptorBufferInfo bufferInfo = {};
@@ -116,11 +117,11 @@ void acm::vulkan::DescriptorSet::setDynamicBuffer(const acm::Handle& handle, uin
 	vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
 }
 
-void acm::vulkan::DescriptorSet::setStorageImage(const acm::Handle& handle, uint32_t binding, const acm::vulkan::Texture& texture, const acm::Handle& textureHandle, uint32_t arrayElement)
+void acm::vulkan::DescriptorSet::setStorageImage(uint32_t binding, const acm::vulkan::Texture& texture, uint32_t arrayElement)
 {
-	if (!accessible(handle) || &owner() != &texture.owner())
+	if (&owner() != &texture.owner())
 		return;
-	const VkImageView imageView = texture.vkImageView(textureHandle);
+	const VkImageView imageView = texture.vkImageView();
 	if (!imageView)
 		return;
 	VkDescriptorImageInfo imageInfo = {};
@@ -139,7 +140,7 @@ void acm::vulkan::DescriptorSet::setStorageImage(const acm::Handle& handle, uint
 
 VkDescriptorType acm::vulkan::DescriptorSet::bufferType(uint32_t binding) const
 {
-	const auto* bindings = m_layout.valid() ? m_layout.native()->bindings(m_layout.handle()) : nullptr;
+	const auto* bindings = m_layout.valid() ? m_layout.native()->bindings() : nullptr;
 	if (bindings)
 		for (const acm::DescriptorBinding& candidate : *bindings)
 			if (candidate.binding == binding)
@@ -151,6 +152,7 @@ VkDescriptorType acm::vulkan::DescriptorSet::bufferType(uint32_t binding) const
 void acm::vulkan::DescriptorSet::retire(acm::vulkan::Device& owner)
 {
 	const VkDescriptorPool pool = std::exchange(m_pool, VK_NULL_HANDLE);
+	m_owner = nullptr;
 	m_set = VK_NULL_HANDLE;
 	if (pool)
 	{

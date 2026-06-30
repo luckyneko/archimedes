@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
 
@@ -21,8 +21,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::RenderTarget* native() const { return m_resource; }
+		acm::native::RenderTarget* native() const;
 
 		acm::Extent2D getExtent() const;
 		bool hasDepth() const;
@@ -30,11 +29,10 @@ namespace acm
 
 	private:
 		friend acm::native::Device;
-		RenderTarget(acm::native::RenderTarget* resource, acm::Handle handle);
+		RenderTarget(acm::ResourceRef<acm::native::RenderTarget> resource);
 		explicit RenderTarget(acm::Error error);
 
-		acm::native::RenderTarget* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::RenderTarget> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

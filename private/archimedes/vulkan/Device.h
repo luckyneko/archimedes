@@ -3,9 +3,8 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmHandle.h"
 #include "archimedes/acmTypes.h"
-#include "archimedes/HandleMap.h"
+#include "archimedes/ResourcePool.h"
 #include "archimedes/vulkan/Memory.h"
 #include "archimedes/vulkan/Resources.h"
 
@@ -69,6 +68,7 @@ namespace acm::vulkan
 
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
+		bool invalidateRenderTarget(acm::RenderTarget& target);
 
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
 
@@ -100,19 +100,19 @@ namespace acm::vulkan
 		std::mutex m_graveyardMutex;
 		std::atomic<uint64_t> m_currentFrame{0};
 		std::vector<Pending> m_graveyard;
-		acm::HandleMap<acm::vulkan::Buffer, Device> m_buffers;
-		acm::HandleMap<acm::vulkan::Texture, Device> m_textures;
-		acm::HandleMap<acm::vulkan::Sampler, Device> m_samplers;
-		acm::HandleMap<acm::vulkan::Shader, Device> m_shaders;
-		acm::HandleMap<acm::vulkan::DescriptorSetLayout, Device> m_descriptorSetLayouts;
-		acm::HandleMap<acm::vulkan::DescriptorSet, Device> m_descriptorSets;
-		acm::HandleMap<acm::vulkan::Pipeline, Device> m_pipelines;
-		acm::HandleMap<acm::vulkan::ComputePipeline, Device> m_computePipelines;
-		acm::HandleMap<acm::vulkan::RenderTarget, Device> m_renderTargets;
-		acm::HandleMap<acm::vulkan::SwapChain, Device> m_swapChains;
-		acm::HandleMap<acm::vulkan::CommandPool, Device> m_commandPools;
-		acm::HandleMap<acm::vulkan::CommandBuffer, Device> m_commandBuffers;
-		acm::HandleMap<acm::vulkan::Renderer, Device> m_renderers;
+		acm::ResourcePool<acm::vulkan::Buffer> m_buffers;
+		acm::ResourcePool<acm::vulkan::Texture> m_textures;
+		acm::ResourcePool<acm::vulkan::Sampler> m_samplers;
+		acm::ResourcePool<acm::vulkan::Shader> m_shaders;
+		acm::ResourcePool<acm::vulkan::DescriptorSetLayout> m_descriptorSetLayouts;
+		acm::ResourcePool<acm::vulkan::DescriptorSet> m_descriptorSets;
+		acm::ResourcePool<acm::vulkan::Pipeline> m_pipelines;
+		acm::ResourcePool<acm::vulkan::ComputePipeline> m_computePipelines;
+		acm::ResourcePool<acm::vulkan::RenderTarget> m_renderTargets;
+		acm::ResourcePool<acm::vulkan::SwapChain> m_swapChains;
+		acm::ResourcePool<acm::vulkan::CommandPool> m_commandPools;
+		acm::ResourcePool<acm::vulkan::CommandBuffer> m_commandBuffers;
+		acm::ResourcePool<acm::vulkan::Renderer> m_renderers;
 		acm::Error m_error;
 	};
 } // namespace acm::vulkan

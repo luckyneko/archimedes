@@ -6,9 +6,8 @@
 
 acm::Sampler::Sampler() = default;
 
-acm::Sampler::Sampler(acm::native::Sampler* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::Sampler::Sampler(acm::ResourceRef<acm::native::Sampler> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -17,70 +16,33 @@ acm::Sampler::Sampler(acm::Error error)
 {
 }
 
-acm::Sampler::Sampler(const acm::Sampler& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::Sampler::Sampler(const acm::Sampler& other) = default;
 
-acm::Sampler& acm::Sampler::operator=(const acm::Sampler& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::Sampler& acm::Sampler::operator=(const acm::Sampler& other) = default;
 
-acm::Sampler::Sampler(acm::Sampler&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::Sampler::Sampler(acm::Sampler&& other) noexcept = default;
 
-acm::Sampler& acm::Sampler::operator=(acm::Sampler&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::Sampler& acm::Sampler::operator=(acm::Sampler&& other) noexcept = default;
 
-acm::Sampler::~Sampler()
-{
-	reset();
-}
+acm::Sampler::~Sampler() = default;
 
 void acm::Sampler::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::Sampler::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::Sampler::error() const
 {
 	return m_error;
+}
+
+acm::native::Sampler* acm::Sampler::native() const
+{
+	return m_resource.access();
 }

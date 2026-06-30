@@ -1,7 +1,6 @@
 #pragma once
 
 #include "archimedes/acmGPU.h"
-#include "archimedes/HandleMap.h"
 
 #include <vulkan/vulkan.h>
 
@@ -11,15 +10,17 @@ namespace acm::vulkan
 {
 	class Instance;
 
-	class Surface : public acm::ResourceSlot<acm::vulkan::Surface, acm::vulkan::Instance>
+	class Surface
 	{
 	public:
 		bool create(acm::vulkan::Instance& owner, VkSurfaceKHR surface);
-		const std::vector<acm::GPUSurfaceSupport>& support(const acm::Handle& handle) const;
-		VkSurfaceKHR vkSurface(const acm::Handle& handle) const;
+		acm::vulkan::Instance& owner() const { return *m_owner; }
+		const std::vector<acm::GPUSurfaceSupport>& support() const;
+		VkSurfaceKHR vkSurface() const;
 		void retire(acm::vulkan::Instance& owner);
 
 	private:
+		acm::vulkan::Instance* m_owner{nullptr};
 		VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 		std::vector<acm::GPUSurfaceSupport> m_gpuSupport;
 	};

@@ -5,7 +5,6 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmSwapChain.h"
-#include "archimedes/HandleMap.h"
 
 #include <vulkan/vulkan.h>
 
@@ -17,11 +16,12 @@ namespace acm::vulkan
 {
 	class Device;
 
-	class Renderer : public acm::ResourceSlot<acm::vulkan::Renderer, acm::vulkan::Device>
+	class Renderer
 	{
 	public:
 		bool create(acm::vulkan::Device& owner, const acm::SwapChain& swapChain);
-		acm::Error render(const acm::Handle& handle, const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record);
+		acm::vulkan::Device& owner() const { return *m_owner; }
+		acm::Error render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record);
 		void retire(acm::vulkan::Device& owner);
 
 	private:
@@ -32,6 +32,7 @@ namespace acm::vulkan
 			VkFence inFlight{VK_NULL_HANDLE};
 		};
 
+		acm::vulkan::Device* m_owner{nullptr};
 		acm::SwapChain m_swapChain;
 		acm::CommandPool m_commandPool;
 		std::vector<acm::CommandBuffer> m_commandBuffers;

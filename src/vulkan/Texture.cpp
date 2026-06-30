@@ -12,6 +12,7 @@ bool acm::vulkan::Texture::create(acm::vulkan::Device& owner, acm::Format format
 {
 	if (format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
 		return false;
+	m_owner = &owner;
 	m_format = format;
 	m_extent = extent;
 	const VkFormat vkFormat = acm::vulkan::toVk(format);
@@ -72,36 +73,36 @@ uint32_t acm::vulkan::Texture::computeMipLevels(acm::Extent2D extent)
 	return levels;
 }
 
-acm::Format acm::vulkan::Texture::format(const acm::Handle& handle) const
+acm::Format acm::vulkan::Texture::format() const
 {
-	return accessible(handle) ? m_format : acm::Format::Undefined;
+	return m_format;
 }
 
-acm::Extent2D acm::vulkan::Texture::extent(const acm::Handle& handle) const
+acm::Extent2D acm::vulkan::Texture::extent() const
 {
-	return accessible(handle) ? m_extent : acm::Extent2D{};
+	return m_extent;
 }
 
-uint32_t acm::vulkan::Texture::mipLevels(const acm::Handle& handle) const
+uint32_t acm::vulkan::Texture::mipLevels() const
 {
-	return accessible(handle) ? m_mipLevels : 0;
+	return m_mipLevels;
 }
 
-VkImage acm::vulkan::Texture::vkImage(const acm::Handle& handle) const
+VkImage acm::vulkan::Texture::vkImage() const
 {
-	return accessible(handle) ? m_image : VK_NULL_HANDLE;
+	return m_image;
 }
 
-VkImageView acm::vulkan::Texture::vkImageView(const acm::Handle& handle) const
+VkImageView acm::vulkan::Texture::vkImageView() const
 {
-	return accessible(handle) ? m_imageView : VK_NULL_HANDLE;
+	return m_imageView;
 }
 
-void acm::vulkan::Texture::recordCopyToBuffer(const acm::Handle& handle, VkCommandBuffer commandBuffer, const acm::vulkan::Buffer& buffer, const acm::Handle& bufferHandle) const
+void acm::vulkan::Texture::recordCopyToBuffer(VkCommandBuffer commandBuffer, const acm::vulkan::Buffer& buffer) const
 {
-	if (!accessible(handle) || &owner() != &buffer.owner())
+	if (&owner() != &buffer.owner())
 		return;
-	const VkBuffer vkBuffer = buffer.vkBuffer(bufferHandle);
+	const VkBuffer vkBuffer = buffer.vkBuffer();
 	if (!vkBuffer)
 		return;
 	VkBufferImageCopy region = {};
@@ -111,10 +112,8 @@ void acm::vulkan::Texture::recordCopyToBuffer(const acm::Handle& handle, VkComma
 	vkCmdCopyImageToBuffer(commandBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vkBuffer, 1, &region);
 }
 
-void acm::vulkan::Texture::recordTransition(const acm::Handle& handle, VkCommandBuffer commandBuffer, acm::ImageLayout from, acm::ImageLayout to) const
+void acm::vulkan::Texture::recordTransition(VkCommandBuffer commandBuffer, acm::ImageLayout from, acm::ImageLayout to) const
 {
-	if (!accessible(handle))
-		return;
 	const acm::vulkan::VkLayoutInfo source = acm::vulkan::toVk(from);
 	const acm::vulkan::VkLayoutInfo destination = acm::vulkan::toVk(to);
 	VkImageMemoryBarrier2 barrier = {};
@@ -138,10 +137,8 @@ void acm::vulkan::Texture::recordTransition(const acm::Handle& handle, VkCommand
 	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
-acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* pixels, size_t size)
+acm::Error acm::vulkan::Texture::upload(const void* pixels, size_t size)
 {
-	if (!accessible(handle))
-		return acm::Error("Texture::upload: invalid texture");
 	assert(m_format != acm::Format::D32_Sfloat && "acm::Texture::upload: depth textures cannot be uploaded");
 
 	uint32_t uploadedMipLevels = m_mipLevels;
@@ -160,7 +157,7 @@ acm::Error acm::vulkan::Texture::upload(const acm::Handle& handle, const void* p
 	if (acm::Error error = staging.write(pixels, size))
 		return error;
 
-	const VkBuffer stagingBuffer = staging.native()->vkBuffer(staging.handle());
+	const VkBuffer stagingBuffer = staging.native()->vkBuffer();
 	const VkImage image = m_image;
 	const acm::Extent2D textureExtent = m_extent;
 	return owner().submitOneShot([stagingBuffer, image, textureExtent, uploadedMipLevels](VkCommandBuffer commandBuffer)
@@ -230,6 +227,7 @@ void acm::vulkan::Texture::retire(acm::vulkan::Device& owner)
 	m_format = acm::Format::Undefined;
 	m_extent = {};
 	m_mipLevels = 1;
+	m_owner = nullptr;
 	const VkDevice device = owner.vkDevice();
 	if (imageView)
 	{

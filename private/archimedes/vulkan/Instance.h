@@ -3,9 +3,8 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmHandle.h"
 #include "archimedes/acmVersion.h"
-#include "archimedes/HandleMap.h"
+#include "archimedes/ResourcePool.h"
 #include "archimedes/vulkan/Resources.h"
 
 #include <vulkan/vulkan.h>
@@ -44,7 +43,7 @@ namespace acm::vulkan
 		std::vector<const char*> m_layerNames;
 		std::vector<acm::GPU> m_gpus;
 		std::vector<VkPhysicalDevice> m_physicalDevices;
-		acm::HandleMap<acm::vulkan::Surface, Instance> m_surfaces;
+		acm::ResourcePool<acm::vulkan::Surface> m_surfaces;
 		acm::Error m_error;
 	};
 } // namespace acm::vulkan

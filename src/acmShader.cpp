@@ -6,9 +6,8 @@
 
 acm::Shader::Shader() = default;
 
-acm::Shader::Shader(acm::native::Shader* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::Shader::Shader(acm::ResourceRef<acm::native::Shader> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -17,70 +16,33 @@ acm::Shader::Shader(acm::Error error)
 {
 }
 
-acm::Shader::Shader(const acm::Shader& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::Shader::Shader(const acm::Shader& other) = default;
 
-acm::Shader& acm::Shader::operator=(const acm::Shader& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::Shader& acm::Shader::operator=(const acm::Shader& other) = default;
 
-acm::Shader::Shader(acm::Shader&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::Shader::Shader(acm::Shader&& other) noexcept = default;
 
-acm::Shader& acm::Shader::operator=(acm::Shader&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::Shader& acm::Shader::operator=(acm::Shader&& other) noexcept = default;
 
-acm::Shader::~Shader()
-{
-	reset();
-}
+acm::Shader::~Shader() = default;
 
 void acm::Shader::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::Shader::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::Shader::error() const
 {
 	return m_error;
+}
+
+acm::native::Shader* acm::Shader::native() const
+{
+	return m_resource.access();
 }

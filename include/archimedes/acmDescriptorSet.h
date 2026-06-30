@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 
 #include <cstddef>
@@ -29,8 +29,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::DescriptorSet* native() const { return m_resource; }
+		acm::native::DescriptorSet* native() const;
 
 		// Writes a combined image sampler at `binding` (the texture is sampled in
 		// SHADER_READ_ONLY layout — i.e. it was rendered/uploaded ready to sample).
@@ -53,11 +52,10 @@ namespace acm
 
 	private:
 		friend acm::native::Device;
-		DescriptorSet(acm::native::DescriptorSet* resource, acm::Handle handle);
+		DescriptorSet(acm::ResourceRef<acm::native::DescriptorSet> resource);
 		explicit DescriptorSet(acm::Error error);
 
-		acm::native::DescriptorSet* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::DescriptorSet> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -2,7 +2,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmHandle.h"
+#include "archimedes/acmResourceRef.h"
 #include "archimedes/acmNative.h"
 #include "archimedes/acmTypes.h"
 
@@ -29,16 +29,14 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		const acm::Handle& handle() const { return m_handle; }
-		acm::native::DescriptorSetLayout* native() const { return m_resource; }
+		acm::native::DescriptorSetLayout* native() const;
 
 	private:
 		friend acm::native::Device;
-		DescriptorSetLayout(acm::native::DescriptorSetLayout* resource, acm::Handle handle);
+		DescriptorSetLayout(acm::ResourceRef<acm::native::DescriptorSetLayout> resource);
 		explicit DescriptorSetLayout(acm::Error error);
 
-		acm::native::DescriptorSetLayout* m_resource{nullptr};
-		acm::Handle m_handle;
+		acm::ResourceRef<acm::native::DescriptorSetLayout> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

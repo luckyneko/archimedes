@@ -7,9 +7,8 @@
 
 acm::CommandPool::CommandPool() = default;
 
-acm::CommandPool::CommandPool(acm::native::CommandPool* resource, acm::Handle handle)
-	: m_resource(resource)
-	, m_handle(handle)
+acm::CommandPool::CommandPool(acm::ResourceRef<acm::native::CommandPool> resource)
+	: m_resource(std::move(resource))
 {
 }
 
@@ -18,67 +17,25 @@ acm::CommandPool::CommandPool(acm::Error error)
 {
 }
 
-acm::CommandPool::CommandPool(const acm::CommandPool& other)
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(other.m_error)
-{
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-}
+acm::CommandPool::CommandPool(const acm::CommandPool& other) = default;
 
-acm::CommandPool& acm::CommandPool::operator=(const acm::CommandPool& other)
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = other.m_error;
-	if (m_handle.valid())
-		m_resource->retain(m_handle);
-	return *this;
-}
+acm::CommandPool& acm::CommandPool::operator=(const acm::CommandPool& other) = default;
 
-acm::CommandPool::CommandPool(acm::CommandPool&& other) noexcept
-	: m_resource(other.m_resource)
-	, m_handle(other.m_handle)
-	, m_error(std::move(other.m_error))
-{
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-}
+acm::CommandPool::CommandPool(acm::CommandPool&& other) noexcept = default;
 
-acm::CommandPool& acm::CommandPool::operator=(acm::CommandPool&& other) noexcept
-{
-	if (this == &other)
-		return *this;
-	reset();
-	m_resource = other.m_resource;
-	m_handle = other.m_handle;
-	m_error = std::move(other.m_error);
-	other.m_resource = nullptr;
-	other.m_handle.reset();
-	return *this;
-}
+acm::CommandPool& acm::CommandPool::operator=(acm::CommandPool&& other) noexcept = default;
 
-acm::CommandPool::~CommandPool()
-{
-	reset();
-}
+acm::CommandPool::~CommandPool() = default;
 
 void acm::CommandPool::reset()
 {
-	if (m_handle.valid())
-		m_resource->release(m_handle);
-	m_resource = nullptr;
-	m_handle.reset();
+	m_resource.reset();
 	m_error = {};
 }
 
 bool acm::CommandPool::valid() const
 {
-	return m_resource && m_resource->valid(m_handle);
+	return m_resource.valid();
 }
 
 acm::Error acm::CommandPool::error() const
@@ -86,7 +43,14 @@ acm::Error acm::CommandPool::error() const
 	return m_error;
 }
 
+acm::native::CommandPool* acm::CommandPool::native() const
+{
+	return m_resource.access();
+}
+
 acm::CommandBuffer acm::CommandPool::allocate()
 {
-	return m_resource ? m_resource->owner().allocateCommandBuffer(*this) : acm::CommandBuffer{};
+	if (auto* resource = m_resource.access())
+		return resource->owner().allocateCommandBuffer(*this);
+	return acm::CommandBuffer{};
 }
