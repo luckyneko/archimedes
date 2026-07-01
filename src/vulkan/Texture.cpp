@@ -7,11 +7,15 @@
 
 #include <algorithm>
 #include <cassert>
+#include <utility>
 
-bool acm::vulkan::Texture::create(acm::vulkan::Device& owner, acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage)
+acm::vulkan::Texture::Texture(acm::vulkan::Device& owner, acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage)
 {
 	if (format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
-		return false;
+	{
+		m_error = acm::Error("failed to create texture with invalid format or extent");
+		return;
+	}
 	m_owner = &owner;
 	m_format = format;
 	m_extent = extent;
@@ -36,13 +40,19 @@ bool acm::vulkan::Texture::create(acm::vulkan::Device& owner, acm::Format format
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	if (vkCreateImage(owner.vkDevice(), &imageInfo, nullptr, &m_image) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create texture image");
+		return;
+	}
 
 	VkMemoryRequirements requirements;
 	vkGetImageMemoryRequirements(owner.vkDevice(), m_image, &requirements);
 	m_allocation = owner.allocator().allocate(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	if (!m_allocation.valid())
-		return false;
+	{
+		m_error = acm::Error("failed to allocate texture memory");
+		return;
+	}
 	vkBindImageMemory(owner.vkDevice(), m_image, m_allocation.memory, m_allocation.offset);
 
 	VkImageViewCreateInfo viewInfo = {};
@@ -53,7 +63,34 @@ bool acm::vulkan::Texture::create(acm::vulkan::Device& owner, acm::Format format
 	viewInfo.subresourceRange.aspectMask = aspect;
 	viewInfo.subresourceRange.levelCount = m_mipLevels;
 	viewInfo.subresourceRange.layerCount = 1;
-	return vkCreateImageView(owner.vkDevice(), &viewInfo, nullptr, &m_imageView) == VK_SUCCESS;
+	if (vkCreateImageView(owner.vkDevice(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS)
+		m_error = acm::Error("failed to create texture image view");
+}
+
+acm::vulkan::Texture::~Texture()
+{
+	release();
+}
+
+acm::vulkan::Texture::Texture(Texture&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Texture& acm::vulkan::Texture::operator=(Texture&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_format = std::exchange(other.m_format, acm::Format::Undefined);
+	m_extent = std::exchange(other.m_extent, {});
+	m_mipLevels = std::exchange(other.m_mipLevels, 1);
+	m_image = std::exchange(other.m_image, VK_NULL_HANDLE);
+	m_allocation = std::exchange(other.m_allocation, {});
+	m_imageView = std::exchange(other.m_imageView, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 bool acm::vulkan::Texture::isDepthFormat(acm::Format format)
@@ -219,33 +256,21 @@ void acm::vulkan::Texture::transition(VkCommandBuffer commandBuffer, VkImage ima
 	vkCmdPipelineBarrier2(commandBuffer, &dependency);
 }
 
-void acm::vulkan::Texture::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Texture::release()
 {
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkImageView imageView = std::exchange(m_imageView, VK_NULL_HANDLE);
 	const VkImage image = std::exchange(m_image, VK_NULL_HANDLE);
 	const acm::vulkan::Allocation allocation = std::exchange(m_allocation, {});
 	m_format = acm::Format::Undefined;
 	m_extent = {};
 	m_mipLevels = 1;
-	m_owner = nullptr;
-	const VkDevice device = owner.vkDevice();
+	if (!owner)
+		return;
 	if (imageView)
-	{
-		const VkImageView retiredView = imageView;
-		owner.enqueueDestroy([device, retiredView]
-							 { vkDestroyImageView(device, retiredView, nullptr); });
-	}
+		vkDestroyImageView(owner->vkDevice(), imageView, nullptr);
 	if (image)
-	{
-		const VkImage retiredImage = image;
-		owner.enqueueDestroy([device, retiredImage]
-							 { vkDestroyImage(device, retiredImage, nullptr); });
-	}
+		vkDestroyImage(owner->vkDevice(), image, nullptr);
 	if (allocation.valid())
-	{
-		acm::vulkan::MemoryAllocator* allocator = &owner.allocator();
-		const acm::vulkan::Allocation retiredAllocation = allocation;
-		owner.enqueueDestroy([allocator, retiredAllocation]
-							 { allocator->free(retiredAllocation); });
-	}
+		owner->allocator().free(allocation);
 }

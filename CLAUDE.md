@@ -19,8 +19,8 @@ Verified end-to-end on a live driver
 (MoltenVK on Apple Silicon; a system driver on Windows). Windows are resizable: the
 `acm::Renderer` rebuilds the swapchain on out-of-date/resize and skips minimized frames.
 Several `acm::Renderer`s can drive their own swapchains from their own threads because
-the one `VkQueue` (submit/present) and the device's frame/graveyard bookkeeping are
-serialized by the private Vulkan Device; command recording runs unlocked.
+the one `VkQueue` (submit/present) is serialized by the private Vulkan Device and
+deferred cleanup is keyed to completed queue submission serials; command recording runs unlocked.
 There's also an owned-resource path (`acm::Texture` +
 `acm::Buffer`), **render-to-texture**, **texture sampling** (`acm::Sampler` +
 descriptor sets — uniform / dynamic-uniform / storage buffers + combined-image-samplers +
@@ -48,7 +48,7 @@ pipeline/render/RTT/sampling/vertex-buffer/uniform/depth paths.
 
 There are no per-resource pImpls. Public resource wrappers hold a stable typed backend
 `ResourceRef<native::T>`, which contains a stable resource slot pointer plus an
-index/generation `ResourceSlotID`. The forward declarations and aliases in
+index/generation `ResourceSlot<T>::ID`. The forward declarations and aliases in
 [acmNative.h](include/archimedes/acmNative.h) currently select `acm::vulkan` without
 including Vulkan headers. Platform integration uses the backend-neutral
 `native::InstanceHandle` and `native::SurfaceHandle` aliases.
@@ -67,26 +67,41 @@ private:
 ```
 
 Each owner keeps block-based `ResourcePool<T>` instances. A pool contains composed
-`ResourceSlot<T>` objects: the slot owns the backend payload and the mutex-protected
-index/generation/reference-count state; the payload class does not inherit from the slot.
+`ResourceSlot<T>` objects: the slot owns optional move-only backend payload storage plus
+the mutex-protected index/generation/reference-count state; the payload class does not
+inherit from the slot.
 Blocks never move, so a wrapper's slot pointer remains stable until its owning root is
-destroyed. `ResourcePool<T>` is owner-agnostic and takes a retire callback; backend
-payloads store a borrowed owner pointer only when their operations need one. `ResourceRef<T>`
+destroyed. `ResourcePool<T>` is owner-agnostic storage; it constructs move-only backend
+payloads directly in slots and destroys payloads through their destructors after moving
+them out of dead slots. Backend payloads store a borrowed owner pointer only when their
+operations need one. `ResourceRef<T>`
 copies retain under the slot mutex, `access()` validates the current generation before
-returning the slot payload, and the final release advances the generation before retiring the payload. `ResourceRef`
+returning the slot payload, and the final release advances the generation and marks the
+slot dead. `ResourceRef`
 does not expose `operator->`; `access()` returns `nullptr` when the ref is stale/invalid,
 and public wrapper code must branch on that pointer before calling backend operations.
-Forced retirement performs the same transition, making every old wrapper stale and
-making later stale releases harmless. Pool allocation and free-list mutation are protected
-by that pool's mutex. Resource copies do not allocate and command recording performs no
-indexed map lookup or Device forwarding.
+Forced invalidation performs the same transition, making every old wrapper stale and
+making later stale releases harmless. Dead slots are not reused until the owning pool's
+garbage collection moves the backend payload out, hands it to the caller's collection
+policy, and returns the now-empty slot to the free list.
+Pool allocation and free-list mutation are protected by that pool's mutex. Resource
+copies do not allocate and command recording performs no indexed map lookup or Device
+forwarding.
 
 The type-owned headers are [acmResourceRef.h](include/archimedes/acmResourceRef.h),
-[ResourceSlot.h](include/archimedes/ResourceSlot.h), and
+[acmResourceSlot.h](include/archimedes/acmResourceSlot.h), and
 [ResourcePool.h](private/archimedes/ResourcePool.h). `ResourceRef<T>` stores only a
-slot pointer and `ResourceSlotID`; copy/reset/valid/forced-retire delegate directly to the
-slot, while access returns the payload after validation. `ResourcePool<T>` allocates slots and configures their retire callback,
-which retires the payload and recycles the slot. The trivial internal `native()` accessor
+slot pointer and `ResourceSlot<T>::ID`; copy/reset/valid/forced-invalidate delegate directly to the
+slot, while access returns the payload after validation. `ResourcePool<T>` allocates
+slots, constructs a backend payload for each lifetime, captures an invalid payload's
+construction error before resetting the slot, and recycles empty slots after
+`collectGarbage(...)` or `clear(...)`.
+`vulkan::Device::collectGarbage()` sweeps every device-owned resource pool before draining
+the submission-delayed [DeferredDestroyQueue](private/archimedes/DeferredDestroyQueue.h).
+Normal device-pool collection moves each backend payload into that queue so its destructor
+runs only after the requested queue submission serial completes. `vulkan::Instance`
+clears its surface pool at destruction and opportunistically sweeps it before creating
+another surface; surfaces are not submission-delayed. The trivial internal `native()` accessor
 returns `m_resource.access()` from the matching `src/acm*.cpp`, where the backend type is
 complete. `native()` is an internal compile-time backend seam, not a public native-handle
 API. Slot IDs remain internal to `ResourceRef`/`ResourceSlot`; public wrappers do not
@@ -108,7 +123,7 @@ Public wrapper methods stay in their matching `src/acm*.cpp`; those backend-neut
 translation units include only [nativeAPI.h](private/archimedes/nativeAPI.h), which selects
 the complete private backend through [vulkan/API.h](private/archimedes/vulkan/API.h).
 Backend implementation files include their precise Vulkan siblings directly. Each private
-resource's construction, native state, operations, dependency retention, and retirement live in matching
+resource's construction, native state, operations, dependency retention, and destruction live in matching
 `private/archimedes/vulkan/Type.h` and `src/vulkan/Type.cpp` files. `vulkan::Device`
 owns the stable pools/factories and shared queue, allocator, and synchronization context;
 `SwapChain` owns recreation/targets and `Renderer` owns its frame resources/orchestration.
@@ -167,12 +182,12 @@ uniform buffers — can be safely rewritten for this frame. Size any such ring t
 each over its own `SwapChain` (one per window) — and run `render(...)` on their own
 threads. The per-renderer work (fence wait, acquire, command recording) is independent
 and runs concurrently. A queue mutex serializes `vkQueueSubmit2`/`vkQueuePresentKHR`;
-the graveyard has a separate mutex and executes extracted destruction callbacks after
+the deferred destroy queue has a separate mutex and releases moved backend payloads after
 unlocking; the allocator and each resource pool synchronize independently. Distinct
 wrapper copies may be retained, released, and read concurrently. Mutation/reset of the
 same wrapper object and mutation of the same underlying native resource remain
 caller-synchronized. Swapchain recreation is externally synchronized, waits the Device
-idle, and force-invalidates old RenderTarget generations before retirement.
+idle, and force-invalidates old RenderTarget generations before destruction.
 `Device::waitIdle()` is the
 matching coarse fence — also externally-synchronized, so call it only when no thread is
 submitting (the testbed's fork-join calls it on the main thread while both render threads

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "archimedes/acmError.h"
 #include "archimedes/acmTexture.h"
 #include "archimedes/acmTypes.h"
 #include "archimedes/vulkan/Memory.h"
@@ -14,9 +15,18 @@ namespace acm::vulkan
 	class RenderTarget
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
-		bool create(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
+		RenderTarget() = default;
+		RenderTarget(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
+		RenderTarget(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
+		~RenderTarget();
+		RenderTarget(const RenderTarget&) = delete;
+		RenderTarget& operator=(const RenderTarget&) = delete;
+		RenderTarget(RenderTarget&& other) noexcept;
+		RenderTarget& operator=(RenderTarget&& other) noexcept;
+
 		acm::vulkan::Device& owner() const { return *m_owner; }
+		bool valid() const { return m_owner && m_colorImage != VK_NULL_HANDLE && colorAttachmentView() != VK_NULL_HANDLE && m_error.ok(); }
+		acm::Error error() const { return m_error; }
 		acm::Extent2D extent() const;
 		bool hasDepth() const;
 		bool multisampled() const;
@@ -25,7 +35,6 @@ namespace acm::vulkan
 		VkFormat depthFormat() const;
 		bool beginRendering(VkCommandBuffer commandBuffer, float r, float g, float b, float a) const;
 		void endRendering(VkCommandBuffer commandBuffer) const;
-		void retire(acm::vulkan::Device& owner);
 
 	private:
 		struct Attachment
@@ -35,6 +44,7 @@ namespace acm::vulkan
 			VkImageView view{VK_NULL_HANDLE};
 		};
 
+		void release();
 		bool createTransientAttachments(acm::vulkan::Device& owner);
 		bool createAttachment(acm::vulkan::Device& owner, Attachment& attachment, VkFormat format, acm::Extent2D extent, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect);
 		VkImage colorAttachmentImage() const;
@@ -44,7 +54,7 @@ namespace acm::vulkan
 		static VkImageMemoryBarrier2 imageBarrier(VkImage image, VkImageAspectFlags aspect, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccess, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage);
 		void recordBeginTransitions(VkCommandBuffer commandBuffer) const;
 		void recordEndTransition(VkCommandBuffer commandBuffer) const;
-		static void retireAttachment(acm::vulkan::Device& owner, const Attachment& attachment);
+		static void destroyAttachment(acm::vulkan::Device& owner, const Attachment& attachment);
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::Texture m_texture;
@@ -62,5 +72,6 @@ namespace acm::vulkan
 		acm::Extent2D m_extent;
 		Attachment m_msaaColor;
 		Attachment m_msaaDepth;
+		acm::Error m_error;
 	};
 } // namespace acm::vulkan

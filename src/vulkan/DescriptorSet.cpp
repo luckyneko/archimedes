@@ -9,16 +9,23 @@
 
 #include <cassert>
 #include <map>
+#include <utility>
 
-bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::DescriptorSetLayout& layout)
+acm::vulkan::DescriptorSet::DescriptorSet(acm::vulkan::Device& owner, const acm::DescriptorSetLayout& layout)
 {
 	if (!layout.valid() || !layout.native() || &layout.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to create descriptor set from invalid layout");
+		return;
+	}
 	m_owner = &owner;
 	const auto* bindings = layout.native()->bindings();
 	const VkDescriptorSetLayout vkLayout = layout.native()->vkLayout();
 	if (!bindings || !vkLayout)
-		return false;
+	{
+		m_error = acm::Error("failed to create descriptor set from invalid layout");
+		return;
+	}
 
 	std::map<VkDescriptorType, uint32_t> counts;
 	for (const acm::DescriptorBinding& binding : *bindings)
@@ -34,7 +41,10 @@ bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::D
 	poolInfo.pPoolSizes = poolSizes.data();
 	poolInfo.maxSets = 1;
 	if (vkCreateDescriptorPool(owner.vkDevice(), &poolInfo, nullptr, &m_pool) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create descriptor pool");
+		return;
+	}
 
 	VkDescriptorSetAllocateInfo allocationInfo = {};
 	allocationInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -42,9 +52,34 @@ bool acm::vulkan::DescriptorSet::create(acm::vulkan::Device& owner, const acm::D
 	allocationInfo.descriptorSetCount = 1;
 	allocationInfo.pSetLayouts = &vkLayout;
 	if (vkAllocateDescriptorSets(owner.vkDevice(), &allocationInfo, &m_set) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to allocate descriptor set");
+		return;
+	}
 	m_layout = layout;
-	return true;
+}
+
+acm::vulkan::DescriptorSet::~DescriptorSet()
+{
+	release();
+}
+
+acm::vulkan::DescriptorSet::DescriptorSet(DescriptorSet&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::DescriptorSet& acm::vulkan::DescriptorSet::operator=(DescriptorSet&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_layout = std::move(other.m_layout);
+	m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
+	m_set = std::exchange(other.m_set, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkDescriptorSet acm::vulkan::DescriptorSet::vkDescriptorSet() const
@@ -149,17 +184,12 @@ VkDescriptorType acm::vulkan::DescriptorSet::bufferType(uint32_t binding) const
 	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 }
 
-void acm::vulkan::DescriptorSet::retire(acm::vulkan::Device& owner)
+void acm::vulkan::DescriptorSet::release()
 {
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkDescriptorPool pool = std::exchange(m_pool, VK_NULL_HANDLE);
-	m_owner = nullptr;
 	m_set = VK_NULL_HANDLE;
-	if (pool)
-	{
-		const VkDevice device = owner.vkDevice();
-		const VkDescriptorPool retiredPool = pool;
-		owner.enqueueDestroy([device, retiredPool]
-							 { vkDestroyDescriptorPool(device, retiredPool, nullptr); });
-	}
+	if (owner && pool)
+		vkDestroyDescriptorPool(owner->vkDevice(), pool, nullptr);
 	m_layout.reset();
 }

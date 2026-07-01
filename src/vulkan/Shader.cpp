@@ -2,16 +2,43 @@
 
 #include "archimedes/vulkan/Device.h"
 
-bool acm::vulkan::Shader::create(acm::vulkan::Device& owner, const std::vector<char>& spirv)
+#include <utility>
+
+acm::vulkan::Shader::Shader(acm::vulkan::Device& owner, const std::vector<char>& spirv)
 {
 	if (spirv.empty())
-		return false;
+	{
+		m_error = acm::Error("failed to create shader from empty SPIR-V");
+		return;
+	}
 	m_owner = &owner;
 	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	createInfo.codeSize = spirv.size();
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(spirv.data());
-	return vkCreateShaderModule(owner.vkDevice(), &createInfo, nullptr, &m_shaderModule) == VK_SUCCESS;
+	if (vkCreateShaderModule(owner.vkDevice(), &createInfo, nullptr, &m_shaderModule) != VK_SUCCESS)
+		m_error = acm::Error("failed to create shader module");
+}
+
+acm::vulkan::Shader::~Shader()
+{
+	release();
+}
+
+acm::vulkan::Shader::Shader(Shader&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Shader& acm::vulkan::Shader::operator=(Shader&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_shaderModule = std::exchange(other.m_shaderModule, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkShaderModule acm::vulkan::Shader::vkShaderModule() const
@@ -19,13 +46,11 @@ VkShaderModule acm::vulkan::Shader::vkShaderModule() const
 	return m_shaderModule;
 }
 
-void acm::vulkan::Shader::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Shader::release()
 {
-	const VkShaderModule retiredModule = std::exchange(m_shaderModule, VK_NULL_HANDLE);
-	m_owner = nullptr;
-	if (!retiredModule)
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	const VkShaderModule module = std::exchange(m_shaderModule, VK_NULL_HANDLE);
+	if (!owner || !module)
 		return;
-	const VkDevice device = owner.vkDevice();
-	owner.enqueueDestroy([device, retiredModule]
-						 { vkDestroyShaderModule(device, retiredModule, nullptr); });
+	vkDestroyShaderModule(owner->vkDevice(), module, nullptr);
 }

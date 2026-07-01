@@ -9,21 +9,30 @@
 #include <limits>
 #include <utility>
 
-bool acm::vulkan::Renderer::create(acm::vulkan::Device& owner, const acm::SwapChain& swapChain)
+acm::vulkan::Renderer::Renderer(acm::vulkan::Device& owner, const acm::SwapChain& swapChain)
 {
-	if (!swapChain.valid() || &swapChain.native()->owner() != &owner)
-		return false;
+	if (!swapChain.valid() || !swapChain.native() || &swapChain.native()->owner() != &owner)
+	{
+		m_error = acm::Error("failed to create renderer from invalid swapchain");
+		return;
+	}
 	m_owner = &owner;
 	m_swapChain = swapChain;
 	m_commandPool = owner.createCommandPool();
 	if (!m_commandPool.valid())
-		return false;
+	{
+		m_error = acm::Error("failed to create renderer command pool");
+		return;
+	}
 	m_commandBuffers.reserve(acm::Renderer::MaxFramesInFlight);
 	for (uint32_t index = 0; index < acm::Renderer::MaxFramesInFlight; ++index)
 	{
 		acm::CommandBuffer commandBuffer = owner.allocateCommandBuffer(m_commandPool);
 		if (!commandBuffer.valid())
-			return false;
+		{
+			m_error = acm::Error("failed to create renderer command buffer");
+			return;
+		}
 		m_commandBuffers.push_back(std::move(commandBuffer));
 	}
 
@@ -37,8 +46,36 @@ bool acm::vulkan::Renderer::create(acm::vulkan::Device& owner, const acm::SwapCh
 		if (vkCreateSemaphore(owner.vkDevice(), &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS ||
 			vkCreateSemaphore(owner.vkDevice(), &semaphoreInfo, nullptr, &frame.renderFinished) != VK_SUCCESS ||
 			vkCreateFence(owner.vkDevice(), &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS)
-			return false;
-	return true;
+		{
+			m_error = acm::Error("failed to create renderer frame synchronization");
+			return;
+		}
+}
+
+acm::vulkan::Renderer::~Renderer()
+{
+	release();
+}
+
+acm::vulkan::Renderer::Renderer(Renderer&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Renderer& acm::vulkan::Renderer::operator=(Renderer&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_swapChain = std::move(other.m_swapChain);
+	m_commandPool = std::move(other.m_commandPool);
+	m_commandBuffers = std::move(other.m_commandBuffers);
+	m_frames = std::move(other.m_frames);
+	m_currentFrame = std::exchange(other.m_currentFrame, 0);
+	m_needsRecreate = std::exchange(other.m_needsRecreate, false);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 acm::Error acm::vulkan::Renderer::render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
@@ -54,6 +91,11 @@ acm::Error acm::vulkan::Renderer::render(const std::function<void(acm::CommandBu
 
 	Frame& frame = m_frames[m_currentFrame];
 	vkWaitForFences(owner().vkDevice(), 1, &frame.inFlight, VK_TRUE, std::numeric_limits<uint64_t>::max());
+	if (frame.submissionSerial != 0)
+	{
+		owner().collectGarbage(frame.submissionSerial);
+		frame.submissionSerial = 0;
+	}
 	uint32_t imageIndex = 0;
 	const VkResult acquire = m_swapChain.native()->acquireNextImage(frame.imageAvailable, imageIndex);
 	if (acquire == VK_ERROR_OUT_OF_DATE_KHR)
@@ -64,10 +106,6 @@ acm::Error acm::vulkan::Renderer::render(const std::function<void(acm::CommandBu
 	if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
 		return acm::Error("failed to acquire swapchain image");
 
-	owner().beginFrame();
-	const uint64_t currentFrame = owner().currentFrame();
-	if (currentFrame > acm::Renderer::MaxFramesInFlight)
-		owner().collectGarbage(currentFrame - acm::Renderer::MaxFramesInFlight);
 	acm::RenderTarget target = m_swapChain.getRenderTarget(imageIndex);
 	if (!target.valid())
 		return acm::Error("acquired swapchain image has no render target");
@@ -88,26 +126,24 @@ acm::Error acm::vulkan::Renderer::render(const std::function<void(acm::CommandBu
 	const VkSwapchainKHR vkSwapChain = m_swapChain.native()->vkSwapChain();
 	if (!vkCommand || !vkSwapChain)
 		return acm::Error("renderer resources became invalid");
-	if (acm::Error error = owner().submitFrame(vkCommand, frame.imageAvailable, frame.renderFinished, frame.inFlight, vkSwapChain, imageIndex, m_needsRecreate))
+	if (acm::Error error = owner().submitFrame(vkCommand, frame.imageAvailable, frame.renderFinished, frame.inFlight, vkSwapChain, imageIndex, m_needsRecreate, frame.submissionSerial))
 		return error;
 	m_currentFrame = (m_currentFrame + 1) % acm::Renderer::MaxFramesInFlight;
 	return {};
 }
 
-void acm::vulkan::Renderer::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Renderer::release()
 {
-	const VkDevice device = owner.vkDevice();
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	const VkDevice device = owner ? owner->vkDevice() : VK_NULL_HANDLE;
 	for (const Frame& frame : m_frames)
 	{
-		if (frame.renderFinished)
-			owner.enqueueDestroy([device, semaphore = frame.renderFinished]
-								 { vkDestroySemaphore(device, semaphore, nullptr); });
-		if (frame.imageAvailable)
-			owner.enqueueDestroy([device, semaphore = frame.imageAvailable]
-								 { vkDestroySemaphore(device, semaphore, nullptr); });
-		if (frame.inFlight)
-			owner.enqueueDestroy([device, fence = frame.inFlight]
-								 { vkDestroyFence(device, fence, nullptr); });
+		if (device && frame.renderFinished)
+			vkDestroySemaphore(device, frame.renderFinished, nullptr);
+		if (device && frame.imageAvailable)
+			vkDestroySemaphore(device, frame.imageAvailable, nullptr);
+		if (device && frame.inFlight)
+			vkDestroyFence(device, frame.inFlight, nullptr);
 	}
 	m_frames.clear();
 	m_commandBuffers.clear();
@@ -115,5 +151,4 @@ void acm::vulkan::Renderer::retire(acm::vulkan::Device& owner)
 	m_swapChain.reset();
 	m_currentFrame = 0;
 	m_needsRecreate = false;
-	m_owner = nullptr;
 }

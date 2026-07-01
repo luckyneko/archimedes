@@ -6,17 +6,26 @@
 
 #include <utility>
 
-bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
+acm::vulkan::ComputePipeline::ComputePipeline(acm::vulkan::Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
 {
 	if (!compute.valid() || !compute.native() || &compute.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to create compute pipeline from invalid shader");
+		return;
+	}
 	if (layout.valid() && (!layout.native() || &layout.native()->owner() != &owner))
-		return false;
+	{
+		m_error = acm::Error("failed to create compute pipeline from descriptor layout owned by another device");
+		return;
+	}
 	m_owner = &owner;
 	const VkShaderModule shaderModule = compute.native()->vkShaderModule();
 	const VkDescriptorSetLayout setLayout = layout.valid() ? layout.native()->vkLayout() : VK_NULL_HANDLE;
 	if (!shaderModule || (layout.valid() && !setLayout))
-		return false;
+	{
+		m_error = acm::Error("failed to create compute pipeline from invalid shader or descriptor layout");
+		return;
+	}
 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -26,7 +35,10 @@ bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm:
 		layoutInfo.pSetLayouts = &setLayout;
 	}
 	if (vkCreatePipelineLayout(owner.vkDevice(), &layoutInfo, nullptr, &m_layout) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create compute pipeline layout");
+		return;
+	}
 
 	VkPipelineShaderStageCreateInfo stage = {};
 	stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -38,10 +50,35 @@ bool acm::vulkan::ComputePipeline::create(acm::vulkan::Device& owner, const acm:
 	pipelineInfo.stage = stage;
 	pipelineInfo.layout = m_layout;
 	if (vkCreateComputePipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create compute pipeline");
+		return;
+	}
 
 	m_descriptorLayout = layout;
-	return true;
+}
+
+acm::vulkan::ComputePipeline::~ComputePipeline()
+{
+	release();
+}
+
+acm::vulkan::ComputePipeline::ComputePipeline(ComputePipeline&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::ComputePipeline& acm::vulkan::ComputePipeline::operator=(ComputePipeline&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_descriptorLayout = std::move(other.m_descriptorLayout);
+	m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
+	m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkPipeline acm::vulkan::ComputePipeline::vkPipeline() const
@@ -54,17 +91,14 @@ VkPipelineLayout acm::vulkan::ComputePipeline::vkLayout() const
 	return m_layout;
 }
 
-void acm::vulkan::ComputePipeline::retire(acm::vulkan::Device& owner)
+void acm::vulkan::ComputePipeline::release()
 {
-	const VkDevice device = owner.vkDevice();
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
 	const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
-	m_owner = nullptr;
-	if (pipeline)
-		owner.enqueueDestroy([device, pipeline]
-							 { vkDestroyPipeline(device, pipeline, nullptr); });
-	if (layout)
-		owner.enqueueDestroy([device, layout]
-							 { vkDestroyPipelineLayout(device, layout, nullptr); });
+	if (owner && pipeline)
+		vkDestroyPipeline(owner->vkDevice(), pipeline, nullptr);
+	if (owner && layout)
+		vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 	m_descriptorLayout.reset();
 }

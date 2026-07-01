@@ -4,6 +4,7 @@
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
 #include "archimedes/acmTypes.h"
+#include "archimedes/DeferredDestroyQueue.h"
 #include "archimedes/ResourcePool.h"
 #include "archimedes/vulkan/Memory.h"
 #include "archimedes/vulkan/Resources.h"
@@ -14,6 +15,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 namespace acm::vulkan
@@ -39,16 +41,14 @@ namespace acm::vulkan
 		size_t memoryBlockCount() const { return m_allocator->blockCount(); }
 
 		void waitIdle();
-		void beginFrame();
-		uint64_t currentFrame() const { return m_currentFrame.load(std::memory_order_relaxed); }
-		void enqueueDestroy(std::function<void()> destroy);
-		void collectGarbage(uint64_t completedFrame);
+
+		void collectGarbage(uint64_t completedSerial);
 		VkDevice vkDevice() const { return m_device; }
 		VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 		acm::vulkan::MemoryAllocator& allocator() const { return *m_allocator; }
 		acm::Error copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size);
 		acm::Error submitOneShot(const std::function<void(VkCommandBuffer)>& record);
-		acm::Error submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate);
+		acm::Error submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial);
 
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
 
@@ -79,13 +79,25 @@ namespace acm::vulkan
 		acm::Renderer createRenderer(const acm::SwapChain& swapChain);
 
 	private:
-		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence);
-
-		struct Pending
+		static acm::Error constructionError(acm::Error error, const char* fallback);
+		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial);
+		template <typename T, typename Constructor>
+		auto emplaceResource(acm::ResourcePool<T>& pool, Constructor&& construct)
 		{
-			uint64_t frame{0};
-			std::function<void()> destroy;
-		};
+			return pool.emplace(std::forward<Constructor>(construct));
+		}
+		template <typename T>
+		void clearResourcePool(acm::ResourcePool<T>& pool)
+		{
+			pool.clear([this](T&& resource)
+					   { m_deferredDestroy.enqueue(m_lastSubmittedSerial.load(std::memory_order_relaxed), std::move(resource)); });
+		}
+		template <typename T>
+		void collectResourcePool(acm::ResourcePool<T>& pool)
+		{
+			pool.collectGarbage([this](T&& resource)
+								{ m_deferredDestroy.enqueue(m_lastSubmittedSerial.load(std::memory_order_relaxed), std::move(resource)); });
+		}
 
 		acm::vulkan::Instance* m_instance{nullptr};
 		acm::GPU m_gpu;
@@ -97,9 +109,8 @@ namespace acm::vulkan
 		VkQueue m_queue{VK_NULL_HANDLE};
 		std::unique_ptr<acm::vulkan::MemoryAllocator> m_allocator;
 		std::mutex m_queueMutex;
-		std::mutex m_graveyardMutex;
-		std::atomic<uint64_t> m_currentFrame{0};
-		std::vector<Pending> m_graveyard;
+		std::atomic<uint64_t> m_lastSubmittedSerial{0};
+		acm::DeferredDestroyQueue m_deferredDestroy;
 		acm::ResourcePool<acm::vulkan::Buffer> m_buffers;
 		acm::ResourcePool<acm::vulkan::Texture> m_textures;
 		acm::ResourcePool<acm::vulkan::Sampler> m_samplers;

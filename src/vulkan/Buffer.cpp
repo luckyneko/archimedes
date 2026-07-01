@@ -6,11 +6,15 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
-bool acm::vulkan::Buffer::create(acm::vulkan::Device& owner, size_t size, acm::BufferUsage usage)
+acm::vulkan::Buffer::Buffer(acm::vulkan::Device& owner, size_t size, acm::BufferUsage usage)
 {
 	if (size == 0)
-		return false;
+	{
+		m_error = acm::Error("failed to create buffer with zero size");
+		return;
+	}
 	m_owner = &owner;
 	m_size = size;
 	m_hostVisible = isHostVisible(usage);
@@ -21,7 +25,10 @@ bool acm::vulkan::Buffer::create(acm::vulkan::Device& owner, size_t size, acm::B
 	bufferInfo.usage = acm::vulkan::toVk(usage);
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	if (vkCreateBuffer(owner.vkDevice(), &bufferInfo, nullptr, &m_buffer) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create buffer");
+		return;
+	}
 
 	const VkMemoryPropertyFlags properties = m_hostVisible
 												 ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
@@ -30,9 +37,35 @@ bool acm::vulkan::Buffer::create(acm::vulkan::Device& owner, size_t size, acm::B
 	vkGetBufferMemoryRequirements(owner.vkDevice(), m_buffer, &requirements);
 	m_allocation = owner.allocator().allocate(requirements, properties);
 	if (!m_allocation.valid())
-		return false;
+	{
+		m_error = acm::Error("failed to allocate buffer memory");
+		return;
+	}
 	vkBindBufferMemory(owner.vkDevice(), m_buffer, m_allocation.memory, m_allocation.offset);
-	return true;
+}
+
+acm::vulkan::Buffer::~Buffer()
+{
+	release();
+}
+
+acm::vulkan::Buffer::Buffer(Buffer&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Buffer& acm::vulkan::Buffer::operator=(Buffer&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_size = std::exchange(other.m_size, 0);
+	m_hostVisible = std::exchange(other.m_hostVisible, true);
+	m_buffer = std::exchange(other.m_buffer, VK_NULL_HANDLE);
+	m_allocation = std::exchange(other.m_allocation, {});
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 bool acm::vulkan::Buffer::isHostVisible(acm::BufferUsage usage)
@@ -74,25 +107,17 @@ acm::Error acm::vulkan::Buffer::write(const void* data, size_t size)
 	return owner().copyBuffer(staging.native()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
 }
 
-void acm::vulkan::Buffer::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Buffer::release()
 {
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkBuffer buffer = std::exchange(m_buffer, VK_NULL_HANDLE);
 	const acm::vulkan::Allocation allocation = std::exchange(m_allocation, {});
 	m_size = 0;
 	m_hostVisible = true;
-	m_owner = nullptr;
-	const VkDevice device = owner.vkDevice();
+	if (!owner)
+		return;
 	if (buffer)
-	{
-		const VkBuffer retiredBuffer = buffer;
-		owner.enqueueDestroy([device, retiredBuffer]
-							 { vkDestroyBuffer(device, retiredBuffer, nullptr); });
-	}
+		vkDestroyBuffer(owner->vkDevice(), buffer, nullptr);
 	if (allocation.valid())
-	{
-		acm::vulkan::MemoryAllocator* allocator = &owner.allocator();
-		const acm::vulkan::Allocation retiredAllocation = allocation;
-		owner.enqueueDestroy([allocator, retiredAllocation]
-							 { allocator->free(retiredAllocation); });
-	}
+		owner->allocator().free(allocation);
 }

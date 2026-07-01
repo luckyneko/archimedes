@@ -12,23 +12,54 @@
 
 #include <utility>
 
-bool acm::vulkan::CommandBuffer::create(acm::vulkan::Device& owner, const acm::CommandPool& pool)
+acm::vulkan::CommandBuffer::CommandBuffer(acm::vulkan::Device& owner, const acm::CommandPool& pool)
 {
 	if (!pool.valid() || !pool.native() || &pool.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to allocate command buffer from invalid pool");
+		return;
+	}
 	m_owner = &owner;
 	const VkCommandPool vkPool = pool.native()->vkCommandPool();
 	if (!vkPool)
-		return false;
+	{
+		m_error = acm::Error("failed to allocate command buffer from invalid pool");
+		return;
+	}
 	VkCommandBufferAllocateInfo allocationInfo = {};
 	allocationInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocationInfo.commandPool = vkPool;
 	allocationInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocationInfo.commandBufferCount = 1;
 	if (vkAllocateCommandBuffers(owner.vkDevice(), &allocationInfo, &m_commandBuffer) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to allocate command buffer");
+		return;
+	}
 	m_pool = pool;
-	return true;
+}
+
+acm::vulkan::CommandBuffer::~CommandBuffer()
+{
+	release();
+}
+
+acm::vulkan::CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::CommandBuffer& acm::vulkan::CommandBuffer::operator=(CommandBuffer&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_pool = std::move(other.m_pool);
+	m_renderTarget = std::move(other.m_renderTarget);
+	m_commandBuffer = std::exchange(other.m_commandBuffer, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkCommandBuffer acm::vulkan::CommandBuffer::vkCommandBuffer() const
@@ -196,19 +227,13 @@ void acm::vulkan::CommandBuffer::transitionImage(const acm::vulkan::Texture& tex
 	texture.recordTransition(m_commandBuffer, from, to);
 }
 
-void acm::vulkan::CommandBuffer::retire(acm::vulkan::Device& owner)
+void acm::vulkan::CommandBuffer::release()
 {
 	m_renderTarget.reset();
 	const VkCommandBuffer commandBuffer = std::exchange(m_commandBuffer, VK_NULL_HANDLE);
 	const VkCommandPool commandPool = m_pool.valid() ? m_pool.native()->vkCommandPool() : VK_NULL_HANDLE;
-	m_owner = nullptr;
-	if (commandPool && commandBuffer)
-	{
-		const VkDevice device = owner.vkDevice();
-		const VkCommandPool retiredPool = commandPool;
-		const VkCommandBuffer retiredBuffer = commandBuffer;
-		owner.enqueueDestroy([device, retiredPool, retiredBuffer]
-							 { vkFreeCommandBuffers(device, retiredPool, 1, &retiredBuffer); });
-	}
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	if (owner && commandPool && commandBuffer)
+		vkFreeCommandBuffers(owner->vkDevice(), commandPool, 1, &commandBuffer);
 	m_pool.reset();
 }

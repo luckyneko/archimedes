@@ -3,10 +3,15 @@
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Instance.h"
 
-bool acm::vulkan::Surface::create(acm::vulkan::Instance& owner, VkSurfaceKHR surface)
+#include <utility>
+
+acm::vulkan::Surface::Surface(acm::vulkan::Instance& owner, VkSurfaceKHR surface)
 {
 	if (!surface)
-		return false;
+	{
+		m_error = acm::Error("failed to create surface from null handle");
+		return;
+	}
 	m_owner = &owner;
 	m_surface = surface;
 	const auto& gpus = owner.gpus();
@@ -57,7 +62,28 @@ bool acm::vulkan::Surface::create(acm::vulkan::Instance& owner, VkSurfaceKHR sur
 			support.queueFamilySupportsPresent[queue.index] = present == VK_TRUE;
 		}
 	}
-	return true;
+}
+
+acm::vulkan::Surface::~Surface()
+{
+	release();
+}
+
+acm::vulkan::Surface::Surface(Surface&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Surface& acm::vulkan::Surface::operator=(Surface&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_surface = std::exchange(other.m_surface, VK_NULL_HANDLE);
+	m_gpuSupport = std::move(other.m_gpuSupport);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 const std::vector<acm::GPUSurfaceSupport>& acm::vulkan::Surface::support() const
@@ -70,11 +96,11 @@ VkSurfaceKHR acm::vulkan::Surface::vkSurface() const
 	return m_surface;
 }
 
-void acm::vulkan::Surface::retire(acm::vulkan::Instance& owner)
+void acm::vulkan::Surface::release()
 {
-	const VkSurfaceKHR retiredSurface = std::exchange(m_surface, VK_NULL_HANDLE);
+	acm::vulkan::Instance* owner = std::exchange(m_owner, nullptr);
+	const VkSurfaceKHR surface = std::exchange(m_surface, VK_NULL_HANDLE);
 	m_gpuSupport.clear();
-	m_owner = nullptr;
-	if (retiredSurface)
-		vkDestroySurfaceKHR(owner.nativeInstance(), retiredSurface, nullptr);
+	if (owner && surface)
+		vkDestroySurfaceKHR(owner->nativeInstance(), surface, nullptr);
 }

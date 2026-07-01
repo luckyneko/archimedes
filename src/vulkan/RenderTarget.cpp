@@ -7,10 +7,13 @@
 
 #include <utility>
 
-bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
+acm::vulkan::RenderTarget::RenderTarget(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
 {
 	if (!image || format == acm::Format::Undefined || extent.width == 0 || extent.height == 0)
-		return false;
+	{
+		m_error = acm::Error("failed to create render target from invalid image");
+		return;
+	}
 	m_owner = &owner;
 	m_colorImage = image;
 	m_colorFormat = acm::vulkan::toVk(format);
@@ -31,16 +34,23 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, VkImage image
 	imageViewInfo.subresourceRange.levelCount = 1;
 	imageViewInfo.subresourceRange.layerCount = 1;
 	if (vkCreateImageView(owner.vkDevice(), &imageViewInfo, nullptr, &m_colorView) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create render target image view");
+		return;
+	}
 	m_ownsColorView = true;
 
-	return createTransientAttachments(owner);
+	if (!createTransientAttachments(owner))
+		m_error = acm::Error("failed to create render target transient attachments");
 }
 
-bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
+acm::vulkan::RenderTarget::RenderTarget(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
 {
 	if (!texture.valid() || !texture.native() || &texture.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to create render target from invalid texture");
+		return;
+	}
 	m_owner = &owner;
 	const acm::Format format = texture.native()->format();
 	const acm::Extent2D extent = texture.native()->extent();
@@ -48,7 +58,10 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, const acm::Te
 	const VkImage colorImage = texture.native()->vkImage();
 	const VkImageView colorView = texture.native()->vkImageView();
 	if (format == acm::Format::Undefined || format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
-		return false;
+	{
+		m_error = acm::Error("failed to create render target from unsupported texture");
+		return;
+	}
 	m_texture = texture;
 	m_colorImage = colorImage;
 	m_colorView = colorView;
@@ -70,7 +83,43 @@ bool acm::vulkan::RenderTarget::create(acm::vulkan::Device& owner, const acm::Te
 		m_finalColorStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 	}
 
-	return createTransientAttachments(owner);
+	if (!createTransientAttachments(owner))
+		m_error = acm::Error("failed to create render target transient attachments");
+}
+
+acm::vulkan::RenderTarget::~RenderTarget()
+{
+	release();
+}
+
+acm::vulkan::RenderTarget::RenderTarget(RenderTarget&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::RenderTarget& acm::vulkan::RenderTarget::operator=(RenderTarget&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_texture = std::move(other.m_texture);
+	m_depthTexture = std::move(other.m_depthTexture);
+	m_colorImage = std::exchange(other.m_colorImage, VK_NULL_HANDLE);
+	m_colorView = std::exchange(other.m_colorView, VK_NULL_HANDLE);
+	m_ownsColorView = std::exchange(other.m_ownsColorView, false);
+	m_colorFormat = std::exchange(other.m_colorFormat, VK_FORMAT_UNDEFINED);
+	m_depthFormat = std::exchange(other.m_depthFormat, VK_FORMAT_UNDEFINED);
+	m_finalColorLayout = std::exchange(other.m_finalColorLayout, VK_IMAGE_LAYOUT_UNDEFINED);
+	m_finalColorAccess = std::exchange(other.m_finalColorAccess, VK_ACCESS_2_NONE);
+	m_finalColorStage = std::exchange(other.m_finalColorStage, VK_PIPELINE_STAGE_2_NONE);
+	m_depth = std::exchange(other.m_depth, false);
+	m_samples = std::exchange(other.m_samples, VK_SAMPLE_COUNT_1_BIT);
+	m_extent = std::exchange(other.m_extent, {});
+	m_msaaColor = std::exchange(other.m_msaaColor, {});
+	m_msaaDepth = std::exchange(other.m_msaaDepth, {});
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 bool acm::vulkan::RenderTarget::createTransientAttachments(acm::vulkan::Device& owner)
@@ -291,16 +340,23 @@ void acm::vulkan::RenderTarget::endRendering(VkCommandBuffer commandBuffer) cons
 	recordEndTransition(commandBuffer);
 }
 
-void acm::vulkan::RenderTarget::retire(acm::vulkan::Device& owner)
+void acm::vulkan::RenderTarget::release()
 {
-	const VkDevice device = owner.vkDevice();
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkImageView colorView = std::exchange(m_colorView, VK_NULL_HANDLE);
 	const bool ownsColorView = std::exchange(m_ownsColorView, false);
-	if (ownsColorView && colorView)
-		owner.enqueueDestroy([device, colorView]
-							 { vkDestroyImageView(device, colorView, nullptr); });
-	retireAttachment(owner, std::exchange(m_msaaColor, {}));
-	retireAttachment(owner, std::exchange(m_msaaDepth, {}));
+	if (owner && ownsColorView && colorView)
+		vkDestroyImageView(owner->vkDevice(), colorView, nullptr);
+	if (owner)
+	{
+		destroyAttachment(*owner, std::exchange(m_msaaColor, {}));
+		destroyAttachment(*owner, std::exchange(m_msaaDepth, {}));
+	}
+	else
+	{
+		m_msaaColor = {};
+		m_msaaDepth = {};
+	}
 	m_depthTexture.reset();
 	m_texture.reset();
 	m_colorImage = VK_NULL_HANDLE;
@@ -312,22 +368,14 @@ void acm::vulkan::RenderTarget::retire(acm::vulkan::Device& owner)
 	m_depth = false;
 	m_samples = VK_SAMPLE_COUNT_1_BIT;
 	m_extent = {};
-	m_owner = nullptr;
 }
 
-void acm::vulkan::RenderTarget::retireAttachment(acm::vulkan::Device& owner, const Attachment& attachment)
+void acm::vulkan::RenderTarget::destroyAttachment(acm::vulkan::Device& owner, const Attachment& attachment)
 {
-	const VkDevice device = owner.vkDevice();
 	if (attachment.view)
-		owner.enqueueDestroy([device, view = attachment.view]
-							 { vkDestroyImageView(device, view, nullptr); });
+		vkDestroyImageView(owner.vkDevice(), attachment.view, nullptr);
 	if (attachment.image)
-		owner.enqueueDestroy([device, image = attachment.image]
-							 { vkDestroyImage(device, image, nullptr); });
+		vkDestroyImage(owner.vkDevice(), attachment.image, nullptr);
 	if (attachment.allocation.valid())
-	{
-		acm::vulkan::MemoryAllocator* allocator = &owner.allocator();
-		owner.enqueueDestroy([allocator, allocation = attachment.allocation]
-							 { allocator->free(allocation); });
-	}
+		owner.allocator().free(attachment.allocation);
 }

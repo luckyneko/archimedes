@@ -9,6 +9,7 @@
 #include <vulkan/vulkan.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <vector>
 
@@ -19,17 +20,28 @@ namespace acm::vulkan
 	class Renderer
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, const acm::SwapChain& swapChain);
+		Renderer() = default;
+		Renderer(acm::vulkan::Device& owner, const acm::SwapChain& swapChain);
+		~Renderer();
+		Renderer(const Renderer&) = delete;
+		Renderer& operator=(const Renderer&) = delete;
+		Renderer(Renderer&& other) noexcept;
+		Renderer& operator=(Renderer&& other) noexcept;
+
 		acm::vulkan::Device& owner() const { return *m_owner; }
+		bool valid() const { return m_owner && !m_frames.empty() && m_error.ok(); }
+		acm::Error error() const { return m_error; }
 		acm::Error render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record);
-		void retire(acm::vulkan::Device& owner);
 
 	private:
+		void release();
+
 		struct Frame
 		{
 			VkSemaphore imageAvailable{VK_NULL_HANDLE};
 			VkSemaphore renderFinished{VK_NULL_HANDLE};
 			VkFence inFlight{VK_NULL_HANDLE};
+			uint64_t submissionSerial{0};
 		};
 
 		acm::vulkan::Device* m_owner{nullptr};
@@ -39,5 +51,6 @@ namespace acm::vulkan
 		std::vector<Frame> m_frames;
 		size_t m_currentFrame{0};
 		bool m_needsRecreate{false};
+		acm::Error m_error;
 	};
 } // namespace acm::vulkan

@@ -72,7 +72,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL acm::vulkan::Instance::validationCallback(VkDebug
 }
 
 acm::vulkan::Instance::Instance(const char* appName, const acm::Version& appVersion, const acm::InstanceConfig& config)
-	: m_surfaces([this](auto& resource) { resource.retire(*this); })
 {
 	uint32_t loaderVersion = VK_API_VERSION_1_0;
 	auto enumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
@@ -233,11 +232,12 @@ VkPhysicalDevice acm::vulkan::Instance::physicalDevice(uint32_t index) const
 
 acm::Surface acm::vulkan::Instance::createSurface(VkSurfaceKHR surface)
 {
-	auto inserted = m_surfaces.emplace([this, surface](acm::vulkan::Surface& resource)
-									   { return resource.create(*this, surface); });
+	m_surfaces.collectGarbage();
+	auto inserted = m_surfaces.emplace([this, surface]
+									   { return acm::vulkan::Surface(*this, surface); });
 	if (!inserted.valid())
-		return acm::Surface(acm::Error("failed to create surface"));
-	return acm::Surface(std::move(inserted));
+		return acm::Surface(inserted.error ? std::move(inserted.error) : acm::Error("failed to create surface"));
+	return acm::Surface(std::move(inserted.resource));
 }
 
 acm::Device acm::vulkan::Instance::createDevice(const acm::GPU& gpu, uint32_t queueIdx)

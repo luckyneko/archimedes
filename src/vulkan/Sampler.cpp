@@ -3,8 +3,9 @@
 #include "archimedes/vulkan/Device.h"
 
 #include <algorithm>
+#include <utility>
 
-bool acm::vulkan::Sampler::create(acm::vulkan::Device& owner, float maxAnisotropy)
+acm::vulkan::Sampler::Sampler(acm::vulkan::Device& owner, float maxAnisotropy)
 {
 	m_owner = &owner;
 	const bool anisotropic = maxAnisotropy > 1.0f && owner.enabledFeatures().samplerAnisotropy;
@@ -27,7 +28,29 @@ bool acm::vulkan::Sampler::create(acm::vulkan::Device& owner, float maxAnisotrop
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.compareEnable = VK_FALSE;
 	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-	return vkCreateSampler(owner.vkDevice(), &samplerInfo, nullptr, &m_sampler) == VK_SUCCESS;
+	if (vkCreateSampler(owner.vkDevice(), &samplerInfo, nullptr, &m_sampler) != VK_SUCCESS)
+		m_error = acm::Error("failed to create sampler");
+}
+
+acm::vulkan::Sampler::~Sampler()
+{
+	release();
+}
+
+acm::vulkan::Sampler::Sampler(Sampler&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Sampler& acm::vulkan::Sampler::operator=(Sampler&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_sampler = std::exchange(other.m_sampler, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkSampler acm::vulkan::Sampler::vkSampler() const
@@ -35,13 +58,11 @@ VkSampler acm::vulkan::Sampler::vkSampler() const
 	return m_sampler;
 }
 
-void acm::vulkan::Sampler::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Sampler::release()
 {
-	const VkSampler retiredSampler = std::exchange(m_sampler, VK_NULL_HANDLE);
-	m_owner = nullptr;
-	if (!retiredSampler)
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	const VkSampler sampler = std::exchange(m_sampler, VK_NULL_HANDLE);
+	if (!owner || !sampler)
 		return;
-	const VkDevice device = owner.vkDevice();
-	owner.enqueueDestroy([device, retiredSampler]
-						 { vkDestroySampler(device, retiredSampler, nullptr); });
+	vkDestroySampler(owner->vkDevice(), sampler, nullptr);
 }

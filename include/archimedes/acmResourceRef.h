@@ -1,6 +1,6 @@
 #pragma once
 
-#include "archimedes/ResourceSlot.h"
+#include "archimedes/acmResourceSlot.h"
 
 namespace acm
 {
@@ -10,7 +10,7 @@ namespace acm
 	template <typename T>
 	class ResourceRef
 	{
-		using ID = acm::ResourceSlotID;
+		using ID = acm::ResourceSlotID<T>;
 
 	public:
 		ResourceRef() = default;
@@ -65,7 +65,7 @@ namespace acm
 		T* access() const { return valid() ? &m_slot->resource() : nullptr; }
 		explicit operator bool() const { return valid(); }
 		const ID& id() const { return m_id; }
-		bool forceInvalidate() { return m_slot && m_slot->retire(m_id); }
+		bool forceInvalidate() { return m_slot && m_slot->forceRetire(m_id); }
 
 	private:
 		friend class acm::ResourcePool<T>;

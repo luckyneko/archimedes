@@ -21,19 +21,6 @@
 
 acm::vulkan::Device::Device(acm::vulkan::Instance& instance, const acm::GPU& gpu, uint32_t queueIdx)
 	: m_instance(&instance)
-	, m_buffers([this](auto& resource) { resource.retire(*this); })
-	, m_textures([this](auto& resource) { resource.retire(*this); })
-	, m_samplers([this](auto& resource) { resource.retire(*this); })
-	, m_shaders([this](auto& resource) { resource.retire(*this); })
-	, m_descriptorSetLayouts([this](auto& resource) { resource.retire(*this); })
-	, m_descriptorSets([this](auto& resource) { resource.retire(*this); })
-	, m_pipelines([this](auto& resource) { resource.retire(*this); })
-	, m_computePipelines([this](auto& resource) { resource.retire(*this); })
-	, m_renderTargets([this](auto& resource) { resource.retire(*this); })
-	, m_swapChains([this](auto& resource) { resource.retire(*this); })
-	, m_commandPools([this](auto& resource) { resource.retire(*this); })
-	, m_commandBuffers([this](auto& resource) { resource.retire(*this); })
-	, m_renderers([this](auto& resource) { resource.retire(*this); })
 {
 	if (!m_instance || !m_instance->valid() || gpu.index >= m_instance->gpus().size())
 	{
@@ -110,24 +97,23 @@ acm::vulkan::Device::~Device()
 		return;
 
 	vkDeviceWaitIdle(m_device);
-	m_renderers.clear();
-	m_commandBuffers.clear();
-	m_commandPools.clear();
-	m_swapChains.clear();
-	m_computePipelines.clear();
-	m_pipelines.clear();
-	m_descriptorSets.clear();
-	m_renderTargets.clear();
-	m_descriptorSetLayouts.clear();
-	m_shaders.clear();
-	m_samplers.clear();
-	m_textures.clear();
-	m_buffers.clear();
+	clearResourcePool(m_renderers);
+	clearResourcePool(m_commandBuffers);
+	clearResourcePool(m_commandPools);
+	clearResourcePool(m_swapChains);
+	clearResourcePool(m_computePipelines);
+	clearResourcePool(m_pipelines);
+	clearResourcePool(m_descriptorSets);
+	clearResourcePool(m_renderTargets);
+	clearResourcePool(m_descriptorSetLayouts);
+	clearResourcePool(m_shaders);
+	clearResourcePool(m_samplers);
+	clearResourcePool(m_textures);
+	clearResourcePool(m_buffers);
 	for (;;)
 	{
 		collectGarbage(UINT64_MAX);
-		std::lock_guard<std::mutex> lock(m_graveyardMutex);
-		if (m_graveyard.empty())
+		if (m_deferredDestroy.empty())
 			break;
 	}
 
@@ -181,49 +167,39 @@ size_t acm::vulkan::Device::minUniformBufferOffsetAlignment() const
 void acm::vulkan::Device::waitIdle()
 {
 	vkDeviceWaitIdle(m_device);
+	collectGarbage(m_lastSubmittedSerial.load(std::memory_order_relaxed));
 }
 
-void acm::vulkan::Device::beginFrame()
+void acm::vulkan::Device::collectGarbage(uint64_t completedSerial)
 {
-	m_currentFrame.fetch_add(1, std::memory_order_relaxed);
+	collectResourcePool(m_renderers);
+	collectResourcePool(m_commandBuffers);
+	collectResourcePool(m_commandPools);
+	collectResourcePool(m_swapChains);
+	collectResourcePool(m_computePipelines);
+	collectResourcePool(m_pipelines);
+	collectResourcePool(m_descriptorSets);
+	collectResourcePool(m_renderTargets);
+	collectResourcePool(m_descriptorSetLayouts);
+	collectResourcePool(m_shaders);
+	collectResourcePool(m_samplers);
+	collectResourcePool(m_textures);
+	collectResourcePool(m_buffers);
+	m_deferredDestroy.collect(completedSerial);
 }
 
-void acm::vulkan::Device::enqueueDestroy(std::function<void()> destroy)
+acm::Error acm::vulkan::Device::constructionError(acm::Error error, const char* fallback)
 {
-	std::lock_guard<std::mutex> lock(m_graveyardMutex);
-	m_graveyard.push_back({m_currentFrame.load(std::memory_order_relaxed), std::move(destroy)});
-}
-
-void acm::vulkan::Device::collectGarbage(uint64_t completedFrame)
-{
-	std::vector<std::function<void()>> ready;
-	{
-		std::lock_guard<std::mutex> lock(m_graveyardMutex);
-		auto pending = m_graveyard.begin();
-		while (pending != m_graveyard.end())
-		{
-			if (pending->frame <= completedFrame)
-			{
-				ready.push_back(std::move(pending->destroy));
-				pending = m_graveyard.erase(pending);
-			}
-			else
-			{
-				++pending;
-			}
-		}
-	}
-	for (auto& destroy : ready)
-		destroy();
+	return error ? std::move(error) : acm::Error(fallback);
 }
 
 acm::Buffer acm::vulkan::Device::createBuffer(size_t size, acm::BufferUsage usage)
 {
-	auto inserted = m_buffers.emplace([this, size, usage](acm::vulkan::Buffer& buffer)
-									  { return buffer.create(*this, size, usage); });
+	auto inserted = emplaceResource(m_buffers, [this, size, usage]
+									{ return acm::vulkan::Buffer(*this, size, usage); });
 	if (!inserted.valid())
-		return acm::Buffer(acm::Error("failed to create buffer"));
-	return acm::Buffer(std::move(inserted));
+		return acm::Buffer(constructionError(std::move(inserted.error), "failed to create buffer"));
+	return acm::Buffer(std::move(inserted.resource));
 }
 
 acm::Error acm::vulkan::Device::copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size)
@@ -237,14 +213,14 @@ acm::Error acm::vulkan::Device::copyBuffer(VkBuffer source, VkBuffer destination
 
 acm::Texture acm::vulkan::Device::createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage)
 {
-	auto inserted = m_textures.emplace([this, format, extent, mipmapped, storage](acm::vulkan::Texture& texture)
-									   { return texture.create(*this, format, extent, mipmapped, storage); });
+	auto inserted = emplaceResource(m_textures, [this, format, extent, mipmapped, storage]
+									{ return acm::vulkan::Texture(*this, format, extent, mipmapped, storage); });
 	if (!inserted.valid())
-		return acm::Texture(acm::Error("failed to create texture"));
-	return acm::Texture(std::move(inserted));
+		return acm::Texture(constructionError(std::move(inserted.error), "failed to create texture"));
+	return acm::Texture(std::move(inserted.resource));
 }
 
-VkResult acm::vulkan::Device::queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence)
+VkResult acm::vulkan::Device::queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial)
 {
 	VkCommandBufferSubmitInfo commandBufferInfo = {};
 	commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -257,6 +233,7 @@ VkResult acm::vulkan::Device::queueSubmit(VkCommandBuffer commandBuffer, const V
 	submitInfo.pCommandBufferInfos = &commandBufferInfo;
 	submitInfo.signalSemaphoreInfoCount = signalSemaphore ? 1u : 0u;
 	submitInfo.pSignalSemaphoreInfos = signalSemaphore;
+	submittedSerial = m_lastSubmittedSerial.fetch_add(1, std::memory_order_relaxed) + 1;
 	return vkQueueSubmit2(m_queue, 1, &submitInfo, fence);
 }
 
@@ -298,7 +275,8 @@ acm::Error acm::vulkan::Device::submitOneShot(const std::function<void(VkCommand
 	}
 
 	std::lock_guard<std::mutex> lock(m_queueMutex);
-	if (queueSubmit(commandBuffer, nullptr, nullptr, VK_NULL_HANDLE) != VK_SUCCESS)
+	uint64_t submittedSerial = 0;
+	if (queueSubmit(commandBuffer, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
 	{
 		vkDestroyCommandPool(m_device, pool, nullptr);
 		return acm::Error("failed to submit one-shot command buffer");
@@ -308,11 +286,12 @@ acm::Error acm::vulkan::Device::submitOneShot(const std::function<void(VkCommand
 		vkDestroyCommandPool(m_device, pool, nullptr);
 		return acm::Error("failed to wait for one-shot command buffer");
 	}
+	collectGarbage(submittedSerial);
 	vkDestroyCommandPool(m_device, pool, nullptr);
 	return {};
 }
 
-acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate)
+acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial)
 {
 	VkSemaphoreSubmitInfo waitSemaphore = {};
 	waitSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
@@ -333,7 +312,7 @@ acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSem
 	std::lock_guard<std::mutex> lock(m_queueMutex);
 	if (vkResetFences(m_device, 1, &inFlight) != VK_SUCCESS)
 		return acm::Error("failed to reset draw fence");
-	if (queueSubmit(commandBuffer, &waitSemaphore, &signalSemaphore, inFlight) != VK_SUCCESS)
+	if (queueSubmit(commandBuffer, &waitSemaphore, &signalSemaphore, inFlight, submittedSerial) != VK_SUCCESS)
 		return acm::Error("failed to submit draw command buffer");
 	const VkResult present = vkQueuePresentKHR(m_queue, &presentInfo);
 	if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR)
@@ -345,31 +324,31 @@ acm::Error acm::vulkan::Device::submitFrame(VkCommandBuffer commandBuffer, VkSem
 
 acm::DescriptorSetLayout acm::vulkan::Device::createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings)
 {
-	auto inserted = m_descriptorSetLayouts.emplace([this, &bindings](acm::vulkan::DescriptorSetLayout& layout)
-												   { return layout.create(*this, bindings); });
+	auto inserted = emplaceResource(m_descriptorSetLayouts, [this, &bindings]
+									{ return acm::vulkan::DescriptorSetLayout(*this, bindings); });
 	if (!inserted.valid())
-		return acm::DescriptorSetLayout(acm::Error("failed to create descriptor set layout"));
-	return acm::DescriptorSetLayout(std::move(inserted));
+		return acm::DescriptorSetLayout(constructionError(std::move(inserted.error), "failed to create descriptor set layout"));
+	return acm::DescriptorSetLayout(std::move(inserted.resource));
 }
 
 acm::DescriptorSet acm::vulkan::Device::createDescriptorSet(const acm::DescriptorSetLayout& layout)
 {
 	if (!layout.valid() || &layout.native()->owner() != this)
 		return acm::DescriptorSet(acm::Error("failed to create descriptor set from invalid layout"));
-	auto inserted = m_descriptorSets.emplace([this, &layout](acm::vulkan::DescriptorSet& descriptorSet)
-											 { return descriptorSet.create(*this, layout); });
+	auto inserted = emplaceResource(m_descriptorSets, [this, &layout]
+									{ return acm::vulkan::DescriptorSet(*this, layout); });
 	if (!inserted.valid())
-		return acm::DescriptorSet(acm::Error("failed to create descriptor set"));
-	return acm::DescriptorSet(std::move(inserted));
+		return acm::DescriptorSet(constructionError(std::move(inserted.error), "failed to create descriptor set"));
+	return acm::DescriptorSet(std::move(inserted.resource));
 }
 
 acm::Pipeline acm::vulkan::Device::createPipeline(const acm::PipelineConfig& config)
 {
-	auto inserted = m_pipelines.emplace([this, &config](acm::vulkan::Pipeline& pipeline)
-										{ return pipeline.create(*this, config); });
+	auto inserted = emplaceResource(m_pipelines, [this, &config]
+									{ return acm::vulkan::Pipeline(*this, config); });
 	if (!inserted.valid())
-		return acm::Pipeline(acm::Error("failed to create pipeline"));
-	return acm::Pipeline(std::move(inserted));
+		return acm::Pipeline(constructionError(std::move(inserted.error), "failed to create pipeline"));
+	return acm::Pipeline(std::move(inserted.resource));
 }
 
 acm::ComputePipeline acm::vulkan::Device::createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
@@ -378,31 +357,31 @@ acm::ComputePipeline acm::vulkan::Device::createComputePipeline(const acm::Shade
 		return acm::ComputePipeline(acm::Error("failed to create compute pipeline from invalid shader"));
 	if (layout.valid() && &layout.native()->owner() != this)
 		return acm::ComputePipeline(acm::Error("failed to create compute pipeline from invalid descriptor layout"));
-	auto inserted = m_computePipelines.emplace([this, &compute, &layout](acm::vulkan::ComputePipeline& pipeline)
-											   { return pipeline.create(*this, compute, layout); });
+	auto inserted = emplaceResource(m_computePipelines, [this, &compute, &layout]
+									{ return acm::vulkan::ComputePipeline(*this, compute, layout); });
 	if (!inserted.valid())
-		return acm::ComputePipeline(acm::Error("failed to create compute pipeline"));
-	return acm::ComputePipeline(std::move(inserted));
+		return acm::ComputePipeline(constructionError(std::move(inserted.error), "failed to create compute pipeline"));
+	return acm::ComputePipeline(std::move(inserted.resource));
 }
 
 acm::RenderTarget acm::vulkan::Device::createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples)
 {
-	auto inserted = m_renderTargets.emplace([this, image, format, extent, depth, samples](acm::vulkan::RenderTarget& target)
-											{ return target.create(*this, image, format, extent, depth, samples); });
+	auto inserted = emplaceResource(m_renderTargets, [this, image, format, extent, depth, samples]
+									{ return acm::vulkan::RenderTarget(*this, image, format, extent, depth, samples); });
 	if (!inserted.valid())
-		return acm::RenderTarget(acm::Error("failed to create render target"));
-	return acm::RenderTarget(std::move(inserted));
+		return acm::RenderTarget(constructionError(std::move(inserted.error), "failed to create render target"));
+	return acm::RenderTarget(std::move(inserted.resource));
 }
 
 acm::RenderTarget acm::vulkan::Device::createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
 {
 	if (!texture.valid() || &texture.native()->owner() != this)
 		return acm::RenderTarget(acm::Error("failed to create render target from invalid texture"));
-	auto inserted = m_renderTargets.emplace([this, &texture, finish, depth, samples](acm::vulkan::RenderTarget& target)
-											{ return target.create(*this, texture, finish, depth, samples); });
+	auto inserted = emplaceResource(m_renderTargets, [this, &texture, finish, depth, samples]
+									{ return acm::vulkan::RenderTarget(*this, texture, finish, depth, samples); });
 	if (!inserted.valid())
-		return acm::RenderTarget(acm::Error("failed to create render target"));
-	return acm::RenderTarget(std::move(inserted));
+		return acm::RenderTarget(constructionError(std::move(inserted.error), "failed to create render target"));
+	return acm::RenderTarget(std::move(inserted.resource));
 }
 
 bool acm::vulkan::Device::invalidateRenderTarget(acm::RenderTarget& target)
@@ -414,20 +393,20 @@ acm::SwapChain acm::vulkan::Device::createSwapChain(const acm::Surface& surface,
 {
 	if (!surface.valid() || &surface.native()->owner() != m_instance)
 		return acm::SwapChain(acm::Error("failed to create swapchain from invalid surface"));
-	auto inserted = m_swapChains.emplace([this, &surface, format, presentMode, desiredExtent, depth, samples](acm::vulkan::SwapChain& swapChain)
-										 { return swapChain.create(*this, surface, format, presentMode, desiredExtent, depth, samples); });
+	auto inserted = emplaceResource(m_swapChains, [this, &surface, format, presentMode, desiredExtent, depth, samples]
+									{ return acm::vulkan::SwapChain(*this, surface, format, presentMode, desiredExtent, depth, samples); });
 	if (!inserted.valid())
-		return acm::SwapChain(acm::Error("failed to create swapchain"));
-	return acm::SwapChain(std::move(inserted));
+		return acm::SwapChain(constructionError(std::move(inserted.error), "failed to create swapchain"));
+	return acm::SwapChain(std::move(inserted.resource));
 }
 
 acm::CommandPool acm::vulkan::Device::createCommandPool()
 {
-	auto inserted = m_commandPools.emplace([this](acm::vulkan::CommandPool& commandPool)
-										   { return commandPool.create(*this); });
+	auto inserted = emplaceResource(m_commandPools, [this]
+									{ return acm::vulkan::CommandPool(*this); });
 	if (!inserted.valid())
-		return acm::CommandPool(acm::Error("failed to create command pool"));
-	return acm::CommandPool(std::move(inserted));
+		return acm::CommandPool(constructionError(std::move(inserted.error), "failed to create command pool"));
+	return acm::CommandPool(std::move(inserted.resource));
 }
 
 acm::CommandBuffer acm::vulkan::Device::allocateCommandBuffer(const acm::CommandPool& pool)
@@ -435,11 +414,11 @@ acm::CommandBuffer acm::vulkan::Device::allocateCommandBuffer(const acm::Command
 	if (!pool.valid() || &pool.native()->owner() != this)
 		return acm::CommandBuffer(acm::Error("failed to allocate from invalid command pool"));
 
-	auto inserted = m_commandBuffers.emplace([this, &pool](acm::vulkan::CommandBuffer& commandBuffer)
-											 { return commandBuffer.create(*this, pool); });
+	auto inserted = emplaceResource(m_commandBuffers, [this, &pool]
+									{ return acm::vulkan::CommandBuffer(*this, pool); });
 	if (!inserted.valid())
-		return acm::CommandBuffer(acm::Error("failed to retain command pool"));
-	return acm::CommandBuffer(std::move(inserted));
+		return acm::CommandBuffer(constructionError(std::move(inserted.error), "failed to allocate command buffer"));
+	return acm::CommandBuffer(std::move(inserted.resource));
 }
 
 acm::Error acm::vulkan::Device::submitCommandBufferSync(const acm::CommandBuffer& commandBuffer)
@@ -448,10 +427,12 @@ acm::Error acm::vulkan::Device::submitCommandBufferSync(const acm::CommandBuffer
 		return acm::Error("submitSync: invalid command buffer");
 	VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer();
 	std::lock_guard<std::mutex> lock(m_queueMutex);
-	if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE) != VK_SUCCESS)
+	uint64_t submittedSerial = 0;
+	if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
 		return acm::Error("submitSync: failed to submit");
 	if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
 		return acm::Error("submitSync: failed to wait for queue");
+	collectGarbage(submittedSerial);
 	return {};
 }
 
@@ -459,27 +440,27 @@ acm::Renderer acm::vulkan::Device::createRenderer(const acm::SwapChain& swapChai
 {
 	if (!swapChain.valid() || &swapChain.native()->owner() != this)
 		return acm::Renderer(acm::Error("failed to create renderer from invalid swapchain"));
-	auto inserted = m_renderers.emplace([this, &swapChain](acm::vulkan::Renderer& renderer)
-										{ return renderer.create(*this, swapChain); });
+	auto inserted = emplaceResource(m_renderers, [this, &swapChain]
+									{ return acm::vulkan::Renderer(*this, swapChain); });
 	if (!inserted.valid())
-		return acm::Renderer(acm::Error("failed to create renderer"));
-	return acm::Renderer(std::move(inserted));
+		return acm::Renderer(constructionError(std::move(inserted.error), "failed to create renderer"));
+	return acm::Renderer(std::move(inserted.resource));
 }
 
 acm::Sampler acm::vulkan::Device::createSampler(float maxAnisotropy)
 {
-	auto inserted = m_samplers.emplace([this, maxAnisotropy](acm::vulkan::Sampler& sampler)
-									   { return sampler.create(*this, maxAnisotropy); });
+	auto inserted = emplaceResource(m_samplers, [this, maxAnisotropy]
+									{ return acm::vulkan::Sampler(*this, maxAnisotropy); });
 	if (!inserted.valid())
-		return acm::Sampler(acm::Error("failed to create sampler"));
-	return acm::Sampler(std::move(inserted));
+		return acm::Sampler(constructionError(std::move(inserted.error), "failed to create sampler"));
+	return acm::Sampler(std::move(inserted.resource));
 }
 
 acm::Shader acm::vulkan::Device::createShader(const std::vector<char>& spirv)
 {
-	auto inserted = m_shaders.emplace([this, &spirv](acm::vulkan::Shader& shader)
-									  { return shader.create(*this, spirv); });
+	auto inserted = emplaceResource(m_shaders, [this, &spirv]
+									{ return acm::vulkan::Shader(*this, spirv); });
 	if (!inserted.valid())
-		return acm::Shader(acm::Error("failed to create shader module"));
-	return acm::Shader(std::move(inserted));
+		return acm::Shader(constructionError(std::move(inserted.error), "failed to create shader module"));
+	return acm::Shader(std::move(inserted.resource));
 }

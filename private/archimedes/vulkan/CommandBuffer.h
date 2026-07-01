@@ -21,8 +21,17 @@ namespace acm::vulkan
 	class CommandBuffer
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, const acm::CommandPool& pool);
+		CommandBuffer() = default;
+		CommandBuffer(acm::vulkan::Device& owner, const acm::CommandPool& pool);
+		~CommandBuffer();
+		CommandBuffer(const CommandBuffer&) = delete;
+		CommandBuffer& operator=(const CommandBuffer&) = delete;
+		CommandBuffer(CommandBuffer&& other) noexcept;
+		CommandBuffer& operator=(CommandBuffer&& other) noexcept;
+
 		acm::vulkan::Device& owner() const { return *m_owner; }
+		bool valid() const { return m_owner && m_commandBuffer != VK_NULL_HANDLE && m_error.ok(); }
+		acm::Error error() const { return m_error; }
 		VkCommandBuffer vkCommandBuffer() const;
 
 		acm::Error begin();
@@ -42,12 +51,14 @@ namespace acm::vulkan
 		void dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ);
 		void bufferBarrier(const acm::vulkan::Buffer& buffer, acm::ShaderStage srcStage, acm::ShaderStage dstStage);
 		void transitionImage(const acm::vulkan::Texture& texture, acm::ImageLayout from, acm::ImageLayout to);
-		void retire(acm::vulkan::Device& owner);
 
 	private:
+		void release();
+
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::CommandPool m_pool;
 		acm::RenderTarget m_renderTarget;
 		VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
+		acm::Error m_error;
 	};
 } // namespace acm::vulkan

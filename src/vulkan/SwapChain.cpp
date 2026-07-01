@@ -7,13 +7,17 @@
 #include "archimedes/vulkan/Surface.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <utility>
 
-bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
+acm::vulkan::SwapChain::SwapChain(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
 {
 	if (!surface.valid() || !surface.native() || &surface.native()->owner() != &owner.instance())
-		return false;
+	{
+		m_error = acm::Error("failed to create swapchain from invalid surface");
+		return;
+	}
 	m_owner = &owner;
 	m_surface = surface;
 	m_format = format;
@@ -21,7 +25,37 @@ bool acm::vulkan::SwapChain::create(acm::vulkan::Device& owner, const acm::Surfa
 	m_desiredExtent = desiredExtent;
 	m_depth = depth;
 	m_samples = samples;
-	return rebuild(owner);
+	if (!rebuild(owner))
+		m_error = acm::Error("failed to create swapchain");
+}
+
+acm::vulkan::SwapChain::~SwapChain()
+{
+	release();
+}
+
+acm::vulkan::SwapChain::SwapChain(SwapChain&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::SwapChain& acm::vulkan::SwapChain::operator=(SwapChain&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_surface = std::move(other.m_surface);
+	m_format = std::exchange(other.m_format, {});
+	m_presentMode = std::exchange(other.m_presentMode, acm::PresentMode::Fifo);
+	m_desiredExtent = std::exchange(other.m_desiredExtent, {});
+	m_depth = std::exchange(other.m_depth, false);
+	m_samples = std::exchange(other.m_samples, acm::SampleCount::One);
+	m_swapChain = std::exchange(other.m_swapChain, VK_NULL_HANDLE);
+	m_extent = std::exchange(other.m_extent, {});
+	m_renderTargets = std::move(other.m_renderTargets);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 bool acm::vulkan::SwapChain::recreate()
@@ -29,7 +63,7 @@ bool acm::vulkan::SwapChain::recreate()
 	owner().waitIdle();
 	if (!rebuild(owner()))
 		return false;
-	owner().collectGarbage(owner().currentFrame());
+	owner().collectGarbage(std::numeric_limits<uint64_t>::max());
 	return true;
 }
 
@@ -86,22 +120,23 @@ bool acm::vulkan::SwapChain::rebuild(acm::vulkan::Device& owner)
 		{
 			for (acm::RenderTarget& created : targets)
 				owner.invalidateRenderTarget(created);
-			const VkDevice device = owner.vkDevice();
-			owner.enqueueDestroy([device, newSwapChain]
-								 { vkDestroySwapchainKHR(device, newSwapChain, nullptr); });
+			targets.clear();
+			owner.waitIdle();
+			vkDestroySwapchainKHR(owner.vkDevice(), newSwapChain, nullptr);
 			return false;
 		}
 		targets.push_back(std::move(target));
 	}
 
+	const bool hadOldTargets = !m_renderTargets.empty();
 	const VkSwapchainKHR oldSwapChain = std::exchange(m_swapChain, newSwapChain);
-	retireTargets(owner);
+	if (hadOldTargets || oldSwapChain)
+		owner.waitIdle();
+	invalidateTargets(owner);
+	if (hadOldTargets)
+		owner.collectGarbage(std::numeric_limits<uint64_t>::max());
 	if (oldSwapChain)
-	{
-		const VkDevice device = owner.vkDevice();
-		owner.enqueueDestroy([device, oldSwapChain]
-							 { vkDestroySwapchainKHR(device, oldSwapChain, nullptr); });
-	}
+		vkDestroySwapchainKHR(owner.vkDevice(), oldSwapChain, nullptr);
 	m_extent = {extent.width, extent.height};
 	m_renderTargets = std::move(targets);
 	return true;
@@ -139,28 +174,29 @@ VkSwapchainKHR acm::vulkan::SwapChain::vkSwapChain() const
 	return m_swapChain;
 }
 
-void acm::vulkan::SwapChain::retireTargets(acm::vulkan::Device& owner)
+void acm::vulkan::SwapChain::invalidateTargets(acm::vulkan::Device& owner)
 {
 	for (acm::RenderTarget& target : m_renderTargets)
 		owner.invalidateRenderTarget(target);
 	m_renderTargets.clear();
 }
 
-void acm::vulkan::SwapChain::retire(acm::vulkan::Device& owner)
+void acm::vulkan::SwapChain::release()
 {
-	retireTargets(owner);
-	const VkDevice device = owner.vkDevice();
-	const VkSwapchainKHR swapChain = std::exchange(m_swapChain, VK_NULL_HANDLE);
-	if (swapChain)
-		owner.enqueueDestroy([device, swapChain]
-							 { vkDestroySwapchainKHR(device, swapChain, nullptr); });
-	if (m_surface.valid())
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	if (owner)
 	{
-		acm::Surface surface = m_surface;
-		m_surface.reset();
-		owner.enqueueDestroy([surface]() mutable
-							 { surface.reset(); });
+		owner->waitIdle();
+		invalidateTargets(*owner);
+		owner->collectGarbage(std::numeric_limits<uint64_t>::max());
 	}
+	else
+	{
+		m_renderTargets.clear();
+	}
+	const VkSwapchainKHR swapChain = std::exchange(m_swapChain, VK_NULL_HANDLE);
+	if (owner && swapChain)
+		vkDestroySwapchainKHR(owner->vkDevice(), swapChain, nullptr);
+	m_surface.reset();
 	m_extent = {};
-	m_owner = nullptr;
 }

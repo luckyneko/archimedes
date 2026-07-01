@@ -2,14 +2,38 @@
 
 #include "archimedes/vulkan/Device.h"
 
-bool acm::vulkan::CommandPool::create(acm::vulkan::Device& owner)
+#include <utility>
+
+acm::vulkan::CommandPool::CommandPool(acm::vulkan::Device& owner)
 {
 	m_owner = &owner;
 	VkCommandPoolCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	createInfo.queueFamilyIndex = owner.queueIndex();
-	return vkCreateCommandPool(owner.vkDevice(), &createInfo, nullptr, &m_pool) == VK_SUCCESS;
+	if (vkCreateCommandPool(owner.vkDevice(), &createInfo, nullptr, &m_pool) != VK_SUCCESS)
+		m_error = acm::Error("failed to create command pool");
+}
+
+acm::vulkan::CommandPool::~CommandPool()
+{
+	release();
+}
+
+acm::vulkan::CommandPool::CommandPool(CommandPool&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::CommandPool& acm::vulkan::CommandPool::operator=(CommandPool&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkCommandPool acm::vulkan::CommandPool::vkCommandPool() const
@@ -17,13 +41,11 @@ VkCommandPool acm::vulkan::CommandPool::vkCommandPool() const
 	return m_pool;
 }
 
-void acm::vulkan::CommandPool::retire(acm::vulkan::Device& owner)
+void acm::vulkan::CommandPool::release()
 {
-	const VkCommandPool retiredPool = std::exchange(m_pool, VK_NULL_HANDLE);
-	m_owner = nullptr;
-	if (!retiredPool)
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
+	const VkCommandPool pool = std::exchange(m_pool, VK_NULL_HANDLE);
+	if (!owner || !pool)
 		return;
-	const VkDevice device = owner.vkDevice();
-	owner.enqueueDestroy([device, retiredPool]
-						 { vkDestroyCommandPool(device, retiredPool, nullptr); });
+	vkDestroyCommandPool(owner->vkDevice(), pool, nullptr);
 }

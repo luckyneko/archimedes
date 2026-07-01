@@ -11,16 +11,28 @@
 #include <utility>
 #include <vector>
 
-bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::PipelineConfig& config)
+acm::vulkan::Pipeline::Pipeline(acm::vulkan::Device& owner, const acm::PipelineConfig& config)
 {
 	if (!config.vertex.valid() || !config.fragment.valid() || !config.target.valid())
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline from invalid shader or render target");
+		return;
+	}
 	if (&config.vertex.native()->owner() != &owner || &config.fragment.native()->owner() != &owner || &config.target.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline from resources owned by another device");
+		return;
+	}
 	if (config.descriptorLayout.valid() && &config.descriptorLayout.native()->owner() != &owner)
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline from descriptor layout owned by another device");
+		return;
+	}
 	if (config.depthTest && !config.target.hasDepth())
-		return false;
+	{
+		m_error = acm::Error("failed to create depth-test pipeline for target without depth");
+		return;
+	}
 	m_owner = &owner;
 
 	VkPipelineShaderStageCreateInfo vertStage = {};
@@ -34,7 +46,10 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 	fragStage.module = config.fragment.native()->vkShaderModule();
 	fragStage.pName = "main";
 	if (!vertStage.module || !fragStage.module)
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline from invalid shader module");
+		return;
+	}
 	VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
 
 	VkVertexInputBindingDescription binding = {};
@@ -113,7 +128,10 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
 	const VkFormat colorFormat = config.target.native()->colorFormat();
 	if (colorFormat == VK_FORMAT_UNDEFINED)
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline from invalid render target format");
+		return;
+	}
 	VkPipelineRenderingCreateInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	renderingInfo.colorAttachmentCount = 1;
@@ -129,7 +147,10 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 		layoutInfo.pSetLayouts = &setLayout;
 	}
 	if (vkCreatePipelineLayout(owner.vkDevice(), &layoutInfo, nullptr, &m_layout) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create pipeline layout");
+		return;
+	}
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -146,10 +167,35 @@ bool acm::vulkan::Pipeline::create(acm::vulkan::Device& owner, const acm::Pipeli
 	pipelineInfo.pDynamicState = &dynamicState;
 	pipelineInfo.layout = m_layout;
 	if (vkCreateGraphicsPipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
-		return false;
+	{
+		m_error = acm::Error("failed to create graphics pipeline");
+		return;
+	}
 
 	m_descriptorLayout = config.descriptorLayout;
-	return true;
+}
+
+acm::vulkan::Pipeline::~Pipeline()
+{
+	release();
+}
+
+acm::vulkan::Pipeline::Pipeline(Pipeline&& other) noexcept
+{
+	*this = std::move(other);
+}
+
+acm::vulkan::Pipeline& acm::vulkan::Pipeline::operator=(Pipeline&& other) noexcept
+{
+	if (this == &other)
+		return *this;
+	release();
+	m_owner = std::exchange(other.m_owner, nullptr);
+	m_descriptorLayout = std::move(other.m_descriptorLayout);
+	m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
+	m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
+	m_error = std::move(other.m_error);
+	return *this;
 }
 
 VkPipeline acm::vulkan::Pipeline::vkPipeline() const
@@ -162,17 +208,14 @@ VkPipelineLayout acm::vulkan::Pipeline::vkLayout() const
 	return m_layout;
 }
 
-void acm::vulkan::Pipeline::retire(acm::vulkan::Device& owner)
+void acm::vulkan::Pipeline::release()
 {
-	const VkDevice device = owner.vkDevice();
+	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
 	const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
 	const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
-	m_owner = nullptr;
-	if (pipeline)
-		owner.enqueueDestroy([device, pipeline]
-							 { vkDestroyPipeline(device, pipeline, nullptr); });
-	if (layout)
-		owner.enqueueDestroy([device, layout]
-							 { vkDestroyPipelineLayout(device, layout, nullptr); });
+	if (owner && pipeline)
+		vkDestroyPipeline(owner->vkDevice(), pipeline, nullptr);
+	if (owner && layout)
+		vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 	m_descriptorLayout.reset();
 }

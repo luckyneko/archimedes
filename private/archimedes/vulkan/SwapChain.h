@@ -1,5 +1,6 @@
 #pragma once
 
+#include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmSurface.h"
@@ -17,8 +18,17 @@ namespace acm::vulkan
 	class SwapChain
 	{
 	public:
-		bool create(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
+		SwapChain() = default;
+		SwapChain(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
+		~SwapChain();
+		SwapChain(const SwapChain&) = delete;
+		SwapChain& operator=(const SwapChain&) = delete;
+		SwapChain(SwapChain&& other) noexcept;
+		SwapChain& operator=(SwapChain&& other) noexcept;
+
 		acm::vulkan::Device& owner() const { return *m_owner; }
+		bool valid() const { return m_owner && m_swapChain != VK_NULL_HANDLE && m_error.ok(); }
+		acm::Error error() const { return m_error; }
 		bool recreate();
 		acm::SurfaceFormat format() const;
 		acm::Extent2D extent() const;
@@ -26,11 +36,11 @@ namespace acm::vulkan
 		acm::RenderTarget renderTarget(size_t index) const;
 		VkResult acquireNextImage(VkSemaphore semaphore, uint32_t& imageIndex) const;
 		VkSwapchainKHR vkSwapChain() const;
-		void retire(acm::vulkan::Device& owner);
 
 	private:
+		void release();
 		bool rebuild(acm::vulkan::Device& owner);
-		void retireTargets(acm::vulkan::Device& owner);
+		void invalidateTargets(acm::vulkan::Device& owner);
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::Surface m_surface;
@@ -42,5 +52,6 @@ namespace acm::vulkan
 		VkSwapchainKHR m_swapChain{VK_NULL_HANDLE};
 		acm::Extent2D m_extent;
 		std::vector<acm::RenderTarget> m_renderTargets;
+		acm::Error m_error;
 	};
 } // namespace acm::vulkan
