@@ -27,7 +27,12 @@ else()
 	# download path mirrors the source URL under .cache/fetch/ so similarly
 	# named archives across deps can't collide; sources extract into build/_deps.
 	include(FetchContent)
-	set(GLSLANG_VER "1.4.341.0" CACHE STRING "Vendored glslang SDK version")
+	# Share the single Vulkan SDK pin (acmVulkan) so glslang can't skew from the
+	# headers/loader; falls back to a literal if acmVulkan wasn't included.
+	if(NOT DEFINED ARCHIMEDES_VULKAN_SDK)
+		set(ARCHIMEDES_VULKAN_SDK "1.4.341.0")
+	endif()
+	set(GLSLANG_VER "${ARCHIMEDES_VULKAN_SDK}" CACHE STRING "Vendored glslang SDK version")
 	set(GLSLANG_FILE "github.com/KhronosGroup/glslang/archive/refs/tags/vulkan-sdk-${GLSLANG_VER}.tar.gz")
 
 	# Build only the standalone compiler. ENABLE_OPT requires SPIRV-Tools

@@ -26,8 +26,14 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # Vendored dependencies. Each add*.cmake prefers a system package, otherwise
 # fetches a pinned release via FetchContent — archives cached under
 # .cache/fetch/ (git-ignored), sources extracted into build/_deps.
-# Shader compilation (addGlslang) + the Vulkan runtime live with the testbed.
-include(addVulkan)
+# Shader compilation (addGlslang) + GLFW live with the testbed.
+#
+# acmVulkan defines the acm_require_vulkan_* / acm_stage_vulkan_runtime getters —
+# Vulkan is the one dependency archimedes passes through to consumers. The library
+# only needs the headers (the loader is an executable's concern); the getters
+# persist after add_subdirectory, so a parent project reuses them version-locked.
+include(acmVulkan)
+acm_require_vulkan_headers()
 
 set(SOURCE_FILES
     src/acmBuffer.cpp
