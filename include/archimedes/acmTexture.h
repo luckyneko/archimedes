@@ -54,7 +54,7 @@ namespace acm
 
 		// Properties
 		acm::Format format() const;
-		acm::Extent2D getExtent() const;
+		acm::Extent2D extent() const;
 		uint32_t mipLevels() const; // 1 unless created mipmapped
 
 	private:

@@ -34,7 +34,7 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Device::Device(Instance& instance, const acm::GPU& gpu, uint32_t queueIdx)
+	Device::Device(Instance& instance, const acm::GPU& gpu, uint32_t queueIndex)
 		: m_instance(&instance)
 	{
 		if (!m_instance || !m_instance->valid() || gpu.index >= m_instance->gpus().size())
@@ -44,7 +44,7 @@ namespace acm::vulkan
 		}
 		m_gpu = m_instance->gpus()[gpu.index];
 		m_physicalDevice = m_instance->physicalDevice(gpu.index);
-		if (!m_physicalDevice || queueIdx >= m_gpu.queueFamilies.size())
+		if (!m_physicalDevice || queueIndex >= m_gpu.queueFamilies.size())
 		{
 			m_error = acm::Error("failed to create device from invalid queue family");
 			return;
@@ -55,7 +55,7 @@ namespace acm::vulkan
 		float queuePriority = 1.0f;
 		VkDeviceQueueCreateInfo queueCreateInfo = {};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueIdx;
+		queueCreateInfo.queueFamilyIndex = queueIndex;
 		queueCreateInfo.queueCount = 1;
 		queueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -100,8 +100,8 @@ namespace acm::vulkan
 			return;
 		}
 
-		vkGetDeviceQueue(m_device, queueIdx, 0, &m_queue);
-		m_queueIndex = queueIdx;
+		vkGetDeviceQueue(m_device, queueIndex, 0, &m_queue);
+		m_queueIndex = queueIndex;
 		m_enabledFeatures = m_gpu.features;
 		m_allocator = std::make_unique<MemoryAllocator>(m_device, m_physicalDevice);
 	}

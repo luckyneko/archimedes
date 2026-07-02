@@ -54,7 +54,7 @@ namespace acm
 
 		// Factories
 		acm::Surface createSurface(acm::native::SurfaceHandle surface);
-		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIdx);
+		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 		// Enumeration
 		const std::vector<acm::GPU>& getAvailableGPUs() const;

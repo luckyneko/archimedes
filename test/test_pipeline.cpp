@@ -45,13 +45,13 @@ TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 	REQUIRE(vert.valid());
 	REQUIRE(frag.valid());
 
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.getRenderTarget(0));
+	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.renderTarget(0));
 	REQUIRE(pipeline.valid());
 
 	acm::PipelineConfig incompatible;
 	incompatible.vertex = vert;
 	incompatible.fragment = frag;
-	incompatible.target = s.swapChain.getRenderTarget(0);
+	incompatible.target = s.swapChain.renderTarget(0);
 	incompatible.depthTest = true;
 	REQUIRE_FALSE(s.device.createPipeline(incompatible).valid());
 
@@ -80,6 +80,6 @@ TEST_CASE("Pipeline is invalid when a shader is", "[acm][gpu]")
 	REQUIRE(frag.valid());
 
 	// A null vertex shader can't build a pipeline.
-	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.getRenderTarget(0));
+	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.renderTarget(0));
 	REQUIRE_FALSE(pipeline.valid());
 }

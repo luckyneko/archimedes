@@ -37,7 +37,7 @@ namespace acm
 		acm::native::RenderTarget* native() const;
 
 		// Properties
-		acm::Extent2D getExtent() const;
+		acm::Extent2D extent() const;
 		bool hasDepth() const;
 		bool isMultisampled() const;
 

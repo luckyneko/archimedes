@@ -41,10 +41,10 @@ namespace acm
 		// Returns false for a zero-sized/minimized surface; callers should skip the
 		// frame and retry once the surface has a drawable extent.
 		bool recreate();
-		acm::SurfaceFormat getFormat() const;
-		acm::Extent2D getExtents() const;
-		size_t getRenderTargetCount() const;
-		acm::RenderTarget getRenderTarget(size_t idx) const;
+		acm::SurfaceFormat format() const;
+		acm::Extent2D extent() const;
+		size_t renderTargetCount() const;
+		acm::RenderTarget renderTarget(size_t index) const;
 
 	private:
 		// Construction

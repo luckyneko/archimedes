@@ -25,11 +25,11 @@ TEST_CASE("a compute shader fills a storage buffer", "[acm][gpu]")
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	// 256 elements = 4 workgroups of local_size_x = 64 (so no bounds check needed).
@@ -82,11 +82,11 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	constexpr uint32_t kSize = 32;

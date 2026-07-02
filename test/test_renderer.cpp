@@ -26,12 +26,12 @@ TEST_CASE("CommandPool allocates a recordable buffer", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	acm::CommandPool pool = device.createCommandPool();
@@ -59,7 +59,7 @@ TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
 
 	acm::Shader vert = s.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader frag = s.device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.getRenderTarget(0));
+	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.renderTarget(0));
 	REQUIRE(pipeline.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
@@ -108,7 +108,7 @@ TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 	acm::ComputePipeline compute = s.device.createComputePipeline(s.device.createShader(acmtest::computeFillSpirv()), computeLayout);
 	REQUIRE(compute.valid());
 
-	acm::Pipeline graphics = s.device.createPipeline(s.device.createShader(acmtest::triangleVertSpirv()), s.device.createShader(acmtest::triangleFragSpirv()), s.swapChain.getRenderTarget(0));
+	acm::Pipeline graphics = s.device.createPipeline(s.device.createShader(acmtest::triangleVertSpirv()), s.device.createShader(acmtest::triangleFragSpirv()), s.swapChain.renderTarget(0));
 	REQUIRE(graphics.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);

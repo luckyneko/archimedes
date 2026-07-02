@@ -67,31 +67,31 @@ namespace acm
 		return false;
 	}
 
-	SurfaceFormat SwapChain::getFormat() const
+	SurfaceFormat SwapChain::format() const
 	{
 		if (auto* resource = m_resource.access())
 			return resource->format();
 		return SurfaceFormat{};
 	}
 
-	Extent2D SwapChain::getExtents() const
+	Extent2D SwapChain::extent() const
 	{
 		if (auto* resource = m_resource.access())
 			return resource->extent();
 		return Extent2D{};
 	}
 
-	size_t SwapChain::getRenderTargetCount() const
+	size_t SwapChain::renderTargetCount() const
 	{
 		if (auto* resource = m_resource.access())
 			return resource->renderTargetCount();
 		return 0;
 	}
 
-	RenderTarget SwapChain::getRenderTarget(size_t idx) const
+	RenderTarget SwapChain::renderTarget(size_t index) const
 	{
 		if (auto* resource = m_resource.access())
-			return resource->renderTarget(idx);
+			return resource->renderTarget(index);
 		return RenderTarget{};
 	}
 

@@ -71,8 +71,8 @@ namespace acm
 		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
 
 		// Capabilities
-		const acm::GPU& getGPU() const;
-		uint32_t getQueueIdx() const;
+		const acm::GPU& gpu() const;
+		uint32_t queueIndex() const;
 		// The curated optional features actually enabled on this device (the subset of
 		// the GPU's that the renderer turned on). Check before using, e.g., wireframe.
 		const acm::GPUFeatures& enabledFeatures() const;

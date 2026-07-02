@@ -41,7 +41,7 @@ namespace acm::vulkan
 
 		// Factories
 		acm::Surface createSurface(VkSurfaceKHR surface);
-		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIdx);
+		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 	private:
 		// Internals

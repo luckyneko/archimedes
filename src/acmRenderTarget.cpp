@@ -59,7 +59,7 @@ namespace acm
 	// Properties
 	// -----------------------------------------------------------------------------
 
-	Extent2D RenderTarget::getExtent() const
+	Extent2D RenderTarget::extent() const
 	{
 		if (auto* resource = m_resource.access())
 			return resource->extent();

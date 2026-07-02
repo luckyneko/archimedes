@@ -23,12 +23,12 @@ TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const uint32_t data[3] = {1, 2, 3};

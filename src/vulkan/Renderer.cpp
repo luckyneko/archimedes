@@ -125,7 +125,7 @@ namespace acm::vulkan
 		if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
 			return acm::Error("failed to acquire swapchain image");
 
-		acm::RenderTarget target = m_swapChain.getRenderTarget(imageIndex);
+		acm::RenderTarget target = m_swapChain.renderTarget(imageIndex);
 		if (!target.valid())
 			return acm::Error("acquired swapchain image has no render target");
 		acm::CommandBuffer& commandBuffer = m_commandBuffers[m_currentFrame];
@@ -134,7 +134,7 @@ namespace acm::vulkan
 		if (prePass)
 			prePass(commandBuffer, uint32_t(m_currentFrame));
 		commandBuffer.beginRendering(target);
-		commandBuffer.setViewportAndScissor(target.getExtent());
+		commandBuffer.setViewportAndScissor(target.extent());
 		if (record)
 			record(commandBuffer, uint32_t(m_currentFrame));
 		commandBuffer.endRendering();

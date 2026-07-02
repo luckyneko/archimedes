@@ -79,7 +79,7 @@ namespace acm
 		return Format::Undefined;
 	}
 
-	Extent2D Texture::getExtent() const
+	Extent2D Texture::extent() const
 	{
 		if (auto* resource = m_resource.access())
 			return resource->extent();

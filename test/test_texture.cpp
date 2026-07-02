@@ -26,12 +26,12 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	constexpr uint32_t kSize = 64;
@@ -40,8 +40,8 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	REQUIRE(texture.valid());
 	REQUIRE(texture.format() == acm::Format::B8G8R8A8_Unorm);
-	REQUIRE(texture.getExtent().width == kSize);
-	REQUIRE(texture.getExtent().height == kSize);
+	REQUIRE(texture.extent().width == kSize);
+	REQUIRE(texture.extent().height == kSize);
 	REQUIRE(texture.mipLevels() == 1);
 
 	acm::Texture retained = texture;

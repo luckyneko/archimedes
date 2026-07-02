@@ -73,9 +73,9 @@ namespace acm
 		return m ? m->createSurface(surface) : Surface{};
 	}
 
-	Device Instance::createDevice(const GPU& gpu, uint32_t queueIdx)
+	Device Instance::createDevice(const GPU& gpu, uint32_t queueIndex)
 	{
-		return m ? m->createDevice(gpu, queueIdx) : Device{};
+		return m ? m->createDevice(gpu, queueIndex) : Device{};
 	}
 
 	// -----------------------------------------------------------------------------

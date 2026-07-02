@@ -38,13 +38,13 @@ namespace acmtest
 
 	// First graphics-capable GPU and its queue family index; nullptr if none.
 	// The pointer is valid for the lifetime of the instance.
-	inline const acm::GPU* selectGraphicsGPU(const acm::Instance& instance, uint32_t& queueIdx)
+	inline const acm::GPU* selectGraphicsGPU(const acm::Instance& instance, uint32_t& queueIndex)
 	{
 		for (const auto& gpu : instance.getAvailableGPUs())
 			for (const auto& qf : gpu.queueFamilies)
 				if (qf.supportsGraphics)
 				{
-					queueIdx = qf.index;
+					queueIndex = qf.index;
 					return &gpu;
 				}
 		return nullptr;
@@ -71,8 +71,8 @@ namespace acmtest
 			return false;
 		}
 
-		uint32_t queueIdx = 0;
-		const acm::GPU* gpu = selectGraphicsGPU(out.instance, queueIdx);
+		uint32_t queueIndex = 0;
+		const acm::GPU* gpu = selectGraphicsGPU(out.instance, queueIndex);
 		if (!gpu)
 		{
 			SKIP("no graphics-capable queue family");
@@ -94,7 +94,7 @@ namespace acmtest
 			return false;
 		}
 
-		out.device = out.instance.createDevice(*gpu, queueIdx);
+		out.device = out.instance.createDevice(*gpu, queueIndex);
 		REQUIRE(out.device.valid());
 
 		out.swapChain = out.device.createSwapChain(out.surface, support.supportedFormats[0], support.supportedPresentModes[0], acm::Extent2D{800, 600});

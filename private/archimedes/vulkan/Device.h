@@ -34,7 +34,7 @@ namespace acm::vulkan
 	{
 	public:
 		// Lifetime
-		Device(acm::vulkan::Instance& instance, const acm::GPU& gpu, uint32_t queueIdx);
+		Device(acm::vulkan::Instance& instance, const acm::GPU& gpu, uint32_t queueIndex);
 		~Device();
 
 		// State

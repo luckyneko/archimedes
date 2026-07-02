@@ -27,11 +27,11 @@ TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	constexpr uint32_t kSize = 32;

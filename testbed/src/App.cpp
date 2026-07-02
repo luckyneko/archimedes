@@ -58,7 +58,7 @@ namespace
 	struct Selection
 	{
 		uint32_t gpuIdx{0};
-		uint32_t queueIdx{0};
+		uint32_t queueIndex{0};
 		acm::SurfaceFormat format;
 		acm::PresentMode presentMode{acm::PresentMode::Fifo};
 		bool ok{false};
@@ -74,8 +74,8 @@ namespace
 			{
 				const auto& list = surfaces[i].getGPUSupport();
 				auto it = std::find_if(list.begin(), list.end(),
-									   [idx = gpu.index](const acm::GPUSurfaceSupport& s)
-									   { return s.gpuIndex == idx; });
+									   [index = gpu.index](const acm::GPUSurfaceSupport& s)
+									   { return s.gpuIndex == index; });
 				if (it == list.end() || it->supportedFormats.empty() || it->supportedPresentModes.empty())
 				{
 					allSupported = false;
@@ -102,7 +102,7 @@ namespace
 
 				Selection sel;
 				sel.gpuIdx = gpu.index;
-				sel.queueIdx = qf.index;
+				sel.queueIndex = qf.index;
 				sel.format = support[0]->supportedFormats[0];
 				sel.presentMode = support[0]->supportedPresentModes[0];
 				for (acm::PresentMode pm : support[0]->supportedPresentModes)
@@ -177,7 +177,7 @@ int App::run(Example& example)
 		fprintf(stderr, "no GPU presents to all windows\n");
 		return 1;
 	}
-	acm::Device device = instance.createDevice(instance.getAvailableGPUs()[sel.gpuIdx], sel.queueIdx);
+	acm::Device device = instance.createDevice(instance.getAvailableGPUs()[sel.gpuIdx], sel.queueIndex);
 	if (!device.valid())
 	{
 		fprintf(stderr, "CreateACMDevice: FAIL\n");

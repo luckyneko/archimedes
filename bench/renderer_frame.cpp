@@ -19,7 +19,7 @@ TEST_CASE("renderer_frame", "[bench][fast][gpu]")
 
 	acm::Shader vertex = stack.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader fragment = stack.device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = stack.device.createPipeline(vertex, fragment, stack.swapChain.getRenderTarget(0));
+	acm::Pipeline pipeline = stack.device.createPipeline(vertex, fragment, stack.swapChain.renderTarget(0));
 	acm::Renderer renderer = stack.device.createRenderer(stack.swapChain);
 	REQUIRE(pipeline.valid());
 	REQUIRE(renderer.valid());

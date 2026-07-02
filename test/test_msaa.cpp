@@ -43,12 +43,12 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 	if (static_cast<int>(device.maxSampleCount()) < static_cast<int>(acm::SampleCount::Four))
 		SKIP("device does not support 4x MSAA");
@@ -112,12 +112,12 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 	if (static_cast<int>(device.maxSampleCount()) < static_cast<int>(acm::SampleCount::Four))
 		SKIP("device does not support 4x MSAA");

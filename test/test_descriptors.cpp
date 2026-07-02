@@ -48,11 +48,11 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D extent{kSize, kSize};
@@ -112,11 +112,11 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D extent{kSize, kSize};
@@ -174,11 +174,11 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D extent{kSize, kSize};

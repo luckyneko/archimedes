@@ -24,8 +24,8 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIdx = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIdx);
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
@@ -38,7 +38,7 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (support.supportedFormats.empty() || support.supportedPresentModes.empty())
 		SKIP("headless surface exposes no formats/present modes");
 
-	acm::Device device = instance.createDevice(*gpu, queueIdx);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D desired{800, 600};
@@ -50,15 +50,15 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	// inside the surface's allowed range (not the UINT32_MAX sentinel), so the
 	// swapchain could actually be created.
 	const acm::SurfaceCapabilities& caps = support.capabilities;
-	const acm::Extent2D extent = swapChain.getExtents();
+	const acm::Extent2D extent = swapChain.extent();
 	REQUIRE(extent.width != UINT32_MAX);
 	REQUIRE(extent.width >= caps.minImageExtent.width);
 	REQUIRE(extent.width <= caps.maxImageExtent.width);
 	REQUIRE(extent.height >= caps.minImageExtent.height);
 	REQUIRE(extent.height <= caps.maxImageExtent.height);
 
-	REQUIRE(swapChain.getRenderTargetCount() > 0);
-	acm::RenderTarget target = swapChain.getRenderTarget(0);
+	REQUIRE(swapChain.renderTargetCount() > 0);
+	acm::RenderTarget target = swapChain.renderTarget(0);
 	REQUIRE(target.valid());
 	acm::SwapChain retained = swapChain;
 	swapChain.reset();

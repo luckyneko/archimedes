@@ -23,8 +23,8 @@ public:
 
 	acm::Renderer renderer() { return m_renderer; }
 	acm::SwapChain swapChain() { return m_swapChain; }
-	acm::RenderTarget renderTarget() { return m_swapChain.getRenderTarget(0); }
-	acm::Extent2D extent() { return m_swapChain.getExtents(); }
+	acm::RenderTarget renderTarget() { return m_swapChain.renderTarget(0); }
+	acm::Extent2D extent() { return m_swapChain.extent(); }
 
 	void shutdown();
 

@@ -148,9 +148,9 @@ namespace acm::vulkan
 		return acm::Surface(std::move(inserted.resource));
 	}
 
-	acm::Device Instance::createDevice(const acm::GPU& gpu, uint32_t queueIdx)
+	acm::Device Instance::createDevice(const acm::GPU& gpu, uint32_t queueIndex)
 	{
-		auto device = std::make_unique<Device>(*this, gpu, queueIdx);
+		auto device = std::make_unique<Device>(*this, gpu, queueIndex);
 		return acm::Device(std::move(device));
 	}
 

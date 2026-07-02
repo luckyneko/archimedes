@@ -147,7 +147,7 @@ Instance ── enumerates ──> GPU[] (physical devices, queue families)
    │
    ├── createSurface(native::SurfaceHandle) ────> Surface   // platform window surface + per-GPU support query
    │
-   └── createDevice(GPU, queueIdx) ─────────────> Device    // logical device + queue
+   └── createDevice(GPU, queueIndex) ─────────────> Device    // logical device + queue
           │
           ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
