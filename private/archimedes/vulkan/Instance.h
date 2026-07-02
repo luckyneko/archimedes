@@ -21,22 +21,30 @@
 
 namespace acm::vulkan
 {
+	// Move-only VkInstance owner. Enumerates physical devices and owns the stable pool
+	// for platform surfaces created from this instance.
 	class Instance
 	{
 	public:
+		// Lifetime
 		Instance(const char* appName, const acm::Version& appVersion, const acm::InstanceConfig& config);
 		~Instance();
 
+		// State
 		bool valid() const { return m_instance != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkInstance nativeInstance() const { return m_instance; }
+
+		// Enumeration
 		const std::vector<acm::GPU>& gpus() const { return m_gpus; }
 		VkPhysicalDevice physicalDevice(uint32_t index) const;
 
+		// Factories
 		acm::Surface createSurface(VkSurfaceKHR surface);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIdx);
 
 	private:
+		// Internals
 		static constexpr uint32_t RequiredAPIVersion = VK_API_VERSION_1_3;
 		static const char* resultString(VkResult result);
 		static bool extensionAvailable(const std::vector<VkExtensionProperties>& extensions, const char* name);

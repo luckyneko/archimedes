@@ -19,10 +19,13 @@
 
 namespace acm
 {
+	// Block-backed stable-slot pool. Slots never move, so ResourceRef can retain a
+	// typed slot pointer plus generation until the owning root retires it.
 	template <typename T>
 	class ResourcePool
 	{
 	public:
+		// Result
 		struct EmplaceResult
 		{
 			acm::ResourceRef<T> resource;
@@ -33,6 +36,7 @@ namespace acm
 
 		ResourcePool() = default;
 
+		// Allocation
 		template <typename Constructor>
 		EmplaceResult emplace(Constructor&& construct)
 		{
@@ -49,6 +53,7 @@ namespace acm
 			return {acm::ResourceRef<T>(slot, slot->startLifetime()), {}};
 		}
 
+		// Collection
 		template <typename Collect>
 		void clear(Collect&& collect)
 		{
@@ -84,6 +89,7 @@ namespace acm
 		}
 
 	private:
+		// Internals
 		acm::ResourceSlot<T>* acquireSlot()
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);

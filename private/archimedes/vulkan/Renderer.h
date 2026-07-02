@@ -25,9 +25,12 @@ namespace acm::vulkan
 {
 	class Device;
 
+	// Move-only swapchain frame orchestrator. Owns per-frame synchronization and command
+	// buffers, and submits through Device's serialized queue path.
 	class Renderer
 	{
 	public:
+		// Lifetime
 		Renderer() = default;
 		Renderer(acm::vulkan::Device& owner, const acm::SwapChain& swapChain);
 		~Renderer();
@@ -36,12 +39,16 @@ namespace acm::vulkan
 		Renderer(Renderer&& other) noexcept;
 		Renderer& operator=(Renderer&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && !m_frames.empty() && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Frames
 		acm::Error render(const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record);
 
 	private:
+		// Internals
 		void release();
 
 		struct Frame

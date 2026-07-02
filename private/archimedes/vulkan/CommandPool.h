@@ -16,9 +16,11 @@ namespace acm::vulkan
 {
 	class Device;
 
+	// Move-only owner of a VkCommandPool used for primary command-buffer allocation.
 	class CommandPool
 	{
 	public:
+		// Lifetime
 		CommandPool() = default;
 		explicit CommandPool(acm::vulkan::Device& owner);
 		~CommandPool();
@@ -27,12 +29,14 @@ namespace acm::vulkan
 		CommandPool(CommandPool&& other) noexcept;
 		CommandPool& operator=(CommandPool&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_pool != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkCommandPool vkCommandPool() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};

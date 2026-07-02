@@ -19,9 +19,11 @@ namespace acm::vulkan
 {
 	class Instance;
 
+	// Move-only VkSurfaceKHR owner plus per-GPU support snapshot.
 	class Surface
 	{
 	public:
+		// Lifetime
 		Surface() = default;
 		Surface(acm::vulkan::Instance& owner, VkSurfaceKHR surface);
 		~Surface();
@@ -30,13 +32,17 @@ namespace acm::vulkan
 		Surface(Surface&& other) noexcept;
 		Surface& operator=(Surface&& other) noexcept;
 
+		// State
 		acm::vulkan::Instance& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_surface != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Capabilities
 		const std::vector<acm::GPUSurfaceSupport>& support() const;
 		VkSurfaceKHR vkSurface() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Instance* m_owner{nullptr};

@@ -20,9 +20,12 @@ namespace acm::vulkan
 {
 	class Device;
 
+	// Move-only owned VkBuffer plus allocator sub-allocation. The heap choice comes
+	// from BufferUsage; host-visible buffers expose a persistent mapped pointer.
 	class Buffer
 	{
 	public:
+		// Lifetime
 		Buffer() = default;
 		Buffer(acm::vulkan::Device& owner, size_t size, acm::BufferUsage usage);
 		~Buffer();
@@ -31,15 +34,19 @@ namespace acm::vulkan
 		Buffer(Buffer&& other) noexcept;
 		Buffer& operator=(Buffer&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_buffer != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Memory
 		size_t size() const;
 		void* map();
 		VkBuffer vkBuffer() const;
 		acm::Error write(const void* data, size_t size);
 
 	private:
+		// Internals
 		static bool isHostVisible(acm::BufferUsage usage);
 		void release();
 

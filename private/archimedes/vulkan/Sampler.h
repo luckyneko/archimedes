@@ -16,9 +16,11 @@ namespace acm::vulkan
 {
 	class Device;
 
+	// Move-only VkSampler owner. Feature fallback and clamping happen at construction.
 	class Sampler
 	{
 	public:
+		// Lifetime
 		Sampler() = default;
 		Sampler(acm::vulkan::Device& owner, float maxAnisotropy);
 		~Sampler();
@@ -27,12 +29,14 @@ namespace acm::vulkan
 		Sampler(Sampler&& other) noexcept;
 		Sampler& operator=(Sampler&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_sampler != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkSampler vkSampler() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};

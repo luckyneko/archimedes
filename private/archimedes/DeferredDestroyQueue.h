@@ -17,9 +17,12 @@
 
 namespace acm
 {
+	// Thread-safe type-erased queue for backend resources whose destructors must run
+	// only after a submitted queue serial has completed.
 	class DeferredDestroyQueue
 	{
 	public:
+		// Enqueue
 		template <typename T>
 		void enqueue(uint64_t submissionSerial, T&& resource)
 		{
@@ -28,6 +31,7 @@ namespace acm
 			m_pending.push_back({submissionSerial, std::make_unique<EntryType>(std::forward<T>(resource))});
 		}
 
+		// Collection
 		void collect(uint64_t completedSerial)
 		{
 			std::vector<std::unique_ptr<EntryBase>> ready;
@@ -50,6 +54,7 @@ namespace acm
 			ready.clear();
 		}
 
+		// State
 		bool empty() const
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
@@ -57,6 +62,7 @@ namespace acm
 		}
 
 	private:
+		// Internals
 		struct EntryBase
 		{
 			virtual ~EntryBase() = default;

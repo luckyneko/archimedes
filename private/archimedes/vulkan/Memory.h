@@ -45,18 +45,22 @@ namespace acm::vulkan
 	class MemoryAllocator
 	{
 	public:
+		// Lifetime
 		MemoryAllocator(VkDevice device, VkPhysicalDevice physicalDevice);
 		~MemoryAllocator();
 
+		// Allocation
 		// Sub-allocates for `req` from a block whose memory type satisfies `props`
 		// (a new block is created if none fits). Returns an invalid Allocation on
 		// failure.
 		Allocation allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props);
 		void free(const Allocation& allocation);
 
+		// Diagnostics
 		size_t blockCount() const; // number of live VkDeviceMemory blocks (for tests/diagnostics)
 
 	private:
+		// Internals
 		struct Block;
 		static constexpr VkDeviceSize DefaultBlockSize = 64ull * 1024 * 1024;
 		static VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment);

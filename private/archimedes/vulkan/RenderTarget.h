@@ -20,9 +20,12 @@ namespace acm::vulkan
 	class Device;
 	class Texture;
 
+	// Move-only rendering target metadata. It may borrow a swapchain image or retain an
+	// owned Texture, and may allocate transient depth/MSAA attachments through Device.
 	class RenderTarget
 	{
 	public:
+		// Lifetime
 		RenderTarget() = default;
 		RenderTarget(acm::vulkan::Device& owner, VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		RenderTarget(acm::vulkan::Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
@@ -32,19 +35,25 @@ namespace acm::vulkan
 		RenderTarget(RenderTarget&& other) noexcept;
 		RenderTarget& operator=(RenderTarget&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_colorImage != VK_NULL_HANDLE && colorAttachmentView() != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Properties
 		acm::Extent2D extent() const;
 		bool hasDepth() const;
 		bool multisampled() const;
 		VkSampleCountFlagBits sampleCount() const { return m_samples; }
 		VkFormat colorFormat() const;
 		VkFormat depthFormat() const;
+
+		// Rendering
 		bool beginRendering(VkCommandBuffer commandBuffer, float r, float g, float b, float a) const;
 		void endRendering(VkCommandBuffer commandBuffer) const;
 
 	private:
+		// Internals
 		struct Attachment
 		{
 			VkImage image{VK_NULL_HANDLE};

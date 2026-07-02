@@ -21,9 +21,12 @@ namespace acm::vulkan
 	class Sampler;
 	class Texture;
 
+	// Move-only one-set descriptor pool + descriptor set allocated from a retained
+	// DescriptorSetLayout wrapper.
 	class DescriptorSet
 	{
 	public:
+		// Lifetime
 		DescriptorSet() = default;
 		DescriptorSet(acm::vulkan::Device& owner, const acm::DescriptorSetLayout& layout);
 		~DescriptorSet();
@@ -32,16 +35,20 @@ namespace acm::vulkan
 		DescriptorSet(DescriptorSet&& other) noexcept;
 		DescriptorSet& operator=(DescriptorSet&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_pool != VK_NULL_HANDLE && m_set != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkDescriptorSet vkDescriptorSet() const;
+
+		// Writes
 		void setTexture(uint32_t binding, const acm::vulkan::Texture& texture, const acm::vulkan::Sampler& sampler, uint32_t arrayElement);
 		void setBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, uint32_t arrayElement);
 		void setDynamicBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, size_t elementSize, uint32_t arrayElement);
 		void setStorageImage(uint32_t binding, const acm::vulkan::Texture& texture, uint32_t arrayElement);
 
 	private:
+		// Internals
 		void release();
 		VkDescriptorType bufferType(uint32_t binding) const;
 

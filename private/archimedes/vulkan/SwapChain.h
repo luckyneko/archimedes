@@ -23,9 +23,12 @@ namespace acm::vulkan
 	class Device;
 	class Surface;
 
+	// Move-only VkSwapchainKHR owner. Rebuilds per-image public RenderTarget handles and
+	// invalidates old target generations on recreate/destruction.
 	class SwapChain
 	{
 	public:
+		// Lifetime
 		SwapChain() = default;
 		SwapChain(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
 		~SwapChain();
@@ -34,9 +37,12 @@ namespace acm::vulkan
 		SwapChain(SwapChain&& other) noexcept;
 		SwapChain& operator=(SwapChain&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_swapChain != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Images
 		bool recreate();
 		acm::SurfaceFormat format() const;
 		acm::Extent2D extent() const;
@@ -46,6 +52,7 @@ namespace acm::vulkan
 		VkSwapchainKHR vkSwapChain() const;
 
 	private:
+		// Internals
 		void release();
 		bool rebuild(acm::vulkan::Device& owner);
 		void invalidateTargets(acm::vulkan::Device& owner);

@@ -20,9 +20,12 @@ namespace acm::vulkan
 	class DescriptorSetLayout;
 	class Shader;
 
+	// Move-only compute pipeline and pipeline layout. Retains the public descriptor
+	// layout wrapper so the Vulkan layout inputs outlive the pipeline.
 	class ComputePipeline
 	{
 	public:
+		// Lifetime
 		ComputePipeline() = default;
 		ComputePipeline(acm::vulkan::Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		~ComputePipeline();
@@ -31,6 +34,7 @@ namespace acm::vulkan
 		ComputePipeline(ComputePipeline&& other) noexcept;
 		ComputePipeline& operator=(ComputePipeline&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_pipeline != VK_NULL_HANDLE && m_layout != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
@@ -38,6 +42,7 @@ namespace acm::vulkan
 		VkPipelineLayout vkLayout() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};

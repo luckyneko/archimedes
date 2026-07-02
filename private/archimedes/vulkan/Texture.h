@@ -21,9 +21,12 @@ namespace acm::vulkan
 	class Buffer;
 	class Device;
 
+	// Move-only owned VkImage + memory allocation + image view. Upload and explicit
+	// transition helpers record through Device-owned command submission paths.
 	class Texture
 	{
 	public:
+		// Lifetime
 		Texture() = default;
 		Texture(acm::vulkan::Device& owner, acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage);
 		~Texture();
@@ -32,19 +35,27 @@ namespace acm::vulkan
 		Texture(Texture&& other) noexcept;
 		Texture& operator=(Texture&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_image != VK_NULL_HANDLE && m_imageView != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
+
+		// Properties
 		acm::Format format() const;
 		acm::Extent2D extent() const;
 		uint32_t mipLevels() const;
 		VkImage vkImage() const;
 		VkImageView vkImageView() const;
+
+		// Recording
 		void recordCopyToBuffer(VkCommandBuffer commandBuffer, const acm::vulkan::Buffer& buffer) const;
 		void recordTransition(VkCommandBuffer commandBuffer, acm::ImageLayout from, acm::ImageLayout to) const;
+
+		// Upload
 		acm::Error upload(const void* pixels, size_t size);
 
 	private:
+		// Internals
 		void release();
 		static bool isDepthFormat(acm::Format format);
 		static uint32_t computeMipLevels(acm::Extent2D extent);

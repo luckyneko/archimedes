@@ -18,9 +18,11 @@ namespace acm::vulkan
 {
 	class Device;
 
+	// Move-only VkShaderModule owner built from caller-supplied SPIR-V bytecode.
 	class Shader
 	{
 	public:
+		// Lifetime
 		Shader() = default;
 		Shader(acm::vulkan::Device& owner, const std::vector<char>& spirv);
 		~Shader();
@@ -29,12 +31,14 @@ namespace acm::vulkan
 		Shader(Shader&& other) noexcept;
 		Shader& operator=(Shader&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_shaderModule != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkShaderModule vkShaderModule() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};

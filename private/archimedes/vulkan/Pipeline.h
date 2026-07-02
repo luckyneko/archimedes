@@ -19,9 +19,12 @@ namespace acm::vulkan
 	class Device;
 	class DescriptorSetLayout;
 
+	// Move-only graphics pipeline and layout. Retains shaders/target/descriptor layout
+	// through public wrappers supplied by PipelineConfig.
 	class Pipeline
 	{
 	public:
+		// Lifetime
 		Pipeline() = default;
 		Pipeline(acm::vulkan::Device& owner, const acm::PipelineConfig& config);
 		~Pipeline();
@@ -30,6 +33,7 @@ namespace acm::vulkan
 		Pipeline(Pipeline&& other) noexcept;
 		Pipeline& operator=(Pipeline&& other) noexcept;
 
+		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_pipeline != VK_NULL_HANDLE && m_layout != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
@@ -37,6 +41,7 @@ namespace acm::vulkan
 		VkPipelineLayout vkLayout() const;
 
 	private:
+		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};

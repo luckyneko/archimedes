@@ -28,15 +28,20 @@
 
 namespace acm::vulkan
 {
+	// Move-only logical-device backend. Owns every device-scoped resource pool,
+	// the queue submission path, deferred destruction, and the memory allocator.
 	class Device
 	{
 	public:
+		// Lifetime
 		Device(acm::vulkan::Instance& instance, const acm::GPU& gpu, uint32_t queueIdx);
 		~Device();
 
+		// State
 		bool valid() const { return m_device != VK_NULL_HANDLE; }
 		acm::Error error() const { return m_error; }
 
+		// Capabilities
 		const acm::GPU& gpu() const { return m_gpu; }
 		acm::vulkan::Instance& instance() const { return *m_instance; }
 		uint32_t queueIndex() const { return m_queueIndex; }
@@ -48,45 +53,40 @@ namespace acm::vulkan
 
 		size_t memoryBlockCount() const { return m_allocator->blockCount(); }
 
+		// Synchronization
 		void waitIdle();
-
 		void collectGarbage(uint64_t completedSerial);
+
+		// Native access
 		VkDevice vkDevice() const { return m_device; }
 		VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 		acm::vulkan::MemoryAllocator& allocator() const { return *m_allocator; }
+
+		// Submission
 		acm::Error copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size);
 		acm::Error submitOneShot(const std::function<void(VkCommandBuffer)>& record);
 		acm::Error submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial);
 
+		// Factories
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
-
 		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage);
-
 		acm::Sampler createSampler(float maxAnisotropy);
-
 		acm::Shader createShader(const std::vector<char>& spirv);
-
 		acm::DescriptorSetLayout createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings);
-
 		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
-
 		acm::Pipeline createPipeline(const acm::PipelineConfig& config);
-
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
-
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
 		bool invalidateRenderTarget(acm::RenderTarget& target);
-
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
-
 		acm::CommandPool createCommandPool();
 		acm::CommandBuffer allocateCommandBuffer(const acm::CommandPool& pool);
 		acm::Error submitCommandBufferSync(const acm::CommandBuffer& commandBuffer);
-
 		acm::Renderer createRenderer(const acm::SwapChain& swapChain);
 
 	private:
+		// Internals
 		static acm::Error constructionError(acm::Error error, const char* fallback);
 		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial);
 		template <typename T, typename Constructor>
