@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 19/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #version 450
 
 // Each sprite's rect/tint/texture-index comes from a dynamic uniform (one buffer, a

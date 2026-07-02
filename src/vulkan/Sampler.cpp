@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 24/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #include "archimedes/vulkan/Sampler.h"
 
 #include "archimedes/vulkan/Device.h"

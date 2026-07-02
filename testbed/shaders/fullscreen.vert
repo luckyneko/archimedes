@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 19/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #version 450
 
 // A full-screen triangle from gl_VertexIndex (no vertex buffer), with a 0..1 UV. Pair

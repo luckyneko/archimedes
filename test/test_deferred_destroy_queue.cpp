@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 01/07/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #include "archimedes/DeferredDestroyQueue.h"
 
 #include <catch2/catch_all.hpp>

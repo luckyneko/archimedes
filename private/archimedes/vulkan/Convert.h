@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 21/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #pragma once
 
 // Internal (not installed) acm<->Vk mapping helpers. Single source of truth for

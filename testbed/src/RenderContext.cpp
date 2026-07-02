@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 19/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #include "RenderContext.h"
 
 bool RenderContext::init(acm::Device& device, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, bool depth, acm::SampleCount samples, acm::Extent2D extent)

@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 24/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #include "archimedes/vulkan/DescriptorSetLayout.h"
 
 #include "archimedes/vulkan/Convert.h"

@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 19/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #version 450
 
 layout(location = 0) in vec3 fragNormal;

@@ -1,3 +1,11 @@
+/*
+ *  Created by LuckyNeko on 19/06/2026.
+ *  Copyright 2026 LuckyNeko
+ *
+ *  Distributed under the MIT Software License
+ *  (See accompanying file LICENSE)
+ */
+
 #include "archimedes/acmRenderer.h"
 
 #include "archimedes/acmCommandBuffer.h"
