@@ -21,7 +21,7 @@ add_executable(testbed
 )
 
 target_compile_features(testbed PRIVATE cxx_std_17)
-target_include_directories(testbed PRIVATE src)
+target_include_directories(testbed PRIVATE src ${PROJECT_SOURCE_DIR}/private)
 # archimedes is a static lib linking only Vulkan::Headers, so the executable
 # must pull in the loader (Vulkan::Loader) to resolve its vk* symbols. Threads
 # for the per-window render threads.

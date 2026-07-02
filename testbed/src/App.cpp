@@ -5,52 +5,21 @@
 #include "RenderWorker.h"
 
 #include <archimedes/archimedes.h>
+#include <archimedes/vulkan/RuntimeEnv.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
-#if defined(__APPLE__)
-#	include <mach-o/dyld.h> // _NSGetExecutablePath
-#endif
 
 namespace
 {
 	const char* APP_NAME = "Archimedes Testbed";
 	const acm::Version APP_VERSION = {0, 1, 0};
-
-	// acm_stage_vulkan_runtime() copies the vendored MoltenVK ICD next to the executable
-	// in vulkan/. The generated run_<target>.sh exports VK_ICD_FILENAMES so the loader
-	// finds it, but launching the binary directly (e.g. from the IDE) skips that and the
-	// loader reports "Found no drivers!". Point it at the staged ICD here unless the caller
-	// already set one, so a direct launch works while run_<target>.sh / an override wins.
-	void useStagedVulkanICD()
-	{
-#if defined(__APPLE__)
-		if (std::getenv("VK_ICD_FILENAMES"))
-			return;
-
-		uint32_t size = 0;
-		_NSGetExecutablePath(nullptr, &size); // first call reports required size
-		std::string pathBuf(size, '\0');
-		if (_NSGetExecutablePath(pathBuf.data(), &size) != 0)
-			return;
-
-		std::error_code ec;
-		std::filesystem::path exe = std::filesystem::canonical(pathBuf.c_str(), ec);
-		if (ec)
-			return;
-
-		const std::filesystem::path icd = exe.parent_path() / "vulkan" / "MoltenVK_icd.json";
-		if (std::filesystem::exists(icd))
-			setenv("VK_ICD_FILENAMES", icd.string().c_str(), 0); // 0: don't overwrite
-#endif
-	}
 
 	// Create a GLFW window (Vulkan, no OpenGL context) + its acm::Surface. GLFW window
 	// creation must happen on the main thread; the surface is needed before the shared
@@ -152,7 +121,7 @@ namespace
 
 int App::run(Example& example)
 {
-	useStagedVulkanICD();
+	acm::vulkan::useStagedVulkanICD();
 
 	acm::InstanceConfig instanceConfig;
 	instanceConfig.validation = true;

@@ -7,8 +7,9 @@ specific.
 
 ## Status
 
-Early-stage. The repo builds the core **static library** (`libarchimedes.a`)
-plus an optional **`testbed/` executable** that drives the API against real
+Early-stage. The repo builds the core **static library** (`libarchimedes.a`),
+an optional **`bench-archimedes` executable** for Catch2 benchmarks over the
+production API, plus an optional **`testbed/` executable** that drives the API against real
 GLFW windows. The testbed is an **example framework**: a reusable runner + swappable
 examples (`testbed <name>`; `--list` to enumerate), each exercising a slice of the renderer
 on a live driver — a two-window shared compute-deformed mesh on a thread per window
@@ -469,8 +470,9 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
   `<bindir>/shaders/*.spv`. The `find_program` preference + `FetchContent` for
   the vendored standalone re-run every configure, so the compiler choice is never
   stale-cached.
-- **Catch2** (tests only) — [cmake/addcatch2.cmake](cmake/addcatch2.cmake)
-  (copied from thorax). Provides `Catch2::Catch2WithMain` + `catch_discover_tests`.
+- **Catch2** (tests + benchmarks only) — [cmake/addcatch2.cmake](cmake/addcatch2.cmake)
+  (copied from thorax). Provides `Catch2::Catch2`, `Catch2::Catch2WithMain` +
+  `catch_discover_tests`.
 
 ### Why the library links only the Vulkan *headers*
 
@@ -478,7 +480,8 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
 headers to compile** — the loader, the MoltenVK ICD, and the validation layers
 are link/run-time concerns of an executable, not of this archive. So
 `libarchimedes` links `Vulkan::Headers` (include-only) and leaves its `vk*`
-symbols unresolved; the **testbed** links `Vulkan::Loader` to resolve them.
+symbols unresolved; runnable Archimedes binaries (**tests**, **benchmarks**, and
+the **testbed**) link `Vulkan::Loader` to resolve them.
 
 ### Testbed runtime (fully vendored, no system install)
 
@@ -629,10 +632,11 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   surface, so it SKIPs where the swapchain-backed renderer tests do). The compute /
   dynamic-uniform / storage-image tests are device-only (no surface), so they run anywhere
   with a graphics/compute queue.
-  `test_command_recording_benchmark.cpp` is a Release-oriented production-path
-  benchmark: it records 10,000 public `CommandBuffer` draw sequences per sample against
-  real Buffer/Pipeline/RenderTarget resources without submitting. Run it with the
-  `[benchmark]` Catch2 filter; it SKIPs when no live driver is available.
+  `bench-archimedes` is the Catch2 benchmark executable: it records public
+  `CommandBuffer` draw sequences, exercises production factory/descriptor paths, and
+  measures headless `Renderer::render` frames against real resources. Run it through
+  `./build/run_bench-archimedes.sh "[fast]"` or `python3 bench/report.py "[fast]"`;
+  GPU workloads SKIP when no live driver is available.
   `test/CMakeLists.txt` points `VK_ICD_FILENAMES` at the vendored MoltenVK ICD
   (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not fails) when no
   driver / extension / capability is present, so a GPU-less CI stays green — and
@@ -666,10 +670,11 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-First configure fetches spdlog + Vulkan-Headers and, when the testbed is
-enabled (`ARCHIMEDES_BUILD_TESTBED`, default ON for top-level builds), GLFW +
-Vulkan-Loader + MoltenVK + glslang — archives cached in `.cache/fetch/`,
-sources extracted into `build/_deps/` (both git-ignored). `CMAKE_BUILD_TYPE`
+First configure fetches spdlog + Vulkan-Headers; runnable targets that touch a
+driver (tests, benchmarks, testbed) also fetch Vulkan-Loader + MoltenVK, while
+the testbed additionally fetches GLFW + glslang. Archives are cached in
+`.cache/fetch/`, sources extracted into `build/_deps/` (both git-ignored).
+`CMAKE_BUILD_TYPE`
 defaults to `Release`. Vulkan portability enumeration is enabled by default through
 `InstanceConfig::portability`; validation layers and the debug messenger are runtime
 opt-ins through `InstanceConfig::validation` and `InstanceConfig::debug`, independent
@@ -689,8 +694,31 @@ Run the tests with ctest from the build dir:
 ctest --test-dir build --output-on-failure
 ```
 
-`-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` build only
-the library (headers only — no loader/MoltenVK/GLFW/glslang/Catch2 downloads).
+Run the benchmarks directly through Catch2, or through the compact report helper:
+
+```sh
+./build/run_bench-archimedes.sh "[fast]"
+python3 bench/report.py "[fast]"
+```
+
+The benchmark executable is `bench-archimedes`; workloads live in [bench/](bench/)
+and use tags such as `[bench][fast][gpu]`. They must exercise production
+Archimedes API paths, not copied benchmark-only implementations. The generated
+launcher sets `VK_ICD_FILENAMES` to the staged MoltenVK ICD on macOS, matching
+the testbed path. Direct launches from an IDE also work: the test, benchmark,
+and testbed executables call the private `vulkan::useStagedVulkanICD()` helper
+before creating an instance, and that helper points the loader at the staged ICD
+unless the caller already set `VK_ICD_FILENAMES`. The helper also defaults
+`MVK_CONFIG_LOG_LEVEL` to the CMake cache value `ARCHIMEDES_MOLTENVK_LOG_LEVEL`
+(`1` = errors only) unless the caller already set that environment variable, which
+keeps MoltenVK's default info-level startup logs out of test/benchmark output.
+Resource-creation benchmarks use bounded batches rather than Catch2's adaptive
+per-run resource counts, so calibration cannot build up thousands of live Vulkan
+objects before cleanup.
+
+`-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` /
+`-DARCHIMEDES_BUILD_BENCHMARK=OFF` build only the library (headers only — no
+loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 ## Conventions
 

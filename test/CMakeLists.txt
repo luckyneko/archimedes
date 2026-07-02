@@ -7,11 +7,11 @@
 acm_require_vulkan_runtime()
 
 add_executable(test-${PROJECT_NAME}
+    main.cpp
     test_version.cpp
     test_handles.cpp
     test_resource_pool.cpp
     test_deferred_destroy_queue.cpp
-    test_command_recording_benchmark.cpp
     test_instance.cpp
     test_device.cpp
     test_surface.cpp
@@ -39,7 +39,8 @@ add_executable(test-${PROJECT_NAME}
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
 target_include_directories(test-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/private)
-target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2WithMain)
+target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2)
+acm_stage_vulkan_runtime(test-${PROJECT_NAME})
 
 # Point the loader at the vendored MoltenVK ICD so [gpu] tests find a driver
 # under ctest (no system install). Only set this when we actually vendor an ICD

@@ -15,6 +15,8 @@ endif()
 
 option(ARCHIMEDES_BUILD_TESTBED "Build the testbed executable" ${NOT_SUBPROJECT})
 option(ARCHIMEDES_BUILD_TESTING "Build the unit/integration tests" ${NOT_SUBPROJECT})
+option(ARCHIMEDES_BUILD_BENCHMARK "Build the benchmark executable" ${NOT_SUBPROJECT})
+set(ARCHIMEDES_MOLTENVK_LOG_LEVEL "1" CACHE STRING "MoltenVK MVK_CONFIG_LOG_LEVEL default for Archimedes-run executables: 0 none, 1 errors, 2 warnings, 3 info, 4 debug")
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -66,6 +68,7 @@ set(SOURCE_FILES
     src/vulkan/Pipeline.cpp
     src/vulkan/Renderer.cpp
     src/vulkan/RenderTarget.cpp
+    src/vulkan/RuntimeEnv.cpp
     src/vulkan/Sampler.cpp
     src/vulkan/Shader.cpp
     src/vulkan/Surface.cpp
@@ -83,14 +86,21 @@ add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE private)
-target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES})
+target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES} ACM_MOLTENVK_LOG_LEVEL="${ARCHIMEDES_MOLTENVK_LOG_LEVEL}")
 
 if(ARCHIMEDES_BUILD_TESTBED)
     add_subdirectory(testbed)
 endif()
 
+if(ARCHIMEDES_BUILD_TESTING OR ARCHIMEDES_BUILD_BENCHMARK)
+    include(addcatch2)
+endif()
+
 if(ARCHIMEDES_BUILD_TESTING)
     enable_testing() # must be at the project root for ctest to find tests
-    include(addcatch2)
     add_subdirectory(test)
+endif()
+
+if(ARCHIMEDES_BUILD_BENCHMARK)
+    add_subdirectory(bench)
 endif()
