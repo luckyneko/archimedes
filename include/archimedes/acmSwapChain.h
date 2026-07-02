@@ -18,9 +18,12 @@
 
 namespace acm
 {
+	// Copyable handle to a presentation swapchain. Recreate invalidates old per-image
+	// RenderTarget handles and rebuilds them for the surface's current extent.
 	class SwapChain
 	{
 	public:
+		// Lifetime
 		SwapChain();
 		SwapChain(const acm::SwapChain& other);
 		SwapChain& operator=(const acm::SwapChain& other);
@@ -28,11 +31,15 @@ namespace acm
 		SwapChain& operator=(acm::SwapChain&& other) noexcept;
 		~SwapChain();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::SwapChain* native() const;
 
+		// Images
+		// Returns false for a zero-sized/minimized surface; callers should skip the
+		// frame and retry once the surface has a drawable extent.
 		bool recreate();
 		acm::SurfaceFormat getFormat() const;
 		acm::Extent2D getExtents() const;
@@ -40,6 +47,7 @@ namespace acm
 		acm::RenderTarget getRenderTarget(size_t idx) const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		SwapChain(acm::ResourceRef<acm::native::SwapChain> resource);
 		explicit SwapChain(acm::Error error);

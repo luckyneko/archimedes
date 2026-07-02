@@ -13,52 +13,72 @@
 
 #include <utility>
 
-acm::CommandPool::CommandPool() = default;
-
-acm::CommandPool::CommandPool(acm::ResourceRef<acm::native::CommandPool> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::CommandPool::CommandPool(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	CommandPool::CommandPool() = default;
 
-acm::CommandPool::CommandPool(const acm::CommandPool& other) = default;
+	CommandPool::CommandPool(const CommandPool& other) = default;
 
-acm::CommandPool& acm::CommandPool::operator=(const acm::CommandPool& other) = default;
+	CommandPool& CommandPool::operator=(const CommandPool& other) = default;
 
-acm::CommandPool::CommandPool(acm::CommandPool&& other) noexcept = default;
+	CommandPool::CommandPool(CommandPool&& other) noexcept = default;
 
-acm::CommandPool& acm::CommandPool::operator=(acm::CommandPool&& other) noexcept = default;
+	CommandPool& CommandPool::operator=(CommandPool&& other) noexcept = default;
 
-acm::CommandPool::~CommandPool() = default;
+	CommandPool::~CommandPool() = default;
 
-void acm::CommandPool::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::CommandPool::valid() const
-{
-	return m_resource.valid();
-}
+	void CommandPool::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::CommandPool::error() const
-{
-	return m_error;
-}
+	bool CommandPool::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::CommandPool* acm::CommandPool::native() const
-{
-	return m_resource.access();
-}
+	Error CommandPool::error() const
+	{
+		return m_error;
+	}
 
-acm::CommandBuffer acm::CommandPool::allocate()
-{
-	if (auto* resource = m_resource.access())
-		return resource->owner().allocateCommandBuffer(*this);
-	return acm::CommandBuffer{};
-}
+	native::CommandPool* CommandPool::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Allocation
+	// -----------------------------------------------------------------------------
+
+	CommandBuffer CommandPool::allocate()
+	{
+		if (auto* resource = m_resource.access())
+			return resource->owner().allocateCommandBuffer(*this);
+		return CommandBuffer{};
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	CommandPool::CommandPool(ResourceRef<native::CommandPool> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	CommandPool::CommandPool(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

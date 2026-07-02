@@ -25,169 +25,199 @@
 #include "archimedes/acmTexture.h"
 #include "archimedes/nativeAPI.h"
 
-acm::Device::Device() = default;
+#include <utility>
 
-acm::Device::Device(std::unique_ptr<acm::native::Device> device)
+namespace acm
 {
-	if (!device->valid())
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
+
+	Device::Device() = default;
+
+	Device::Device(Device&& other) noexcept = default;
+
+	Device& Device::operator=(Device&& other) noexcept = default;
+
+	Device::~Device() = default;
+
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
+
+	void Device::reset()
 	{
-		m_error = device->error();
-		return;
+		m.reset();
+		m_error = {};
 	}
-	m = std::move(device);
-}
 
-acm::Device::Device(acm::Device&& other) noexcept = default;
+	bool Device::valid() const
+	{
+		return m != nullptr;
+	}
 
-acm::Device& acm::Device::operator=(acm::Device&& other) noexcept = default;
+	Error Device::error() const
+	{
+		return m_error;
+	}
 
-acm::Device::~Device() = default;
+	// -----------------------------------------------------------------------------
+	// Factories
+	// -----------------------------------------------------------------------------
 
-void acm::Device::reset()
-{
-	m.reset();
-	m_error = {};
-}
+	SwapChain Device::createSwapChain(const Surface& surface, SurfaceFormat format, PresentMode presentMode, Extent2D desiredExtent, bool depth, SampleCount samples)
+	{
+		return m ? m->createSwapChain(surface, format, presentMode, desiredExtent, depth, samples) : SwapChain{};
+	}
 
-bool acm::Device::valid() const
-{
-	return m != nullptr;
-}
+	RenderTarget Device::createRenderTarget(const Texture& texture, RenderTargetFinish finish, bool depth, SampleCount samples)
+	{
+		return m ? m->createRenderTarget(texture, finish, depth, samples) : RenderTarget{};
+	}
 
-acm::Error acm::Device::error() const
-{
-	return m_error;
-}
+	Shader Device::createShader(const std::vector<char>& spirv)
+	{
+		return m ? m->createShader(spirv) : Shader{};
+	}
 
-acm::SwapChain acm::Device::createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
-{
-	return m ? m->createSwapChain(surface, format, presentMode, desiredExtent, depth, samples) : acm::SwapChain{};
-}
+	Pipeline Device::createPipeline(const Shader& vertex, const Shader& fragment, const RenderTarget& target)
+	{
+		PipelineConfig config;
+		config.vertex = vertex;
+		config.fragment = fragment;
+		config.target = target;
+		return m ? m->createPipeline(config) : Pipeline{};
+	}
 
-acm::RenderTarget acm::Device::createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
-{
-	return m ? m->createRenderTarget(texture, finish, depth, samples) : acm::RenderTarget{};
-}
+	Pipeline Device::createPipeline(const PipelineConfig& config)
+	{
+		return m ? m->createPipeline(config) : Pipeline{};
+	}
 
-acm::Texture acm::Device::createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage)
-{
-	return m ? m->createTexture(format, extent, mipmapped, storage) : acm::Texture{};
-}
+	ComputePipeline Device::createComputePipeline(const Shader& compute, const DescriptorSetLayout& layout)
+	{
+		return m ? m->createComputePipeline(compute, layout) : ComputePipeline{};
+	}
 
-acm::Buffer acm::Device::createBuffer(size_t size, acm::BufferUsage usage)
-{
-	return m ? m->createBuffer(size, usage) : acm::Buffer{};
-}
+	CommandPool Device::createCommandPool()
+	{
+		return m ? m->createCommandPool() : CommandPool{};
+	}
 
-acm::Sampler acm::Device::createSampler(float maxAnisotropy)
-{
-	return m ? m->createSampler(maxAnisotropy) : acm::Sampler{};
-}
+	Renderer Device::createRenderer(const SwapChain& swapChain)
+	{
+		return m ? m->createRenderer(swapChain) : Renderer{};
+	}
 
-acm::DescriptorSetLayout acm::Device::createDescriptorSetLayout(uint32_t samplerCount)
-{
-	std::vector<acm::DescriptorBinding> bindings(samplerCount);
-	for (uint32_t i = 0; i < samplerCount; ++i)
-		bindings[i] = {i, acm::DescriptorType::CombinedImageSampler, acm::ShaderStage::Fragment};
-	return m ? m->createDescriptorSetLayout(bindings) : acm::DescriptorSetLayout{};
-}
+	Texture Device::createTexture(Format format, Extent2D extent, bool mipmapped, bool storage)
+	{
+		return m ? m->createTexture(format, extent, mipmapped, storage) : Texture{};
+	}
 
-acm::DescriptorSetLayout acm::Device::createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings)
-{
-	return m ? m->createDescriptorSetLayout(bindings) : acm::DescriptorSetLayout{};
-}
+	Buffer Device::createBuffer(size_t size, BufferUsage usage)
+	{
+		return m ? m->createBuffer(size, usage) : Buffer{};
+	}
 
-acm::DescriptorSet acm::Device::createDescriptorSet(const acm::DescriptorSetLayout& layout)
-{
-	return m ? m->createDescriptorSet(layout) : acm::DescriptorSet{};
-}
+	Sampler Device::createSampler(float maxAnisotropy)
+	{
+		return m ? m->createSampler(maxAnisotropy) : Sampler{};
+	}
 
-acm::Shader acm::Device::createShader(const std::vector<char>& spirv)
-{
-	return m ? m->createShader(spirv) : acm::Shader{};
-}
+	DescriptorSetLayout Device::createDescriptorSetLayout(uint32_t samplerCount)
+	{
+		std::vector<DescriptorBinding> bindings(samplerCount);
+		for (uint32_t i = 0; i < samplerCount; ++i)
+			bindings[i] = {i, DescriptorType::CombinedImageSampler, ShaderStage::Fragment};
+		return m ? m->createDescriptorSetLayout(bindings) : DescriptorSetLayout{};
+	}
 
-acm::Pipeline acm::Device::createPipeline(const acm::Shader& vertex, const acm::Shader& fragment, const acm::RenderTarget& target)
-{
-	acm::PipelineConfig config;
-	config.vertex = vertex;
-	config.fragment = fragment;
-	config.target = target;
-	return m ? m->createPipeline(config) : acm::Pipeline{};
-}
+	DescriptorSetLayout Device::createDescriptorSetLayout(const std::vector<DescriptorBinding>& bindings)
+	{
+		return m ? m->createDescriptorSetLayout(bindings) : DescriptorSetLayout{};
+	}
 
-acm::Pipeline acm::Device::createPipeline(const acm::PipelineConfig& config)
-{
-	return m ? m->createPipeline(config) : acm::Pipeline{};
-}
+	DescriptorSet Device::createDescriptorSet(const DescriptorSetLayout& layout)
+	{
+		return m ? m->createDescriptorSet(layout) : DescriptorSet{};
+	}
 
-acm::ComputePipeline acm::Device::createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
-{
-	return m ? m->createComputePipeline(compute, layout) : acm::ComputePipeline{};
-}
+	// -----------------------------------------------------------------------------
+	// Capabilities
+	// -----------------------------------------------------------------------------
 
-acm::CommandPool acm::Device::createCommandPool()
-{
-	return m ? m->createCommandPool() : acm::CommandPool{};
-}
+	const GPU& Device::getGPU() const
+	{
+		return m->gpu();
+	}
 
-acm::Renderer acm::Device::createRenderer(const acm::SwapChain& swapChain)
-{
-	return m ? m->createRenderer(swapChain) : acm::Renderer{};
-}
+	uint32_t Device::getQueueIdx() const
+	{
+		return m->queueIndex();
+	}
 
-const acm::GPU& acm::Device::getGPU() const
-{
-	return m->gpu();
-}
+	const GPUFeatures& Device::enabledFeatures() const
+	{
+		return m->enabledFeatures();
+	}
 
-uint32_t acm::Device::getQueueIdx() const
-{
-	return m->queueIndex();
-}
+	SampleCount Device::maxSampleCount() const
+	{
+		return m->maxSampleCount();
+	}
 
-const acm::GPUFeatures& acm::Device::enabledFeatures() const
-{
-	return m->enabledFeatures();
-}
+	size_t Device::minUniformBufferOffsetAlignment() const
+	{
+		return m->minUniformBufferOffsetAlignment();
+	}
 
-acm::SampleCount acm::Device::maxSampleCount() const
-{
-	return m->maxSampleCount();
-}
+	size_t Device::memoryBlockCount() const
+	{
+		return m->memoryBlockCount();
+	}
 
-size_t acm::Device::minUniformBufferOffsetAlignment() const
-{
-	return m->minUniformBufferOffsetAlignment();
-}
+	// -----------------------------------------------------------------------------
+	// Synchronization
+	// -----------------------------------------------------------------------------
 
-size_t acm::Device::memoryBlockCount() const
-{
-	return m->memoryBlockCount();
-}
+	void Device::waitIdle()
+	{
+		m->waitIdle();
+	}
 
-void acm::Device::waitIdle()
-{
-	m->waitIdle();
-}
+	Error Device::submitSync(const std::function<void(CommandBuffer&)>& record)
+	{
+		CommandPool pool = createCommandPool();
+		CommandBuffer commandBuffer = pool.allocate();
+		if (!commandBuffer.valid())
+			return Error("submitSync: failed to allocate command buffer");
 
-acm::Error acm::Device::submitSync(const std::function<void(acm::CommandBuffer&)>& record)
-{
-	acm::CommandPool pool = createCommandPool();
-	acm::CommandBuffer commandBuffer = pool.allocate();
-	if (!commandBuffer.valid())
-		return acm::Error("submitSync: failed to allocate command buffer");
+		if (auto error = commandBuffer.begin())
+			return error;
+		record(commandBuffer);
+		if (auto error = commandBuffer.end())
+			return error;
 
-	if (auto error = commandBuffer.begin())
-		return error;
-	record(commandBuffer);
-	if (auto error = commandBuffer.end())
-		return error;
+		return submitSync(commandBuffer);
+	}
 
-	return submitSync(commandBuffer);
-}
+	Error Device::submitSync(const CommandBuffer& commandBuffer)
+	{
+		return m ? m->submitCommandBufferSync(commandBuffer) : Error("submitSync: invalid device");
+	}
 
-acm::Error acm::Device::submitSync(const acm::CommandBuffer& commandBuffer)
-{
-	return m ? m->submitCommandBufferSync(commandBuffer) : acm::Error("submitSync: invalid device");
-}
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Device::Device(std::unique_ptr<native::Device> device)
+	{
+		if (!device->valid())
+		{
+			m_error = device->error();
+			return;
+		}
+		m = std::move(device);
+	}
+
+} // namespace acm

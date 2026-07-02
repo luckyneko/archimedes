@@ -12,45 +12,61 @@
 
 #include <utility>
 
-acm::ComputePipeline::ComputePipeline() = default;
-
-acm::ComputePipeline::ComputePipeline(acm::ResourceRef<acm::native::ComputePipeline> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::ComputePipeline::ComputePipeline(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	ComputePipeline::ComputePipeline() = default;
 
-acm::ComputePipeline::ComputePipeline(const acm::ComputePipeline& other) = default;
+	ComputePipeline::ComputePipeline(const ComputePipeline& other) = default;
 
-acm::ComputePipeline& acm::ComputePipeline::operator=(const acm::ComputePipeline& other) = default;
+	ComputePipeline& ComputePipeline::operator=(const ComputePipeline& other) = default;
 
-acm::ComputePipeline::ComputePipeline(acm::ComputePipeline&& other) noexcept = default;
+	ComputePipeline::ComputePipeline(ComputePipeline&& other) noexcept = default;
 
-acm::ComputePipeline& acm::ComputePipeline::operator=(acm::ComputePipeline&& other) noexcept = default;
+	ComputePipeline& ComputePipeline::operator=(ComputePipeline&& other) noexcept = default;
 
-acm::ComputePipeline::~ComputePipeline() = default;
+	ComputePipeline::~ComputePipeline() = default;
 
-void acm::ComputePipeline::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::ComputePipeline::valid() const
-{
-	return m_resource.valid();
-}
+	void ComputePipeline::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::ComputePipeline::error() const
-{
-	return m_error;
-}
+	bool ComputePipeline::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::ComputePipeline* acm::ComputePipeline::native() const
-{
-	return m_resource.access();
-}
+	Error ComputePipeline::error() const
+	{
+		return m_error;
+	}
+
+	native::ComputePipeline* ComputePipeline::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	ComputePipeline::ComputePipeline(ResourceRef<native::ComputePipeline> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	ComputePipeline::ComputePipeline(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

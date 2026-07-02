@@ -27,6 +27,7 @@ namespace acm
 	class DescriptorSet
 	{
 	public:
+		// Lifetime
 		DescriptorSet();
 		DescriptorSet(const acm::DescriptorSet& other);
 		DescriptorSet& operator=(const acm::DescriptorSet& other);
@@ -34,11 +35,13 @@ namespace acm
 		DescriptorSet& operator=(acm::DescriptorSet&& other) noexcept;
 		~DescriptorSet();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::DescriptorSet* native() const;
 
+		// Writes
 		// Writes a combined image sampler at `binding` (the texture is sampled in
 		// SHADER_READ_ONLY layout — i.e. it was rendered/uploaded ready to sample).
 		void setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement = 0);
@@ -59,6 +62,7 @@ namespace acm
 		void setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		DescriptorSet(acm::ResourceRef<acm::native::DescriptorSet> resource);
 		explicit DescriptorSet(acm::Error error);

@@ -12,45 +12,61 @@
 
 #include <utility>
 
-acm::Sampler::Sampler() = default;
-
-acm::Sampler::Sampler(acm::ResourceRef<acm::native::Sampler> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::Sampler::Sampler(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	Sampler::Sampler() = default;
 
-acm::Sampler::Sampler(const acm::Sampler& other) = default;
+	Sampler::Sampler(const Sampler& other) = default;
 
-acm::Sampler& acm::Sampler::operator=(const acm::Sampler& other) = default;
+	Sampler& Sampler::operator=(const Sampler& other) = default;
 
-acm::Sampler::Sampler(acm::Sampler&& other) noexcept = default;
+	Sampler::Sampler(Sampler&& other) noexcept = default;
 
-acm::Sampler& acm::Sampler::operator=(acm::Sampler&& other) noexcept = default;
+	Sampler& Sampler::operator=(Sampler&& other) noexcept = default;
 
-acm::Sampler::~Sampler() = default;
+	Sampler::~Sampler() = default;
 
-void acm::Sampler::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::Sampler::valid() const
-{
-	return m_resource.valid();
-}
+	void Sampler::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::Sampler::error() const
-{
-	return m_error;
-}
+	bool Sampler::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::Sampler* acm::Sampler::native() const
-{
-	return m_resource.access();
-}
+	Error Sampler::error() const
+	{
+		return m_error;
+	}
+
+	native::Sampler* Sampler::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Sampler::Sampler(ResourceRef<native::Sampler> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	Sampler::Sampler(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

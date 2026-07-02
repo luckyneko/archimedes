@@ -12,45 +12,61 @@
 
 #include <utility>
 
-acm::Shader::Shader() = default;
-
-acm::Shader::Shader(acm::ResourceRef<acm::native::Shader> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::Shader::Shader(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	Shader::Shader() = default;
 
-acm::Shader::Shader(const acm::Shader& other) = default;
+	Shader::Shader(const Shader& other) = default;
 
-acm::Shader& acm::Shader::operator=(const acm::Shader& other) = default;
+	Shader& Shader::operator=(const Shader& other) = default;
 
-acm::Shader::Shader(acm::Shader&& other) noexcept = default;
+	Shader::Shader(Shader&& other) noexcept = default;
 
-acm::Shader& acm::Shader::operator=(acm::Shader&& other) noexcept = default;
+	Shader& Shader::operator=(Shader&& other) noexcept = default;
 
-acm::Shader::~Shader() = default;
+	Shader::~Shader() = default;
 
-void acm::Shader::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::Shader::valid() const
-{
-	return m_resource.valid();
-}
+	void Shader::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::Shader::error() const
-{
-	return m_error;
-}
+	bool Shader::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::Shader* acm::Shader::native() const
-{
-	return m_resource.access();
-}
+	Error Shader::error() const
+	{
+		return m_error;
+	}
+
+	native::Shader* Shader::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Shader::Shader(ResourceRef<native::Shader> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	Shader::Shader(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

@@ -31,6 +31,7 @@ namespace acm
 	class Texture
 	{
 	public:
+		// Lifetime
 		Texture();
 		Texture(const acm::Texture& other);
 		Texture& operator=(const acm::Texture& other);
@@ -38,25 +39,27 @@ namespace acm
 		Texture& operator=(acm::Texture&& other) noexcept;
 		~Texture();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Texture* native() const;
 
+		// Upload
 		// Uploads CPU pixels (tightly packed, matching the texture's format/extent) via
 		// a staging buffer + one-shot copy. For a mipmapped texture it then generates
 		// the rest of the chain by blitting; leaves all levels in SHADER_READ_ONLY
 		// layout — i.e. ready to sample. Color textures only; synchronous (load-time).
 		acm::Error upload(const void* pixels, size_t size);
 
+		// Properties
 		acm::Format format() const;
 		acm::Extent2D getExtent() const;
 		uint32_t mipLevels() const; // 1 unless created mipmapped
 
 	private:
+		// Construction
 		friend acm::native::Device;
-		// `storage` (color only) adds STORAGE usage so a compute shader can write the
-		// image via a StorageImage descriptor.
 		Texture(acm::ResourceRef<acm::native::Texture> resource);
 		explicit Texture(acm::Error error);
 

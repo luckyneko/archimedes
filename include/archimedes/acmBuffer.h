@@ -27,6 +27,7 @@ namespace acm
 	class Buffer
 	{
 	public:
+		// Lifetime
 		Buffer();
 		Buffer(const acm::Buffer& other);
 		Buffer& operator=(const acm::Buffer& other);
@@ -34,11 +35,13 @@ namespace acm
 		Buffer& operator=(acm::Buffer&& other) noexcept;
 		~Buffer();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Buffer* native() const;
 
+		// Memory
 		size_t size() const;
 		void* map(); // host-visible buffers only; returns a pointer to the (coherent) mapping (else nullptr)
 		void unmap();
@@ -47,6 +50,7 @@ namespace acm
 		acm::Error write(const void* data, size_t size);
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		Buffer(acm::ResourceRef<acm::native::Buffer> resource);
 		explicit Buffer(acm::Error error);

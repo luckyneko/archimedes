@@ -16,9 +16,13 @@
 
 namespace acm
 {
+	// Copyable handle to renderable attachment metadata. Swapchain targets borrow their
+	// image; offscreen targets render into a Texture and leave it in the requested final
+	// layout after endRendering().
 	class RenderTarget
 	{
 	public:
+		// Lifetime
 		RenderTarget();
 		RenderTarget(const acm::RenderTarget& other);
 		RenderTarget& operator=(const acm::RenderTarget& other);
@@ -26,16 +30,19 @@ namespace acm
 		RenderTarget& operator=(acm::RenderTarget&& other) noexcept;
 		~RenderTarget();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::RenderTarget* native() const;
 
+		// Properties
 		acm::Extent2D getExtent() const;
 		bool hasDepth() const;
 		bool isMultisampled() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		RenderTarget(acm::ResourceRef<acm::native::RenderTarget> resource);
 		explicit RenderTarget(acm::Error error);

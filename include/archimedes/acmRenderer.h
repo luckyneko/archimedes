@@ -18,11 +18,15 @@
 
 namespace acm
 {
+	// Copyable handle to the swapchain frame loop. render() waits the current
+	// frame-in-flight fence, records into that slot's CommandBuffer, submits, and
+	// presents; frameIndex identifies the safe per-frame resource slot to update.
 	class Renderer
 	{
 	public:
 		static constexpr uint32_t MaxFramesInFlight = 2;
 
+		// Lifetime
 		Renderer();
 		Renderer(const acm::Renderer& other);
 		Renderer& operator=(const acm::Renderer& other);
@@ -30,16 +34,22 @@ namespace acm
 		Renderer& operator=(acm::Renderer&& other) noexcept;
 		~Renderer();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Renderer* native() const;
 
+		// Frames
+		// record runs inside dynamic rendering for the current swapchain image. prePass
+		// runs first, outside any rendering scope, for compute/transitions/barriers that
+		// feed the draw pass.
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& record);
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& prePass,
 						  const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& record);
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		Renderer(acm::ResourceRef<acm::native::Renderer> resource);
 		explicit Renderer(acm::Error error);

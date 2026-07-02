@@ -12,45 +12,61 @@
 
 #include <utility>
 
-acm::DescriptorSetLayout::DescriptorSetLayout() = default;
-
-acm::DescriptorSetLayout::DescriptorSetLayout(acm::ResourceRef<acm::native::DescriptorSetLayout> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::DescriptorSetLayout::DescriptorSetLayout(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	DescriptorSetLayout::DescriptorSetLayout() = default;
 
-acm::DescriptorSetLayout::DescriptorSetLayout(const acm::DescriptorSetLayout& other) = default;
+	DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayout& other) = default;
 
-acm::DescriptorSetLayout& acm::DescriptorSetLayout::operator=(const acm::DescriptorSetLayout& other) = default;
+	DescriptorSetLayout& DescriptorSetLayout::operator=(const DescriptorSetLayout& other) = default;
 
-acm::DescriptorSetLayout::DescriptorSetLayout(acm::DescriptorSetLayout&& other) noexcept = default;
+	DescriptorSetLayout::DescriptorSetLayout(DescriptorSetLayout&& other) noexcept = default;
 
-acm::DescriptorSetLayout& acm::DescriptorSetLayout::operator=(acm::DescriptorSetLayout&& other) noexcept = default;
+	DescriptorSetLayout& DescriptorSetLayout::operator=(DescriptorSetLayout&& other) noexcept = default;
 
-acm::DescriptorSetLayout::~DescriptorSetLayout() = default;
+	DescriptorSetLayout::~DescriptorSetLayout() = default;
 
-void acm::DescriptorSetLayout::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::DescriptorSetLayout::valid() const
-{
-	return m_resource.valid();
-}
+	void DescriptorSetLayout::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::DescriptorSetLayout::error() const
-{
-	return m_error;
-}
+	bool DescriptorSetLayout::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::DescriptorSetLayout* acm::DescriptorSetLayout::native() const
-{
-	return m_resource.access();
-}
+	Error DescriptorSetLayout::error() const
+	{
+		return m_error;
+	}
+
+	native::DescriptorSetLayout* DescriptorSetLayout::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	DescriptorSetLayout::DescriptorSetLayout(ResourceRef<native::DescriptorSetLayout> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	DescriptorSetLayout::DescriptorSetLayout(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

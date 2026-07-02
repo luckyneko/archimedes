@@ -19,6 +19,8 @@
 
 namespace acm
 {
+	// Instance creation knobs. Portability is enabled by default so macOS/MoltenVK
+	// devices enumerate without callers needing platform-specific setup.
 	struct InstanceConfig
 	{
 		// Enumerate portability drivers such as MoltenVK when the extension is available.
@@ -29,9 +31,13 @@ namespace acm
 		bool debug{false};
 	};
 
+	// Unique owning root for Vulkan instance state. It enumerates GPUs and builds
+	// Surfaces/Devices; every Surface and Device created from it must be reset before
+	// the Instance is destroyed.
 	class Instance
 	{
 	public:
+		// Lifetime
 		Instance();
 		Instance(const char* appName, const acm::Version& appVer, const acm::InstanceConfig& config = {});
 		Instance(const acm::Instance& other) = delete;
@@ -40,13 +46,17 @@ namespace acm
 		Instance& operator=(acm::Instance&& other) noexcept;
 		~Instance();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::InstanceHandle nativeInstance() const;
 
+		// Factories
 		acm::Surface createSurface(acm::native::SurfaceHandle surface);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIdx);
+
+		// Enumeration
 		const std::vector<acm::GPU>& getAvailableGPUs() const;
 
 	private:

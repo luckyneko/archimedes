@@ -16,9 +16,12 @@
 
 namespace acm
 {
+	// Copyable handle to a platform window surface created by Instance. Surface support
+	// is captured per enumerated GPU so callers can pick a present-capable queue.
 	class Surface
 	{
 	public:
+		// Lifetime
 		Surface();
 		Surface(const acm::Surface& other);
 		Surface& operator=(const acm::Surface& other);
@@ -26,14 +29,17 @@ namespace acm
 		Surface& operator=(acm::Surface&& other) noexcept;
 		~Surface();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Surface* native() const;
 
+		// Capabilities
 		const std::vector<acm::GPUSurfaceSupport>& getGPUSupport() const;
 
 	private:
+		// Construction
 		friend acm::native::Instance;
 		Surface(acm::ResourceRef<acm::native::Surface> resource);
 		explicit Surface(acm::Error error);

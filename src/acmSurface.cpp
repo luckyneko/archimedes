@@ -12,53 +12,73 @@
 
 #include <utility>
 
-acm::Surface::Surface() = default;
-
-acm::Surface::Surface(acm::ResourceRef<acm::native::Surface> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::Surface::Surface(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	Surface::Surface() = default;
 
-acm::Surface::Surface(const acm::Surface& other) = default;
+	Surface::Surface(const Surface& other) = default;
 
-acm::Surface& acm::Surface::operator=(const acm::Surface& other) = default;
+	Surface& Surface::operator=(const Surface& other) = default;
 
-acm::Surface::Surface(acm::Surface&& other) noexcept = default;
+	Surface::Surface(Surface&& other) noexcept = default;
 
-acm::Surface& acm::Surface::operator=(acm::Surface&& other) noexcept = default;
+	Surface& Surface::operator=(Surface&& other) noexcept = default;
 
-acm::Surface::~Surface() = default;
+	Surface::~Surface() = default;
 
-void acm::Surface::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::Surface::valid() const
-{
-	return m_resource.valid();
-}
+	void Surface::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::Surface::error() const
-{
-	return m_error;
-}
+	bool Surface::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::Surface* acm::Surface::native() const
-{
-	return m_resource.access();
-}
+	Error Surface::error() const
+	{
+		return m_error;
+	}
 
-const std::vector<acm::GPUSurfaceSupport>& acm::Surface::getGPUSupport() const
-{
-	static const std::vector<acm::GPUSurfaceSupport> empty;
-	if (auto* resource = m_resource.access())
-		return resource->support();
-	return empty;
-}
+	native::Surface* Surface::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Capabilities
+	// -----------------------------------------------------------------------------
+
+	const std::vector<GPUSurfaceSupport>& Surface::getGPUSupport() const
+	{
+		static const std::vector<GPUSurfaceSupport> empty;
+		if (auto* resource = m_resource.access())
+			return resource->support();
+		return empty;
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Surface::Surface(ResourceRef<native::Surface> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	Surface::Surface(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

@@ -12,72 +12,92 @@
 
 #include <utility>
 
-acm::Buffer::Buffer() = default;
-
-acm::Buffer::Buffer(acm::ResourceRef<acm::native::Buffer> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::Buffer::Buffer(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	Buffer::Buffer() = default;
 
-acm::Buffer::Buffer(const acm::Buffer& other) = default;
+	Buffer::Buffer(const Buffer& other) = default;
 
-acm::Buffer& acm::Buffer::operator=(const acm::Buffer& other) = default;
+	Buffer& Buffer::operator=(const Buffer& other) = default;
 
-acm::Buffer::Buffer(acm::Buffer&& other) noexcept = default;
+	Buffer::Buffer(Buffer&& other) noexcept = default;
 
-acm::Buffer& acm::Buffer::operator=(acm::Buffer&& other) noexcept = default;
+	Buffer& Buffer::operator=(Buffer&& other) noexcept = default;
 
-acm::Buffer::~Buffer() = default;
+	Buffer::~Buffer() = default;
 
-void acm::Buffer::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::Buffer::valid() const
-{
-	return m_resource.valid();
-}
+	void Buffer::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::Buffer::error() const
-{
-	return m_error;
-}
+	bool Buffer::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::Buffer* acm::Buffer::native() const
-{
-	return m_resource.access();
-}
+	Error Buffer::error() const
+	{
+		return m_error;
+	}
 
-size_t acm::Buffer::size() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->size();
-	return 0;
-}
+	native::Buffer* Buffer::native() const
+	{
+		return m_resource.access();
+	}
 
-void* acm::Buffer::map()
-{
-	if (auto* resource = m_resource.access())
-		return resource->map();
-	return nullptr;
-}
+	// -----------------------------------------------------------------------------
+	// Memory
+	// -----------------------------------------------------------------------------
 
-void acm::Buffer::unmap()
-{
-}
+	size_t Buffer::size() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->size();
+		return 0;
+	}
 
-acm::Error acm::Buffer::write(const void* data, size_t size)
-{
-	if (!m_resource)
-		return acm::Error("Buffer::write: invalid buffer");
-	if (auto* resource = m_resource.access())
-		return resource->write(data, size);
-	return acm::Error("Buffer::write: invalid buffer");
-}
+	void* Buffer::map()
+	{
+		if (auto* resource = m_resource.access())
+			return resource->map();
+		return nullptr;
+	}
+
+	void Buffer::unmap()
+	{
+	}
+
+	Error Buffer::write(const void* data, size_t size)
+	{
+		if (!m_resource)
+			return Error("Buffer::write: invalid buffer");
+		if (auto* resource = m_resource.access())
+			return resource->write(data, size);
+		return Error("Buffer::write: invalid buffer");
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Buffer::Buffer(ResourceRef<native::Buffer> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	Buffer::Buffer(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

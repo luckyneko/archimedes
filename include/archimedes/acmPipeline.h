@@ -49,6 +49,7 @@ namespace acm
 	class Pipeline
 	{
 	public:
+		// Lifetime
 		Pipeline();
 		Pipeline(const acm::Pipeline& other);
 		Pipeline& operator=(const acm::Pipeline& other);
@@ -56,12 +57,14 @@ namespace acm
 		Pipeline& operator=(acm::Pipeline&& other) noexcept;
 		~Pipeline();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Pipeline* native() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		Pipeline(acm::ResourceRef<acm::native::Pipeline> resource);
 		explicit Pipeline(acm::Error error);

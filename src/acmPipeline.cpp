@@ -12,45 +12,61 @@
 
 #include <utility>
 
-acm::Pipeline::Pipeline() = default;
-
-acm::Pipeline::Pipeline(acm::ResourceRef<acm::native::Pipeline> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::Pipeline::Pipeline(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	Pipeline::Pipeline() = default;
 
-acm::Pipeline::Pipeline(const acm::Pipeline& other) = default;
+	Pipeline::Pipeline(const Pipeline& other) = default;
 
-acm::Pipeline& acm::Pipeline::operator=(const acm::Pipeline& other) = default;
+	Pipeline& Pipeline::operator=(const Pipeline& other) = default;
 
-acm::Pipeline::Pipeline(acm::Pipeline&& other) noexcept = default;
+	Pipeline::Pipeline(Pipeline&& other) noexcept = default;
 
-acm::Pipeline& acm::Pipeline::operator=(acm::Pipeline&& other) noexcept = default;
+	Pipeline& Pipeline::operator=(Pipeline&& other) noexcept = default;
 
-acm::Pipeline::~Pipeline() = default;
+	Pipeline::~Pipeline() = default;
 
-void acm::Pipeline::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::Pipeline::valid() const
-{
-	return m_resource.valid();
-}
+	void Pipeline::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::Pipeline::error() const
-{
-	return m_error;
-}
+	bool Pipeline::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::Pipeline* acm::Pipeline::native() const
-{
-	return m_resource.access();
-}
+	Error Pipeline::error() const
+	{
+		return m_error;
+	}
+
+	native::Pipeline* Pipeline::native() const
+	{
+		return m_resource.access();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	Pipeline::Pipeline(ResourceRef<native::Pipeline> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	Pipeline::Pipeline(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

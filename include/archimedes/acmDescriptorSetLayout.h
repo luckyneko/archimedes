@@ -27,6 +27,7 @@ namespace acm
 	class DescriptorSetLayout
 	{
 	public:
+		// Lifetime
 		DescriptorSetLayout();
 		DescriptorSetLayout(const acm::DescriptorSetLayout& other);
 		DescriptorSetLayout& operator=(const acm::DescriptorSetLayout& other);
@@ -34,12 +35,14 @@ namespace acm
 		DescriptorSetLayout& operator=(acm::DescriptorSetLayout&& other) noexcept;
 		~DescriptorSetLayout();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::DescriptorSetLayout* native() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		DescriptorSetLayout(acm::ResourceRef<acm::native::DescriptorSetLayout> resource);
 		explicit DescriptorSetLayout(acm::Error error);

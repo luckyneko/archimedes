@@ -13,80 +13,100 @@
 
 #include <utility>
 
-acm::SwapChain::SwapChain() = default;
-
-acm::SwapChain::SwapChain(acm::ResourceRef<acm::native::SwapChain> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::SwapChain::SwapChain(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	SwapChain::SwapChain() = default;
 
-acm::SwapChain::SwapChain(const acm::SwapChain& other) = default;
+	SwapChain::SwapChain(const SwapChain& other) = default;
 
-acm::SwapChain& acm::SwapChain::operator=(const acm::SwapChain& other) = default;
+	SwapChain& SwapChain::operator=(const SwapChain& other) = default;
 
-acm::SwapChain::SwapChain(acm::SwapChain&& other) noexcept = default;
+	SwapChain::SwapChain(SwapChain&& other) noexcept = default;
 
-acm::SwapChain& acm::SwapChain::operator=(acm::SwapChain&& other) noexcept = default;
+	SwapChain& SwapChain::operator=(SwapChain&& other) noexcept = default;
 
-acm::SwapChain::~SwapChain() = default;
+	SwapChain::~SwapChain() = default;
 
-void acm::SwapChain::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::SwapChain::valid() const
-{
-	return m_resource.valid();
-}
+	void SwapChain::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::SwapChain::error() const
-{
-	return m_error;
-}
+	bool SwapChain::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::SwapChain* acm::SwapChain::native() const
-{
-	return m_resource.access();
-}
+	Error SwapChain::error() const
+	{
+		return m_error;
+	}
 
-bool acm::SwapChain::recreate()
-{
-	if (auto* resource = m_resource.access())
-		return resource->recreate();
-	return false;
-}
+	native::SwapChain* SwapChain::native() const
+	{
+		return m_resource.access();
+	}
 
-acm::SurfaceFormat acm::SwapChain::getFormat() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->format();
-	return acm::SurfaceFormat{};
-}
+	// -----------------------------------------------------------------------------
+	// Images
+	// -----------------------------------------------------------------------------
 
-acm::Extent2D acm::SwapChain::getExtents() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->extent();
-	return acm::Extent2D{};
-}
+	bool SwapChain::recreate()
+	{
+		if (auto* resource = m_resource.access())
+			return resource->recreate();
+		return false;
+	}
 
-size_t acm::SwapChain::getRenderTargetCount() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->renderTargetCount();
-	return 0;
-}
+	SurfaceFormat SwapChain::getFormat() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->format();
+		return SurfaceFormat{};
+	}
 
-acm::RenderTarget acm::SwapChain::getRenderTarget(size_t idx) const
-{
-	if (auto* resource = m_resource.access())
-		return resource->renderTarget(idx);
-	return acm::RenderTarget{};
-}
+	Extent2D SwapChain::getExtents() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->extent();
+		return Extent2D{};
+	}
+
+	size_t SwapChain::getRenderTargetCount() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->renderTargetCount();
+		return 0;
+	}
+
+	RenderTarget SwapChain::getRenderTarget(size_t idx) const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->renderTarget(idx);
+		return RenderTarget{};
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	SwapChain::SwapChain(ResourceRef<native::SwapChain> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	SwapChain::SwapChain(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

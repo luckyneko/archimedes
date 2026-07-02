@@ -15,9 +15,12 @@
 
 namespace acm
 {
+	// Copyable handle to a native command pool. It owns the allocation arena for
+	// CommandBuffers; keep the pool alive while allocated command-buffer handles exist.
 	class CommandPool
 	{
 	public:
+		// Lifetime
 		CommandPool();
 		CommandPool(const acm::CommandPool& other);
 		CommandPool& operator=(const acm::CommandPool& other);
@@ -25,13 +28,17 @@ namespace acm
 		CommandPool& operator=(acm::CommandPool&& other) noexcept;
 		~CommandPool();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::CommandBuffer allocate();
 		acm::native::CommandPool* native() const;
 
+		// Allocation
+		acm::CommandBuffer allocate();
+
 	private:
+		// Construction
 		friend acm::native::Device;
 		CommandPool(acm::ResourceRef<acm::native::CommandPool> resource);
 		explicit CommandPool(acm::Error error);

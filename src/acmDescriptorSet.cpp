@@ -15,73 +15,101 @@
 
 #include <utility>
 
-acm::DescriptorSet::DescriptorSet() = default;
-
-acm::DescriptorSet::DescriptorSet(acm::ResourceRef<acm::native::DescriptorSet> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::DescriptorSet::DescriptorSet(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	DescriptorSet::DescriptorSet() = default;
 
-acm::DescriptorSet::DescriptorSet(const acm::DescriptorSet& other) = default;
+	DescriptorSet::DescriptorSet(const DescriptorSet& other) = default;
 
-acm::DescriptorSet& acm::DescriptorSet::operator=(const acm::DescriptorSet& other) = default;
+	DescriptorSet& DescriptorSet::operator=(const DescriptorSet& other) = default;
 
-acm::DescriptorSet::DescriptorSet(acm::DescriptorSet&& other) noexcept = default;
+	DescriptorSet::DescriptorSet(DescriptorSet&& other) noexcept = default;
 
-acm::DescriptorSet& acm::DescriptorSet::operator=(acm::DescriptorSet&& other) noexcept = default;
+	DescriptorSet& DescriptorSet::operator=(DescriptorSet&& other) noexcept = default;
 
-acm::DescriptorSet::~DescriptorSet() = default;
+	DescriptorSet::~DescriptorSet() = default;
 
-void acm::DescriptorSet::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::DescriptorSet::valid() const
-{
-	return m_resource.valid();
-}
+	void DescriptorSet::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::DescriptorSet::error() const
-{
-	return m_error;
-}
+	bool DescriptorSet::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::DescriptorSet* acm::DescriptorSet::native() const
-{
-	return m_resource.access();
-}
+	Error DescriptorSet::error() const
+	{
+		return m_error;
+	}
 
-void acm::DescriptorSet::setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement)
-{
-	if (auto* resource = m_resource.access())
-		if (texture.native() && sampler.native())
-			resource->setTexture(binding, *texture.native(), *sampler.native(), arrayElement);
-}
+	native::DescriptorSet* DescriptorSet::native() const
+	{
+		return m_resource.access();
+	}
 
-void acm::DescriptorSet::setBuffer(uint32_t binding, const acm::Buffer& buffer, uint32_t arrayElement)
-{
-	if (auto* resource = m_resource.access())
-		if (buffer.native())
-			resource->setBuffer(binding, *buffer.native(), arrayElement);
-}
+	// -----------------------------------------------------------------------------
+	// Writes
+	// -----------------------------------------------------------------------------
 
-void acm::DescriptorSet::setDynamicBuffer(uint32_t binding, const acm::Buffer& buffer, size_t elementSize, uint32_t arrayElement)
-{
-	if (auto* resource = m_resource.access())
-		if (buffer.native())
-			resource->setDynamicBuffer(binding, *buffer.native(), elementSize, arrayElement);
-}
+	void DescriptorSet::setTexture(uint32_t binding, const Texture& texture, const Sampler& sampler, uint32_t arrayElement)
+	{
+		if (auto* resource = m_resource.access())
+		{
+			if (texture.native() && sampler.native())
+				resource->setTexture(binding, *texture.native(), *sampler.native(), arrayElement);
+		}
+	}
 
-void acm::DescriptorSet::setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement)
-{
-	if (auto* resource = m_resource.access())
-		if (texture.native())
-			resource->setStorageImage(binding, *texture.native(), arrayElement);
-}
+	void DescriptorSet::setBuffer(uint32_t binding, const Buffer& buffer, uint32_t arrayElement)
+	{
+		if (auto* resource = m_resource.access())
+		{
+			if (buffer.native())
+				resource->setBuffer(binding, *buffer.native(), arrayElement);
+		}
+	}
+
+	void DescriptorSet::setDynamicBuffer(uint32_t binding, const Buffer& buffer, size_t elementSize, uint32_t arrayElement)
+	{
+		if (auto* resource = m_resource.access())
+		{
+			if (buffer.native())
+				resource->setDynamicBuffer(binding, *buffer.native(), elementSize, arrayElement);
+		}
+	}
+
+	void DescriptorSet::setStorageImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	{
+		if (auto* resource = m_resource.access())
+		{
+			if (texture.native())
+				resource->setStorageImage(binding, *texture.native(), arrayElement);
+		}
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	DescriptorSet::DescriptorSet(ResourceRef<native::DescriptorSet> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	DescriptorSet::DescriptorSet(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

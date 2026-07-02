@@ -12,66 +12,86 @@
 
 #include <utility>
 
-acm::RenderTarget::RenderTarget() = default;
-
-acm::RenderTarget::RenderTarget(acm::ResourceRef<acm::native::RenderTarget> resource)
-	: m_resource(std::move(resource))
+namespace acm
 {
-}
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
 
-acm::RenderTarget::RenderTarget(acm::Error error)
-	: m_error(std::move(error))
-{
-}
+	RenderTarget::RenderTarget() = default;
 
-acm::RenderTarget::RenderTarget(const acm::RenderTarget& other) = default;
+	RenderTarget::RenderTarget(const RenderTarget& other) = default;
 
-acm::RenderTarget& acm::RenderTarget::operator=(const acm::RenderTarget& other) = default;
+	RenderTarget& RenderTarget::operator=(const RenderTarget& other) = default;
 
-acm::RenderTarget::RenderTarget(acm::RenderTarget&& other) noexcept = default;
+	RenderTarget::RenderTarget(RenderTarget&& other) noexcept = default;
 
-acm::RenderTarget& acm::RenderTarget::operator=(acm::RenderTarget&& other) noexcept = default;
+	RenderTarget& RenderTarget::operator=(RenderTarget&& other) noexcept = default;
 
-acm::RenderTarget::~RenderTarget() = default;
+	RenderTarget::~RenderTarget() = default;
 
-void acm::RenderTarget::reset()
-{
-	m_resource.reset();
-	m_error = {};
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-bool acm::RenderTarget::valid() const
-{
-	return m_resource.valid();
-}
+	void RenderTarget::reset()
+	{
+		m_resource.reset();
+		m_error = {};
+	}
 
-acm::Error acm::RenderTarget::error() const
-{
-	return m_error;
-}
+	bool RenderTarget::valid() const
+	{
+		return m_resource.valid();
+	}
 
-acm::native::RenderTarget* acm::RenderTarget::native() const
-{
-	return m_resource.access();
-}
+	Error RenderTarget::error() const
+	{
+		return m_error;
+	}
 
-acm::Extent2D acm::RenderTarget::getExtent() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->extent();
-	return acm::Extent2D{};
-}
+	native::RenderTarget* RenderTarget::native() const
+	{
+		return m_resource.access();
+	}
 
-bool acm::RenderTarget::hasDepth() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->hasDepth();
-	return false;
-}
+	// -----------------------------------------------------------------------------
+	// Properties
+	// -----------------------------------------------------------------------------
 
-bool acm::RenderTarget::isMultisampled() const
-{
-	if (auto* resource = m_resource.access())
-		return resource->multisampled();
-	return false;
-}
+	Extent2D RenderTarget::getExtent() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->extent();
+		return Extent2D{};
+	}
+
+	bool RenderTarget::hasDepth() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->hasDepth();
+		return false;
+	}
+
+	bool RenderTarget::isMultisampled() const
+	{
+		if (auto* resource = m_resource.access())
+			return resource->multisampled();
+		return false;
+	}
+
+	// -----------------------------------------------------------------------------
+	// Construction
+	// -----------------------------------------------------------------------------
+
+	RenderTarget::RenderTarget(ResourceRef<native::RenderTarget> resource)
+		: m_resource(std::move(resource))
+	{
+	}
+
+	RenderTarget::RenderTarget(Error error)
+		: m_error(std::move(error))
+	{
+	}
+
+} // namespace acm

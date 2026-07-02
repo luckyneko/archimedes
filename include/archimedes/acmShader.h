@@ -17,9 +17,11 @@
 
 namespace acm
 {
+	// Copyable handle to a shader module created from SPIR-V bytecode.
 	class Shader
 	{
 	public:
+		// Lifetime
 		Shader();
 		Shader(const acm::Shader& other);
 		Shader& operator=(const acm::Shader& other);
@@ -27,16 +29,15 @@ namespace acm
 		Shader& operator=(acm::Shader&& other) noexcept;
 		~Shader();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Shader* native() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
-		// spirv is the compiled SPIR-V bytecode (loading it from disk is the
-		// caller's concern). codeSize is in bytes; the data must be 4-byte aligned,
-		// which std::vector already guarantees.
 		Shader(acm::ResourceRef<acm::native::Shader> resource);
 		explicit Shader(acm::Error error);
 

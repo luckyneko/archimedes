@@ -22,9 +22,12 @@
 
 namespace acm
 {
+	// Unique owning root for device resources. Factories allocate children in stable
+	// typed resource pools; every child wrapper must be reset before the Device.
 	class Device
 	{
 	public:
+		// Lifetime
 		Device();
 		Device(const acm::Device& other) = delete;
 		Device& operator=(const acm::Device& other) = delete;
@@ -32,13 +35,16 @@ namespace acm
 		Device& operator=(acm::Device&& other) noexcept;
 		~Device();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 
-		// Factories — the only way to build children of a Device.
+		// Factories
+		// The only public way to build Device children.
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
+		// spirv is compiled SPIR-V bytecode; loading it from disk is the caller's job.
 		acm::Shader createShader(const std::vector<char>& spirv);
 		// Convenience: a pipeline with no vertex input and no descriptors (geometry
 		// from the shader). For vertex buffers / descriptors, use the config form.
@@ -64,6 +70,7 @@ namespace acm
 		acm::DescriptorSetLayout createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings);
 		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
 
+		// Capabilities
 		const acm::GPU& getGPU() const;
 		uint32_t getQueueIdx() const;
 		// The curated optional features actually enabled on this device (the subset of
@@ -78,6 +85,7 @@ namespace acm
 
 		size_t memoryBlockCount() const; // live native memory blocks in the pool
 
+		// Synchronization
 		// Blocks until the device is idle (all queues drained). Like the queue, host
 		// access must be externally synchronized — call it only when no other thread
 		// is submitting (e.g. the testbed's fork-join calls it on the main thread while
@@ -95,7 +103,8 @@ namespace acm
 		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:
-		friend acm::native::Instance; // only Instance::createDevice builds one
+		// Construction
+		friend acm::native::Instance;
 		explicit Device(std::unique_ptr<acm::native::Device> device);
 
 		std::unique_ptr<acm::native::Device> m;

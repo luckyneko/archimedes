@@ -22,6 +22,7 @@ namespace acm
 	class Sampler
 	{
 	public:
+		// Lifetime
 		Sampler();
 		Sampler(const acm::Sampler& other);
 		Sampler& operator=(const acm::Sampler& other);
@@ -29,12 +30,14 @@ namespace acm
 		Sampler& operator=(acm::Sampler&& other) noexcept;
 		~Sampler();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::Sampler* native() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		Sampler(acm::ResourceRef<acm::native::Sampler> resource);
 		explicit Sampler(acm::Error error);

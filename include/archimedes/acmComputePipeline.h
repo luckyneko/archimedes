@@ -15,9 +15,12 @@
 
 namespace acm
 {
+	// Copyable handle to a compute pipeline built from one compute shader and a
+	// descriptor layout for the resources the dispatch reads or writes.
 	class ComputePipeline
 	{
 	public:
+		// Lifetime
 		ComputePipeline();
 		ComputePipeline(const acm::ComputePipeline& other);
 		ComputePipeline& operator=(const acm::ComputePipeline& other);
@@ -25,12 +28,14 @@ namespace acm
 		ComputePipeline& operator=(acm::ComputePipeline&& other) noexcept;
 		~ComputePipeline();
 
+		// State
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
 		acm::native::ComputePipeline* native() const;
 
 	private:
+		// Construction
 		friend acm::native::Device;
 		ComputePipeline(acm::ResourceRef<acm::native::ComputePipeline> resource);
 		explicit ComputePipeline(acm::Error error);
