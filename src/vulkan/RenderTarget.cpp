@@ -61,17 +61,17 @@ namespace acm::vulkan
 
 	RenderTarget::RenderTarget(Device& owner, const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
 	{
-		if (!texture.valid() || !texture.native() || &texture.native()->owner() != &owner)
+		if (!texture.valid() || !texture.backend() || &texture.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create render target from invalid texture");
 			return;
 		}
 		m_owner = &owner;
-		const acm::Format format = texture.native()->format();
-		const acm::Extent2D extent = texture.native()->extent();
-		const uint32_t mipLevels = texture.native()->mipLevels();
-		const VkImage colorImage = texture.native()->vkImage();
-		const VkImageView colorView = texture.native()->vkImageView();
+		const acm::Format format = texture.backend()->format();
+		const acm::Extent2D extent = texture.backend()->extent();
+		const uint32_t mipLevels = texture.backend()->mipLevels();
+		const VkImage colorImage = texture.backend()->vkImage();
+		const VkImageView colorView = texture.backend()->vkImageView();
 		if (format == acm::Format::Undefined || format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
 		{
 			m_error = acm::Error("failed to create render target from unsupported texture");
@@ -331,14 +331,14 @@ namespace acm::vulkan
 	{
 		if (!m_depth)
 			return VK_NULL_HANDLE;
-		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.image : (m_depthTexture.valid() ? m_depthTexture.native()->vkImage() : VK_NULL_HANDLE);
+		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.image : (m_depthTexture.valid() ? m_depthTexture.backend()->vkImage() : VK_NULL_HANDLE);
 	}
 
 	VkImageView RenderTarget::depthAttachmentView() const
 	{
 		if (!m_depth)
 			return VK_NULL_HANDLE;
-		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.view : (m_depthTexture.valid() ? m_depthTexture.native()->vkImageView() : VK_NULL_HANDLE);
+		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaDepth.view : (m_depthTexture.valid() ? m_depthTexture.backend()->vkImageView() : VK_NULL_HANDLE);
 	}
 
 	VkImageMemoryBarrier2 RenderTarget::imageBarrier(VkImage image, VkImageAspectFlags aspect, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccess, VkAccessFlags2 dstAccess, VkPipelineStageFlags2 srcStage, VkPipelineStageFlags2 dstStage)

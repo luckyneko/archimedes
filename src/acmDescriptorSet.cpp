@@ -11,7 +11,7 @@
 #include "archimedes/acmBuffer.h"
 #include "archimedes/acmSampler.h"
 #include "archimedes/acmTexture.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -53,7 +53,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::DescriptorSet* DescriptorSet::native() const
+	backend::DescriptorSet* DescriptorSet::backend() const
 	{
 		return m_resource.access();
 	}
@@ -66,8 +66,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (texture.native() && sampler.native())
-				resource->setTexture(binding, *texture.native(), *sampler.native(), arrayElement);
+			if (texture.backend() && sampler.backend())
+				resource->setTexture(binding, *texture.backend(), *sampler.backend(), arrayElement);
 		}
 	}
 
@@ -75,8 +75,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (buffer.native())
-				resource->setBuffer(binding, *buffer.native(), arrayElement);
+			if (buffer.backend())
+				resource->setBuffer(binding, *buffer.backend(), arrayElement);
 		}
 	}
 
@@ -84,8 +84,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (buffer.native())
-				resource->setDynamicBuffer(binding, *buffer.native(), elementSize, arrayElement);
+			if (buffer.backend())
+				resource->setDynamicBuffer(binding, *buffer.backend(), elementSize, arrayElement);
 		}
 	}
 
@@ -93,8 +93,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (texture.native())
-				resource->setStorageImage(binding, *texture.native(), arrayElement);
+			if (texture.backend())
+				resource->setStorageImage(binding, *texture.backend(), arrayElement);
 		}
 	}
 
@@ -102,7 +102,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	DescriptorSet::DescriptorSet(ResourceRef<native::DescriptorSet> resource)
+	DescriptorSet::DescriptorSet(ResourceRef<backend::DescriptorSet> resource)
 		: m_resource(std::move(resource))
 	{
 	}

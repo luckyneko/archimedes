@@ -27,7 +27,7 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 	if (vkSurface == VK_NULL_HANDLE)
 		SKIP("headless surface unavailable");
 
-	acm::Surface surface = instance.createSurface(vkSurface); // takes ownership of vkSurface
+	acm::Surface surface = instance.createVulkanSurface(vkSurface); // takes ownership of vkSurface
 	REQUIRE(surface.valid());
 
 	// One support entry per enumerated GPU, mirroring its queue families.
@@ -51,7 +51,7 @@ TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 	if (vkSurface == VK_NULL_HANDLE)
 		SKIP("headless surface unavailable");
 
-	acm::Surface a = instance.createSurface(vkSurface);
+	acm::Surface a = instance.createVulkanSurface(vkSurface);
 	acm::Surface b = a; // shares the one underlying VkSurfaceKHR
 	a.reset();
 

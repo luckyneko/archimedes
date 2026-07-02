@@ -204,7 +204,7 @@ namespace acm::vulkan
 		if (acm::Error error = staging.write(pixels, size))
 			return error;
 
-		const VkBuffer stagingBuffer = staging.native()->vkBuffer();
+		const VkBuffer stagingBuffer = staging.backend()->vkBuffer();
 		const VkImage image = m_image;
 		const acm::Extent2D textureExtent = m_extent;
 		return owner().submitOneShot([stagingBuffer, image, textureExtent, uploadedMipLevels](VkCommandBuffer commandBuffer)

@@ -23,19 +23,19 @@ namespace acm::vulkan
 
 	ComputePipeline::ComputePipeline(Device& owner, const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
 	{
-		if (!compute.valid() || !compute.native() || &compute.native()->owner() != &owner)
+		if (!compute.valid() || !compute.backend() || &compute.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create compute pipeline from invalid shader");
 			return;
 		}
-		if (layout.valid() && (!layout.native() || &layout.native()->owner() != &owner))
+		if (layout.valid() && (!layout.backend() || &layout.backend()->owner() != &owner))
 		{
 			m_error = acm::Error("failed to create compute pipeline from descriptor layout owned by another device");
 			return;
 		}
 		m_owner = &owner;
-		const VkShaderModule shaderModule = compute.native()->vkShaderModule();
-		const VkDescriptorSetLayout setLayout = layout.valid() ? layout.native()->vkLayout() : VK_NULL_HANDLE;
+		const VkShaderModule shaderModule = compute.backend()->vkShaderModule();
+		const VkDescriptorSetLayout setLayout = layout.valid() ? layout.backend()->vkLayout() : VK_NULL_HANDLE;
 		if (!shaderModule || (layout.valid() && !setLayout))
 		{
 			m_error = acm::Error("failed to create compute pipeline from invalid shader or descriptor layout");

@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmVersion.h"
 
 #include <memory>
@@ -50,17 +50,17 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::InstanceHandle nativeInstance() const;
+		VkInstance vulkanInstance() const;
 
 		// Factories
-		acm::Surface createSurface(acm::native::SurfaceHandle surface);
+		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 		// Enumeration
 		const std::vector<acm::GPU>& getAvailableGPUs() const;
 
 	private:
-		std::unique_ptr<acm::native::Instance> m;
+		std::unique_ptr<acm::backend::Instance> m;
 		acm::Error m_error;
 	};
 } // namespace acm

@@ -23,7 +23,7 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmSwapChain.h"
 #include "archimedes/acmTexture.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -210,7 +210,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Device::Device(std::unique_ptr<native::Device> device)
+	Device::Device(std::unique_ptr<backend::Device> device)
 	{
 		if (!device->valid())
 		{

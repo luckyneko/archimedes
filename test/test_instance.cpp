@@ -31,10 +31,10 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	REQUIRE(instance.nativeInstance() != VK_NULL_HANDLE);
+	REQUIRE(instance.vulkanInstance() != VK_NULL_HANDLE);
 #if defined(__APPLE__)
-	REQUIRE(vkGetInstanceProcAddr(instance.nativeInstance(), "vkCreateMetalSurfaceEXT") != nullptr);
-	REQUIRE(vkGetInstanceProcAddr(instance.nativeInstance(), "vkCreateMacOSSurfaceMVK") == nullptr);
+	REQUIRE(vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateMetalSurfaceEXT") != nullptr);
+	REQUIRE(vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateMacOSSurfaceMVK") == nullptr);
 #endif
 
 	const auto& gpus = instance.getAvailableGPUs();
@@ -61,9 +61,9 @@ TEST_CASE("Instance transfers ownership on move", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	acm::Instance b = std::move(a);
-	acm::native::InstanceHandle raw = b.nativeInstance();
+	VkInstance raw = b.vulkanInstance();
 
 	REQUIRE_FALSE(a.valid());
 	REQUIRE(b.valid());
-	REQUIRE(b.nativeInstance() == raw);
+	REQUIRE(b.vulkanInstance() == raw);
 }

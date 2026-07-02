@@ -125,7 +125,7 @@ namespace acm::vulkan
 		const VkSurfaceKHR surface = std::exchange(m_surface, VK_NULL_HANDLE);
 		m_gpuSupport.clear();
 		if (owner && surface)
-			vkDestroySurfaceKHR(owner->nativeInstance(), surface, nullptr);
+			vkDestroySurfaceKHR(owner->vulkanInstance(), surface, nullptr);
 	}
 
 } // namespace acm::vulkan

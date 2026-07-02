@@ -33,14 +33,14 @@ namespace acm::vulkan
 		// State
 		bool valid() const { return m_instance != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
-		VkInstance nativeInstance() const { return m_instance; }
+		VkInstance vulkanInstance() const { return m_instance; }
 
 		// Enumeration
 		const std::vector<acm::GPU>& gpus() const { return m_gpus; }
 		VkPhysicalDevice physicalDevice(uint32_t index) const;
 
 		// Factories
-		acm::Surface createSurface(VkSurfaceKHR surface);
+		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 	private:

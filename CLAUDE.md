@@ -48,11 +48,11 @@ pipeline/render/RTT/sampling/vertex-buffer/uniform/depth paths.
 ### The `acm::` handle pattern
 
 There are no per-resource pImpls. Public resource wrappers hold a stable typed backend
-`ResourceRef<native::T>`, which contains a stable resource slot pointer plus an
+`ResourceRef<backend::T>`, which contains a stable resource slot pointer plus an
 index/generation `ResourceSlot<T>::ID`. The forward declarations and aliases in
-[acmNative.h](include/archimedes/acmNative.h) currently select `acm::vulkan` without
-including Vulkan headers. Platform integration uses the backend-neutral
-`native::InstanceHandle` and `native::SurfaceHandle` aliases.
+[acmBackend.h](include/archimedes/acmBackend.h) currently select `acm::vulkan` without
+including Vulkan headers. Platform integration uses explicit Vulkan entry points
+with forward-declared `VkInstance` and `VkSurfaceKHR` handles.
 
 ```cpp
 class Resource
@@ -63,7 +63,7 @@ public:
 	Resource& operator=(const Resource&);
 	~Resource();
 private:
-	ResourceRef<native::Resource> m_resource;
+	ResourceRef<backend::Resource> m_resource;
 };
 ```
 
@@ -102,9 +102,9 @@ the submission-delayed [DeferredDestroyQueue](private/archimedes/DeferredDestroy
 Normal device-pool collection moves each backend payload into that queue so its destructor
 runs only after the requested queue submission serial completes. `vulkan::Instance`
 clears its surface pool at destruction and opportunistically sweeps it before creating
-another surface; surfaces are not submission-delayed. The trivial internal `native()` accessor
+another surface; surfaces are not submission-delayed. The trivial internal `backend()` accessor
 returns `m_resource.access()` from the matching `src/acm*.cpp`, where the backend type is
-complete. `native()` is an internal compile-time backend seam, not a public native-handle
+complete. `backend()` is an internal compile-time backend seam, not a public native-handle
 API. Slot IDs remain internal to `ResourceRef`/`ResourceSlot`; public wrappers do not
 expose them. Backend selection must remain compile-time: do not add virtual dispatch,
 type erasure, casts, or runtime renderer switching.
@@ -121,7 +121,7 @@ Factories remain the public construction path. Friendship is limited to approved
 constructors; ordinary backend access goes through explicit accessors.
 
 Public wrapper methods stay in their matching `src/acm*.cpp`; those backend-neutral
-translation units include only [nativeAPI.h](private/archimedes/nativeAPI.h), which selects
+translation units include only [backendAPI.h](private/archimedes/backendAPI.h), which selects
 the complete private backend through [vulkan/API.h](private/archimedes/vulkan/API.h).
 Backend implementation files include their precise Vulkan siblings directly. Each private
 resource's construction, native state, operations, dependency retention, and destruction live in matching
@@ -134,7 +134,7 @@ it must not rediscover a resource from an index when the caller already has its 
 slot. `vulkan/API.h` is the complete-backend aggregate and `Resources.h` aggregates only
 resource owners. Public Archimedes declarations live in
 [acmForward.h](include/archimedes/acmForward.h); selected backend declarations live only in
-`acmNative.h`.
+`acmBackend.h`.
 
 ### Object graph / ownership
 
@@ -145,7 +145,7 @@ is a lifetime hierarchy, not shared ownership.
 ```
 Instance ── enumerates ──> GPU[] (physical devices, queue families)
    │
-   ├── createSurface(native::SurfaceHandle) ────> Surface   // platform window surface + per-GPU support query
+   ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-GPU support query
    │
    └── createDevice(GPU, queueIndex) ─────────────> Device    // logical device + queue
           │
@@ -740,7 +740,7 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - **Naming:** public classes are `PascalCase` in namespace `acm` with files
   `acm<Name>.{h,cpp}`. Private Vulkan owners are in `acm::vulkan` with matching
   `private/archimedes/vulkan` and `src/vulkan` paths. Public platform integration uses
-  `nativeInstance()` plus `native::InstanceHandle` / `native::SurfaceHandle`; raw
+  `vulkanInstance()` plus `VkInstance` / `VkSurfaceKHR`; raw
   backend names stay inside the selected backend.
 - **Formatting:** [.clang-format](.clang-format) — Allman braces, tabs (width 4),
   no column limit, `All` namespace indentation, left pointer alignment. Run

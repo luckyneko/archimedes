@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstddef>
@@ -43,7 +43,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Texture* native() const;
+		acm::backend::Texture* backend() const;
 
 		// Upload
 		// Uploads CPU pixels (tightly packed, matching the texture's format/extent) via
@@ -59,11 +59,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Texture(acm::ResourceRef<acm::native::Texture> resource);
+		friend acm::backend::Device;
+		Texture(acm::ResourceRef<acm::backend::Texture> resource);
 		explicit Texture(acm::Error error);
 
-		acm::ResourceRef<acm::native::Texture> m_resource;
+		acm::ResourceRef<acm::backend::Texture> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

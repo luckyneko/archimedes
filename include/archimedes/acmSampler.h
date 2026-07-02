@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 
 namespace acm
 {
@@ -34,15 +34,15 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Sampler* native() const;
+		acm::backend::Sampler* backend() const;
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Sampler(acm::ResourceRef<acm::native::Sampler> resource);
+		friend acm::backend::Device;
+		Sampler(acm::ResourceRef<acm::backend::Sampler> resource);
 		explicit Sampler(acm::Error error);
 
-		acm::ResourceRef<acm::native::Sampler> m_resource;
+		acm::ResourceRef<acm::backend::Sampler> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

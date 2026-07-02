@@ -29,13 +29,13 @@ namespace acm::vulkan
 
 	CommandBuffer::CommandBuffer(Device& owner, const acm::CommandPool& pool)
 	{
-		if (!pool.valid() || !pool.native() || &pool.native()->owner() != &owner)
+		if (!pool.valid() || !pool.backend() || &pool.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to allocate command buffer from invalid pool");
 			return;
 		}
 		m_owner = &owner;
-		const VkCommandPool vkPool = pool.native()->vkCommandPool();
+		const VkCommandPool vkPool = pool.backend()->vkCommandPool();
 		if (!vkPool)
 		{
 			m_error = acm::Error("failed to allocate command buffer from invalid pool");
@@ -112,9 +112,9 @@ namespace acm::vulkan
 
 	void CommandBuffer::beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a)
 	{
-		if (m_renderTarget.valid() || !target.valid() || !target.native() || &owner() != &target.native()->owner())
+		if (m_renderTarget.valid() || !target.valid() || !target.backend() || &owner() != &target.backend()->owner())
 			return;
-		if (!target.native()->beginRendering(m_commandBuffer, r, g, b, a))
+		if (!target.backend()->beginRendering(m_commandBuffer, r, g, b, a))
 			return;
 		m_renderTarget = target;
 	}
@@ -123,9 +123,9 @@ namespace acm::vulkan
 	{
 		acm::RenderTarget target = std::move(m_renderTarget);
 		m_renderTarget.reset();
-		if (!target.valid() || !target.native())
+		if (!target.valid() || !target.backend())
 			return;
-		target.native()->endRendering(m_commandBuffer);
+		target.backend()->endRendering(m_commandBuffer);
 	}
 
 	void CommandBuffer::setViewportAndScissor(acm::Extent2D extent)
@@ -270,7 +270,7 @@ namespace acm::vulkan
 	{
 		m_renderTarget.reset();
 		const VkCommandBuffer commandBuffer = std::exchange(m_commandBuffer, VK_NULL_HANDLE);
-		const VkCommandPool commandPool = m_pool.valid() ? m_pool.native()->vkCommandPool() : VK_NULL_HANDLE;
+		const VkCommandPool commandPool = m_pool.valid() ? m_pool.backend()->vkCommandPool() : VK_NULL_HANDLE;
 		Device* owner = std::exchange(m_owner, nullptr);
 		if (owner && commandPool && commandBuffer)
 			vkFreeCommandBuffers(owner->vkDevice(), commandPool, 1, &commandBuffer);

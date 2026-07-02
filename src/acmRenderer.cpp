@@ -9,7 +9,7 @@
 #include "archimedes/acmRenderer.h"
 
 #include "archimedes/acmCommandBuffer.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -51,7 +51,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Renderer* Renderer::native() const
+	backend::Renderer* Renderer::backend() const
 	{
 		return m_resource.access();
 	}
@@ -78,7 +78,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Renderer::Renderer(ResourceRef<native::Renderer> resource)
+	Renderer::Renderer(ResourceRef<backend::Renderer> resource)
 		: m_resource(std::move(resource))
 	{
 	}

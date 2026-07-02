@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 
 #include <vector>
 
@@ -33,15 +33,15 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Shader* native() const;
+		acm::backend::Shader* backend() const;
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Shader(acm::ResourceRef<acm::native::Shader> resource);
+		friend acm::backend::Device;
+		Shader(acm::ResourceRef<acm::backend::Shader> resource);
 		explicit Shader(acm::Error error);
 
-		acm::ResourceRef<acm::native::Shader> m_resource;
+		acm::ResourceRef<acm::backend::Shader> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

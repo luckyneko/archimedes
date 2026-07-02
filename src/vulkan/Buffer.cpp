@@ -116,9 +116,9 @@ namespace acm::vulkan
 		acm::Buffer staging = owner().createBuffer(bytes, acm::BufferUsage::Staging);
 		if (!staging.valid())
 			return acm::Error("Buffer::write: failed to create staging buffer");
-		if (acm::Error error = staging.native()->write(data, bytes))
+		if (acm::Error error = staging.backend()->write(data, bytes))
 			return error;
-		return owner().copyBuffer(staging.native()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
+		return owner().copyBuffer(staging.backend()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
 	}
 
 	// -----------------------------------------------------------------------------

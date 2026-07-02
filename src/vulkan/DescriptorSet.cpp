@@ -28,14 +28,14 @@ namespace acm::vulkan
 
 	DescriptorSet::DescriptorSet(Device& owner, const acm::DescriptorSetLayout& layout)
 	{
-		if (!layout.valid() || !layout.native() || &layout.native()->owner() != &owner)
+		if (!layout.valid() || !layout.backend() || &layout.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create descriptor set from invalid layout");
 			return;
 		}
 		m_owner = &owner;
-		const auto* bindings = layout.native()->bindings();
-		const VkDescriptorSetLayout vkLayout = layout.native()->vkLayout();
+		const auto* bindings = layout.backend()->bindings();
+		const VkDescriptorSetLayout vkLayout = layout.backend()->vkLayout();
 		if (!bindings || !vkLayout)
 		{
 			m_error = acm::Error("failed to create descriptor set from invalid layout");
@@ -212,7 +212,7 @@ namespace acm::vulkan
 
 	VkDescriptorType DescriptorSet::bufferType(uint32_t binding) const
 	{
-		const auto* bindings = m_layout.valid() ? m_layout.native()->bindings() : nullptr;
+		const auto* bindings = m_layout.valid() ? m_layout.backend()->bindings() : nullptr;
 		if (bindings)
 			for (const acm::DescriptorBinding& candidate : *bindings)
 				if (candidate.binding == binding)

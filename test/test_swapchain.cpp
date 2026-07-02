@@ -33,7 +33,7 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (vkSurface == VK_NULL_HANDLE)
 		SKIP("headless surface unavailable");
 
-	acm::Surface surface = instance.createSurface(vkSurface);
+	acm::Surface surface = instance.createVulkanSurface(vkSurface);
 	const acm::GPUSurfaceSupport& support = surface.getGPUSupport()[gpu->index];
 	if (support.supportedFormats.empty() || support.supportedPresentModes.empty())
 		SKIP("headless surface exposes no formats/present modes");

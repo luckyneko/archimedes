@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstdint>
@@ -39,15 +39,15 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::DescriptorSetLayout* native() const;
+		acm::backend::DescriptorSetLayout* backend() const;
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		DescriptorSetLayout(acm::ResourceRef<acm::native::DescriptorSetLayout> resource);
+		friend acm::backend::Device;
+		DescriptorSetLayout(acm::ResourceRef<acm::backend::DescriptorSetLayout> resource);
 		explicit DescriptorSetLayout(acm::Error error);
 
-		acm::ResourceRef<acm::native::DescriptorSetLayout> m_resource;
+		acm::ResourceRef<acm::backend::DescriptorSetLayout> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

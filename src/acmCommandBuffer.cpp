@@ -14,7 +14,7 @@
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmTexture.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -56,7 +56,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::CommandBuffer* CommandBuffer::native() const
+	backend::CommandBuffer* CommandBuffer::backend() const
 	{
 		return m_resource.access();
 	}
@@ -105,8 +105,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (pipeline.native())
-				resource->bindPipeline(*pipeline.native());
+			if (pipeline.backend())
+				resource->bindPipeline(*pipeline.backend());
 		}
 	}
 
@@ -114,8 +114,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (pipeline.native() && set.native())
-				resource->bindDescriptorSet(*pipeline.native(), *set.native(), nullptr);
+			if (pipeline.backend() && set.backend())
+				resource->bindDescriptorSet(*pipeline.backend(), *set.backend(), nullptr);
 		}
 	}
 
@@ -123,8 +123,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (pipeline.native() && set.native())
-				resource->bindDescriptorSet(*pipeline.native(), *set.native(), &dynamicOffset);
+			if (pipeline.backend() && set.backend())
+				resource->bindDescriptorSet(*pipeline.backend(), *set.backend(), &dynamicOffset);
 		}
 	}
 
@@ -138,8 +138,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (buffer.native())
-				resource->bindVertexBuffer(*buffer.native());
+			if (buffer.backend())
+				resource->bindVertexBuffer(*buffer.backend());
 		}
 	}
 
@@ -147,8 +147,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (buffer.native())
-				resource->bindIndexBuffer(*buffer.native());
+			if (buffer.backend())
+				resource->bindIndexBuffer(*buffer.backend());
 		}
 	}
 
@@ -166,8 +166,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (texture.native() && buffer.native())
-				resource->copyTextureToBuffer(*texture.native(), *buffer.native());
+			if (texture.backend() && buffer.backend())
+				resource->copyTextureToBuffer(*texture.backend(), *buffer.backend());
 		}
 	}
 
@@ -179,8 +179,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (pipeline.native())
-				resource->bindComputePipeline(*pipeline.native());
+			if (pipeline.backend())
+				resource->bindComputePipeline(*pipeline.backend());
 		}
 	}
 
@@ -188,8 +188,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (pipeline.native() && set.native())
-				resource->bindComputeDescriptorSet(*pipeline.native(), *set.native());
+			if (pipeline.backend() && set.backend())
+				resource->bindComputeDescriptorSet(*pipeline.backend(), *set.backend());
 		}
 	}
 
@@ -207,8 +207,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (buffer.native())
-				resource->bufferBarrier(*buffer.native(), srcStage, dstStage);
+			if (buffer.backend())
+				resource->bufferBarrier(*buffer.backend(), srcStage, dstStage);
 		}
 	}
 
@@ -216,8 +216,8 @@ namespace acm
 	{
 		if (auto* resource = m_resource.access())
 		{
-			if (texture.native())
-				resource->transitionImage(*texture.native(), from, to);
+			if (texture.backend())
+				resource->transitionImage(*texture.backend(), from, to);
 		}
 	}
 
@@ -225,7 +225,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	CommandBuffer::CommandBuffer(ResourceRef<native::CommandBuffer> resource)
+	CommandBuffer::CommandBuffer(ResourceRef<backend::CommandBuffer> resource)
 		: m_resource(std::move(resource))
 	{
 	}

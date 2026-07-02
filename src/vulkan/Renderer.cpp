@@ -26,7 +26,7 @@ namespace acm::vulkan
 
 	Renderer::Renderer(Device& owner, const acm::SwapChain& swapChain)
 	{
-		if (!swapChain.valid() || !swapChain.native() || &swapChain.native()->owner() != &owner)
+		if (!swapChain.valid() || !swapChain.backend() || &swapChain.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create renderer from invalid swapchain");
 			return;
@@ -116,7 +116,7 @@ namespace acm::vulkan
 			frame.submissionSerial = 0;
 		}
 		uint32_t imageIndex = 0;
-		const VkResult acquire = m_swapChain.native()->acquireNextImage(frame.imageAvailable, imageIndex);
+		const VkResult acquire = m_swapChain.backend()->acquireNextImage(frame.imageAvailable, imageIndex);
 		if (acquire == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			m_needsRecreate = true;
@@ -141,8 +141,8 @@ namespace acm::vulkan
 		if (acm::Error error = commandBuffer.end())
 			return error;
 
-		const VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer();
-		const VkSwapchainKHR vkSwapChain = m_swapChain.native()->vkSwapChain();
+		const VkCommandBuffer vkCommand = commandBuffer.backend()->vkCommandBuffer();
+		const VkSwapchainKHR vkSwapChain = m_swapChain.backend()->vkSwapChain();
 		if (!vkCommand || !vkSwapChain)
 			return acm::Error("renderer resources became invalid");
 		if (acm::Error error = owner().submitFrame(vkCommand, frame.imageAvailable, frame.renderFinished, frame.inFlight, vkSwapChain, imageIndex, m_needsRecreate, frame.submissionSerial))

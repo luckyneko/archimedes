@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstddef>
@@ -35,7 +35,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::SwapChain* native() const;
+		acm::backend::SwapChain* backend() const;
 
 		// Images
 		// Returns false for a zero-sized/minimized surface; callers should skip the
@@ -48,11 +48,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		SwapChain(acm::ResourceRef<acm::native::SwapChain> resource);
+		friend acm::backend::Device;
+		SwapChain(acm::ResourceRef<acm::backend::SwapChain> resource);
 		explicit SwapChain(acm::Error error);
 
-		acm::ResourceRef<acm::native::SwapChain> m_resource;
+		acm::ResourceRef<acm::backend::SwapChain> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

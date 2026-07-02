@@ -9,7 +9,7 @@
 #include "archimedes/acmSwapChain.h"
 
 #include "archimedes/acmRenderTarget.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -51,7 +51,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::SwapChain* SwapChain::native() const
+	backend::SwapChain* SwapChain::backend() const
 	{
 		return m_resource.access();
 	}
@@ -99,7 +99,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	SwapChain::SwapChain(ResourceRef<native::SwapChain> resource)
+	SwapChain::SwapChain(ResourceRef<backend::SwapChain> resource)
 		: m_resource(std::move(resource))
 	{
 	}

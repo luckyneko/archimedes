@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstddef>
@@ -104,10 +104,10 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Instance;
-		explicit Device(std::unique_ptr<acm::native::Device> device);
+		friend acm::backend::Instance;
+		explicit Device(std::unique_ptr<acm::backend::Device> device);
 
-		std::unique_ptr<acm::native::Device> m;
+		std::unique_ptr<acm::backend::Device> m;
 		acm::Error m_error;
 	};
 } // namespace acm

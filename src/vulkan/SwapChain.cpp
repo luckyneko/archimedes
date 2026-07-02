@@ -28,7 +28,7 @@ namespace acm::vulkan
 
 	SwapChain::SwapChain(Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
 	{
-		if (!surface.valid() || !surface.native() || &surface.native()->owner() != &owner.instance())
+		if (!surface.valid() || !surface.backend() || &surface.backend()->owner() != &owner.instance())
 		{
 			m_error = acm::Error("failed to create swapchain from invalid surface");
 			return;
@@ -144,7 +144,7 @@ namespace acm::vulkan
 
 	bool SwapChain::rebuild(Device& owner)
 	{
-		const VkSurfaceKHR surface = m_surface.valid() ? m_surface.native()->vkSurface() : VK_NULL_HANDLE;
+		const VkSurfaceKHR surface = m_surface.valid() ? m_surface.backend()->vkSurface() : VK_NULL_HANDLE;
 		if (!surface)
 			return false;
 		VkSurfaceCapabilitiesKHR capabilities = {};

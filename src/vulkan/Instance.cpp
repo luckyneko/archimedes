@@ -138,7 +138,7 @@ namespace acm::vulkan
 	// Factories
 	// -----------------------------------------------------------------------------
 
-	acm::Surface Instance::createSurface(VkSurfaceKHR surface)
+	acm::Surface Instance::createVulkanSurface(VkSurfaceKHR surface)
 	{
 		m_surfaces.collectGarbage();
 		auto inserted = m_surfaces.emplace([this, surface]

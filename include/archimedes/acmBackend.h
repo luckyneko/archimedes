@@ -8,9 +8,8 @@
 
 #pragma once
 
-// The selected backend's opaque platform-integration handles. Repeating these
-// typedefs in the complete backend header is valid and does not alter that
-// header's own handle-definition macros.
+// Forward declarations for Vulkan handle types used by the public Vulkan-specific
+// entry points. The complete Vulkan headers may repeat these typedefs safely.
 typedef struct VkInstance_T* VkInstance;
 typedef struct VkSurfaceKHR_T* VkSurfaceKHR;
 
@@ -34,11 +33,8 @@ namespace acm::vulkan
 	class Texture;
 } // namespace acm::vulkan
 
-namespace acm::native
+namespace acm::backend
 {
-	using InstanceHandle = VkInstance;
-	using SurfaceHandle = VkSurfaceKHR;
-
 	using Buffer = acm::vulkan::Buffer;
 	using CommandBuffer = acm::vulkan::CommandBuffer;
 	using CommandPool = acm::vulkan::CommandPool;
@@ -55,4 +51,4 @@ namespace acm::native
 	using Surface = acm::vulkan::Surface;
 	using SwapChain = acm::vulkan::SwapChain;
 	using Texture = acm::vulkan::Texture;
-} // namespace acm::native
+} // namespace acm::backend

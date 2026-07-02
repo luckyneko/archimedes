@@ -9,7 +9,7 @@
 #include "archimedes/acmCommandPool.h"
 
 #include "archimedes/acmCommandBuffer.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -51,7 +51,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::CommandPool* CommandPool::native() const
+	backend::CommandPool* CommandPool::backend() const
 	{
 		return m_resource.access();
 	}
@@ -71,7 +71,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	CommandPool::CommandPool(ResourceRef<native::CommandPool> resource)
+	CommandPool::CommandPool(ResourceRef<backend::CommandPool> resource)
 		: m_resource(std::move(resource))
 	{
 	}

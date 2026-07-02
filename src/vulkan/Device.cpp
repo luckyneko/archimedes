@@ -360,7 +360,7 @@ namespace acm::vulkan
 
 	acm::DescriptorSet Device::createDescriptorSet(const acm::DescriptorSetLayout& layout)
 	{
-		if (!layout.valid() || &layout.native()->owner() != this)
+		if (!layout.valid() || &layout.backend()->owner() != this)
 			return acm::DescriptorSet(acm::Error("failed to create descriptor set from invalid layout"));
 		auto inserted = emplaceResource(m_descriptorSets, [this, &layout]
 										{ return DescriptorSet(*this, layout); });
@@ -380,9 +380,9 @@ namespace acm::vulkan
 
 	acm::ComputePipeline Device::createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout)
 	{
-		if (!compute.valid() || &compute.native()->owner() != this)
+		if (!compute.valid() || &compute.backend()->owner() != this)
 			return acm::ComputePipeline(acm::Error("failed to create compute pipeline from invalid shader"));
-		if (layout.valid() && &layout.native()->owner() != this)
+		if (layout.valid() && &layout.backend()->owner() != this)
 			return acm::ComputePipeline(acm::Error("failed to create compute pipeline from invalid descriptor layout"));
 		auto inserted = emplaceResource(m_computePipelines, [this, &compute, &layout]
 										{ return ComputePipeline(*this, compute, layout); });
@@ -402,7 +402,7 @@ namespace acm::vulkan
 
 	acm::RenderTarget Device::createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
 	{
-		if (!texture.valid() || &texture.native()->owner() != this)
+		if (!texture.valid() || &texture.backend()->owner() != this)
 			return acm::RenderTarget(acm::Error("failed to create render target from invalid texture"));
 		auto inserted = emplaceResource(m_renderTargets, [this, &texture, finish, depth, samples]
 										{ return RenderTarget(*this, texture, finish, depth, samples); });
@@ -418,7 +418,7 @@ namespace acm::vulkan
 
 	acm::SwapChain Device::createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
 	{
-		if (!surface.valid() || &surface.native()->owner() != m_instance)
+		if (!surface.valid() || &surface.backend()->owner() != m_instance)
 			return acm::SwapChain(acm::Error("failed to create swapchain from invalid surface"));
 		auto inserted = emplaceResource(m_swapChains, [this, &surface, format, presentMode, desiredExtent, depth, samples]
 										{ return SwapChain(*this, surface, format, presentMode, desiredExtent, depth, samples); });
@@ -438,7 +438,7 @@ namespace acm::vulkan
 
 	acm::CommandBuffer Device::allocateCommandBuffer(const acm::CommandPool& pool)
 	{
-		if (!pool.valid() || &pool.native()->owner() != this)
+		if (!pool.valid() || &pool.backend()->owner() != this)
 			return acm::CommandBuffer(acm::Error("failed to allocate from invalid command pool"));
 
 		auto inserted = emplaceResource(m_commandBuffers, [this, &pool]
@@ -450,9 +450,9 @@ namespace acm::vulkan
 
 	acm::Error Device::submitCommandBufferSync(const acm::CommandBuffer& commandBuffer)
 	{
-		if (!commandBuffer.valid() || &commandBuffer.native()->owner() != this)
+		if (!commandBuffer.valid() || &commandBuffer.backend()->owner() != this)
 			return acm::Error("submitSync: invalid command buffer");
-		VkCommandBuffer vkCommand = commandBuffer.native()->vkCommandBuffer();
+		VkCommandBuffer vkCommand = commandBuffer.backend()->vkCommandBuffer();
 		std::lock_guard<std::mutex> lock(m_queueMutex);
 		uint64_t submittedSerial = 0;
 		if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
@@ -465,7 +465,7 @@ namespace acm::vulkan
 
 	acm::Renderer Device::createRenderer(const acm::SwapChain& swapChain)
 	{
-		if (!swapChain.valid() || &swapChain.native()->owner() != this)
+		if (!swapChain.valid() || &swapChain.backend()->owner() != this)
 			return acm::Renderer(acm::Error("failed to create renderer from invalid swapchain"));
 		auto inserted = emplaceResource(m_renderers, [this, &swapChain]
 										{ return Renderer(*this, swapChain); });

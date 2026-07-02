@@ -8,7 +8,7 @@
 
 #include "archimedes/acmShader.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Shader* Shader::native() const
+	backend::Shader* Shader::backend() const
 	{
 		return m_resource.access();
 	}
@@ -59,7 +59,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Shader::Shader(ResourceRef<native::Shader> resource)
+	Shader::Shader(ResourceRef<backend::Shader> resource)
 		: m_resource(std::move(resource))
 	{
 	}

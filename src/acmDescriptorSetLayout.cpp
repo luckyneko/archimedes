@@ -8,7 +8,7 @@
 
 #include "archimedes/acmDescriptorSetLayout.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::DescriptorSetLayout* DescriptorSetLayout::native() const
+	backend::DescriptorSetLayout* DescriptorSetLayout::backend() const
 	{
 		return m_resource.access();
 	}
@@ -59,7 +59,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	DescriptorSetLayout::DescriptorSetLayout(ResourceRef<native::DescriptorSetLayout> resource)
+	DescriptorSetLayout::DescriptorSetLayout(ResourceRef<backend::DescriptorSetLayout> resource)
 		: m_resource(std::move(resource))
 	{
 	}

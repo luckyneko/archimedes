@@ -12,7 +12,7 @@
 #include "archimedes/acmForward.h"
 #include "archimedes/acmGPU.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 
 namespace acm
 {
@@ -33,18 +33,18 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Surface* native() const;
+		acm::backend::Surface* backend() const;
 
 		// Capabilities
 		const std::vector<acm::GPUSurfaceSupport>& getGPUSupport() const;
 
 	private:
 		// Construction
-		friend acm::native::Instance;
-		Surface(acm::ResourceRef<acm::native::Surface> resource);
+		friend acm::backend::Instance;
+		Surface(acm::ResourceRef<acm::backend::Surface> resource);
 		explicit Surface(acm::Error error);
 
-		acm::ResourceRef<acm::native::Surface> m_resource;
+		acm::ResourceRef<acm::backend::Surface> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

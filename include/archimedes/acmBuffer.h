@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstddef>
@@ -39,7 +39,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Buffer* native() const;
+		acm::backend::Buffer* backend() const;
 
 		// Memory
 		size_t size() const;
@@ -51,11 +51,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Buffer(acm::ResourceRef<acm::native::Buffer> resource);
+		friend acm::backend::Device;
+		Buffer(acm::ResourceRef<acm::backend::Buffer> resource);
 		explicit Buffer(acm::Error error);
 
-		acm::ResourceRef<acm::native::Buffer> m_resource;
+		acm::ResourceRef<acm::backend::Buffer> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

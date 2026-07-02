@@ -8,7 +8,7 @@
 
 #include "archimedes/acmBuffer.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Buffer* Buffer::native() const
+	backend::Buffer* Buffer::backend() const
 	{
 		return m_resource.access();
 	}
@@ -90,7 +90,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Buffer::Buffer(ResourceRef<native::Buffer> resource)
+	Buffer::Buffer(ResourceRef<backend::Buffer> resource)
 		: m_resource(std::move(resource))
 	{
 	}

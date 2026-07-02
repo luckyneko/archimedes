@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 
 #include <cstdint>
 #include <functional>
@@ -38,7 +38,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Renderer* native() const;
+		acm::backend::Renderer* backend() const;
 
 		// Frames
 		// record runs inside dynamic rendering for the current swapchain image. prePass
@@ -50,11 +50,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Renderer(acm::ResourceRef<acm::native::Renderer> resource);
+		friend acm::backend::Device;
+		Renderer(acm::ResourceRef<acm::backend::Renderer> resource);
 		explicit Renderer(acm::Error error);
 
-		acm::ResourceRef<acm::native::Renderer> m_resource;
+		acm::ResourceRef<acm::backend::Renderer> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

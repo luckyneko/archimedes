@@ -8,7 +8,7 @@
 
 #include "archimedes/acmComputePipeline.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::ComputePipeline* ComputePipeline::native() const
+	backend::ComputePipeline* ComputePipeline::backend() const
 	{
 		return m_resource.access();
 	}
@@ -59,7 +59,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	ComputePipeline::ComputePipeline(ResourceRef<native::ComputePipeline> resource)
+	ComputePipeline::ComputePipeline(ResourceRef<backend::ComputePipeline> resource)
 		: m_resource(std::move(resource))
 	{
 	}

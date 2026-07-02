@@ -41,15 +41,15 @@ namespace
 			return {};
 		glfwSetWindowPos(window, spec.posX, spec.posY);
 
-		acm::native::SurfaceHandle nativeSurface{};
-		if (glfwCreateWindowSurface(instance.nativeInstance(), window, nullptr, &nativeSurface) != VK_SUCCESS)
+		VkSurfaceKHR vulkanSurface{};
+		if (glfwCreateWindowSurface(instance.vulkanInstance(), window, nullptr, &vulkanSurface) != VK_SUCCESS)
 		{
 			fprintf(stderr, "glfwCreateWindowSurface failed\n");
 			glfwDestroyWindow(window);
 			return {};
 		}
 		outWindow = window;
-		return instance.createSurface(nativeSurface);
+		return instance.createVulkanSurface(vulkanSurface);
 	}
 
 	// Pick a GPU + queue family that supports graphics and can present to *every* window

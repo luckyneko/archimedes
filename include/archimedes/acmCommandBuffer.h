@@ -10,7 +10,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmResourceRef.h"
 #include "archimedes/acmTypes.h"
 
@@ -37,7 +37,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::CommandBuffer* native() const;
+		acm::backend::CommandBuffer* backend() const;
 
 		// Recording
 		acm::Error begin();
@@ -83,11 +83,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		CommandBuffer(acm::ResourceRef<acm::native::CommandBuffer> resource);
+		friend acm::backend::Device;
+		CommandBuffer(acm::ResourceRef<acm::backend::CommandBuffer> resource);
 		explicit CommandBuffer(acm::Error error);
 
-		acm::ResourceRef<acm::native::CommandBuffer> m_resource;
+		acm::ResourceRef<acm::backend::CommandBuffer> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

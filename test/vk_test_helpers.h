@@ -23,7 +23,7 @@ namespace acmtest
 	inline VkSurfaceKHR createHeadlessSurface(acm::Instance& instance)
 	{
 		auto fn = reinterpret_cast<PFN_vkCreateHeadlessSurfaceEXT>(
-			vkGetInstanceProcAddr(instance.nativeInstance(), "vkCreateHeadlessSurfaceEXT"));
+			vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateHeadlessSurfaceEXT"));
 		if (!fn)
 			return VK_NULL_HANDLE;
 
@@ -31,7 +31,7 @@ namespace acmtest
 		info.sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT;
 
 		VkSurfaceKHR surface = VK_NULL_HANDLE;
-		if (fn(instance.nativeInstance(), &info, nullptr, &surface) != VK_SUCCESS)
+		if (fn(instance.vulkanInstance(), &info, nullptr, &surface) != VK_SUCCESS)
 			return VK_NULL_HANDLE;
 		return surface;
 	}
@@ -85,7 +85,7 @@ namespace acmtest
 			SKIP("headless surface unavailable");
 			return false;
 		}
-		out.surface = out.instance.createSurface(vkSurface);
+		out.surface = out.instance.createVulkanSurface(vkSurface);
 
 		const acm::GPUSurfaceSupport& support = out.surface.getGPUSupport()[gpu->index];
 		if (support.supportedFormats.empty() || support.supportedPresentModes.empty())

@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 
 namespace acm
 {
@@ -32,18 +32,18 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::CommandPool* native() const;
+		acm::backend::CommandPool* backend() const;
 
 		// Allocation
 		acm::CommandBuffer allocate();
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		CommandPool(acm::ResourceRef<acm::native::CommandPool> resource);
+		friend acm::backend::Device;
+		CommandPool(acm::ResourceRef<acm::backend::CommandPool> resource);
 		explicit CommandPool(acm::Error error);
 
-		acm::ResourceRef<acm::native::CommandPool> m_resource;
+		acm::ResourceRef<acm::backend::CommandPool> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

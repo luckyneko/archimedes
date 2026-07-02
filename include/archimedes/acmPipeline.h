@@ -12,7 +12,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmRenderTarget.h"
 #include "archimedes/acmShader.h"
 #include "archimedes/acmTypes.h"
@@ -61,15 +61,15 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::Pipeline* native() const;
+		acm::backend::Pipeline* backend() const;
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		Pipeline(acm::ResourceRef<acm::native::Pipeline> resource);
+		friend acm::backend::Device;
+		Pipeline(acm::ResourceRef<acm::backend::Pipeline> resource);
 		explicit Pipeline(acm::Error error);
 
-		acm::ResourceRef<acm::native::Pipeline> m_resource;
+		acm::ResourceRef<acm::backend::Pipeline> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

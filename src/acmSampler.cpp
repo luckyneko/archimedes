@@ -8,7 +8,7 @@
 
 #include "archimedes/acmSampler.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Sampler* Sampler::native() const
+	backend::Sampler* Sampler::backend() const
 	{
 		return m_resource.access();
 	}
@@ -59,7 +59,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Sampler::Sampler(ResourceRef<native::Sampler> resource)
+	Sampler::Sampler(ResourceRef<backend::Sampler> resource)
 		: m_resource(std::move(resource))
 	{
 	}

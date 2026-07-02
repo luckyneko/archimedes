@@ -10,7 +10,7 @@
 
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmSurface.h"
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -24,7 +24,7 @@ namespace acm
 
 	Instance::Instance(const char* appName, const Version& appVer, const InstanceConfig& config)
 	{
-		auto instance = std::make_unique<native::Instance>(appName, appVer, config);
+		auto instance = std::make_unique<backend::Instance>(appName, appVer, config);
 		if (!instance->valid())
 		{
 			m_error = instance->error();
@@ -59,18 +59,18 @@ namespace acm
 		return m_error;
 	}
 
-	native::InstanceHandle Instance::nativeInstance() const
+	VkInstance Instance::vulkanInstance() const
 	{
-		return m ? m->nativeInstance() : native::InstanceHandle{};
+		return m ? m->vulkanInstance() : VK_NULL_HANDLE;
 	}
 
 	// -----------------------------------------------------------------------------
 	// Factories
 	// -----------------------------------------------------------------------------
 
-	Surface Instance::createSurface(native::SurfaceHandle surface)
+	Surface Instance::createVulkanSurface(VkSurfaceKHR surface)
 	{
-		return m ? m->createSurface(surface) : Surface{};
+		return m ? m->createVulkanSurface(surface) : Surface{};
 	}
 
 	Device Instance::createDevice(const GPU& gpu, uint32_t queueIndex)

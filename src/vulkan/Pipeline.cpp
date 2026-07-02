@@ -33,12 +33,12 @@ namespace acm::vulkan
 			m_error = acm::Error("failed to create pipeline from invalid shader or render target");
 			return;
 		}
-		if (&config.vertex.native()->owner() != &owner || &config.fragment.native()->owner() != &owner || &config.target.native()->owner() != &owner)
+		if (&config.vertex.backend()->owner() != &owner || &config.fragment.backend()->owner() != &owner || &config.target.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create pipeline from resources owned by another device");
 			return;
 		}
-		if (config.descriptorLayout.valid() && &config.descriptorLayout.native()->owner() != &owner)
+		if (config.descriptorLayout.valid() && &config.descriptorLayout.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create pipeline from descriptor layout owned by another device");
 			return;
@@ -53,12 +53,12 @@ namespace acm::vulkan
 		VkPipelineShaderStageCreateInfo vertStage = {};
 		vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertStage.module = config.vertex.native()->vkShaderModule();
+		vertStage.module = config.vertex.backend()->vkShaderModule();
 		vertStage.pName = "main";
 		VkPipelineShaderStageCreateInfo fragStage = {};
 		fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragStage.module = config.fragment.native()->vkShaderModule();
+		fragStage.module = config.fragment.backend()->vkShaderModule();
 		fragStage.pName = "main";
 		if (!vertStage.module || !fragStage.module)
 		{
@@ -113,7 +113,7 @@ namespace acm::vulkan
 
 		VkPipelineMultisampleStateCreateInfo multisampling = {};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampling.rasterizationSamples = config.target.native()->sampleCount();
+		multisampling.rasterizationSamples = config.target.backend()->sampleCount();
 		if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
 		{
 			multisampling.sampleShadingEnable = VK_TRUE;
@@ -141,7 +141,7 @@ namespace acm::vulkan
 		depthStencil.depthTestEnable = VK_TRUE;
 		depthStencil.depthWriteEnable = VK_TRUE;
 		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-		const VkFormat colorFormat = config.target.native()->colorFormat();
+		const VkFormat colorFormat = config.target.backend()->colorFormat();
 		if (colorFormat == VK_FORMAT_UNDEFINED)
 		{
 			m_error = acm::Error("failed to create pipeline from invalid render target format");
@@ -151,9 +151,9 @@ namespace acm::vulkan
 		renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachmentFormats = &colorFormat;
-		renderingInfo.depthAttachmentFormat = config.target.native()->depthFormat();
+		renderingInfo.depthAttachmentFormat = config.target.backend()->depthFormat();
 
-		const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.native()->vkLayout() : VK_NULL_HANDLE;
+		const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.backend()->vkLayout() : VK_NULL_HANDLE;
 		VkPipelineLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		if (setLayout)

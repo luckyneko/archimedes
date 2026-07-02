@@ -11,7 +11,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmResourceRef.h"
-#include "archimedes/acmNative.h"
+#include "archimedes/acmBackend.h"
 #include "archimedes/acmTypes.h"
 
 namespace acm
@@ -34,7 +34,7 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		acm::native::RenderTarget* native() const;
+		acm::backend::RenderTarget* backend() const;
 
 		// Properties
 		acm::Extent2D extent() const;
@@ -43,11 +43,11 @@ namespace acm
 
 	private:
 		// Construction
-		friend acm::native::Device;
-		RenderTarget(acm::ResourceRef<acm::native::RenderTarget> resource);
+		friend acm::backend::Device;
+		RenderTarget(acm::ResourceRef<acm::backend::RenderTarget> resource);
 		explicit RenderTarget(acm::Error error);
 
-		acm::ResourceRef<acm::native::RenderTarget> m_resource;
+		acm::ResourceRef<acm::backend::RenderTarget> m_resource;
 		acm::Error m_error;
 	};
 } // namespace acm

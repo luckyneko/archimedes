@@ -8,7 +8,7 @@
 
 #include "archimedes/acmSurface.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Surface* Surface::native() const
+	backend::Surface* Surface::backend() const
 	{
 		return m_resource.access();
 	}
@@ -71,7 +71,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Surface::Surface(ResourceRef<native::Surface> resource)
+	Surface::Surface(ResourceRef<backend::Surface> resource)
 		: m_resource(std::move(resource))
 	{
 	}

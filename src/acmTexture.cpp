@@ -8,7 +8,7 @@
 
 #include "archimedes/acmTexture.h"
 
-#include "archimedes/nativeAPI.h"
+#include "archimedes/backendAPI.h"
 
 #include <utility>
 
@@ -50,7 +50,7 @@ namespace acm
 		return m_error;
 	}
 
-	native::Texture* Texture::native() const
+	backend::Texture* Texture::backend() const
 	{
 		return m_resource.access();
 	}
@@ -97,7 +97,7 @@ namespace acm
 	// Construction
 	// -----------------------------------------------------------------------------
 
-	Texture::Texture(ResourceRef<native::Texture> resource)
+	Texture::Texture(ResourceRef<backend::Texture> resource)
 		: m_resource(std::move(resource))
 	{
 	}
