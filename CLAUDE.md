@@ -720,9 +720,14 @@ per-run resource counts, so calibration cannot build up thousands of live Vulkan
 objects before cleanup. `bench/report.py --json-out` writes one run record with
 UTC timestamp, git branch/hash/dirty metadata, forwarded Catch2 args, and flat
 benchmark rows in nanoseconds; `--json-append` maintains a `runs[]` history file
-for later graphing. `--compare <history.json>` compares the current run against
-the latest previous result for each matching workload/section/variant key before
-any same-command append happens.
+for later graphing. Report rows are sorted by workload, section, then variant so
+Catch2 discovery order does not churn text output or JSON histories. `--compare
+<history.json>` compares the current run against the latest previous result for
+each matching workload/section/variant key before any same-command append happens;
+its `SIGNAL` column classifies `abs(current_mean - previous_mean) /
+hypot(current_stddev, previous_stddev)` as noise, weak, clear, or strong, and
+colors interactive terminal rows by delta direction with stronger signals drawn
+brighter.
 
 `-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` /
 `-DARCHIMEDES_BUILD_BENCHMARK=OFF` build only the library (headers only — no

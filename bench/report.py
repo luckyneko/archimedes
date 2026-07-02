@@ -16,6 +16,7 @@ Examples:
 
 import datetime
 import json
+import math
 import os
 import subprocess
 import sys
@@ -24,6 +25,12 @@ import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Tuple
 
 DEFAULT_EXEC = "./build/bench-archimedes"
+RESET = "\033[0m"
+DIM = "\033[2m"
+GREEN = "\033[32m"
+RED = "\033[31m"
+BOLD_GREEN = "\033[1;32m"
+BOLD_RED = "\033[1;31m"
 
 
 def candidate_execs(exec_path: str) -> List[str]:
@@ -108,6 +115,13 @@ Row = Tuple[str, Optional[str], List[Benchmark]]
 BenchmarkKey = Tuple[str, Optional[str], str]
 
 
+def sort_rows(rows: List[Row]) -> List[Row]:
+    out: List[Row] = []
+    for tc_name, sec_name, benchmarks in rows:
+        out.append((tc_name, sec_name, sorted(benchmarks, key=lambda b: b[0])))
+    return sorted(out, key=lambda r: (r[0], "" if r[1] is None else r[1]))
+
+
 def parse_xml(xml_path: str) -> List[Row]:
     if not os.path.getsize(xml_path):
         return []
@@ -182,6 +196,70 @@ def fmt_delta(ratio: Optional[float]) -> str:
     return f"{ratio:+.1f}%"
 
 
+def fmt_sigma(sigma: Optional[float]) -> str:
+    if sigma is None:
+        return ""
+    if math.isinf(sigma):
+        return "inf"
+    return f"{sigma:.1f}"
+
+
+def signal_label(sigma: Optional[float]) -> str:
+    if sigma is None:
+        return ""
+    if sigma < 1.0:
+        return "noise"
+    if sigma < 2.0:
+        return "weak"
+    if sigma < 3.0:
+        return "clear"
+    return "strong"
+
+
+def fmt_signal(sigma: Optional[float]) -> str:
+    label = signal_label(sigma)
+    if not label:
+        return ""
+    return f"{label} ({fmt_sigma(sigma)})"
+
+
+def use_color() -> bool:
+    return sys.stdout.isatty() and "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb"
+
+
+def signal_color(delta: Optional[float], signal: str) -> str:
+    if signal == "noise" or delta is None or delta == 0.0:
+        return DIM
+    if delta > 0.0:
+        if signal == "strong":
+            return BOLD_RED
+        if signal == "weak":
+            return DIM + RED
+        return RED
+
+    if signal == "strong":
+        return BOLD_GREEN
+    if signal == "weak":
+        return DIM + GREEN
+    return GREEN
+
+
+def signal_sigma(
+    mean_ns: float,
+    stddev_ns: float,
+    previous_mean_ns: Optional[float],
+    previous_stddev_ns: Optional[float],
+) -> Optional[float]:
+    if previous_mean_ns is None or previous_stddev_ns is None:
+        return None
+
+    delta_ns = abs(mean_ns - previous_mean_ns)
+    noise_ns = math.hypot(stddev_ns, previous_stddev_ns)
+    if noise_ns == 0.0:
+        return 0.0 if delta_ns == 0.0 else math.inf
+    return delta_ns / noise_ns
+
+
 def git_value(args: List[str]) -> Optional[str]:
     result = subprocess.run(["git"] + args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     if result.returncode != 0:
@@ -252,17 +330,20 @@ def latest_by_key(runs: List[Dict[str, Any]]) -> Dict[BenchmarkKey, Dict[str, An
 def print_comparison(current_run: Dict[str, Any], history_path: str) -> None:
     history = latest_by_key(load_json_runs(history_path))
     current = current_run.get("benchmarks", [])
-    rows: List[Tuple[str, Optional[str], str, float, Optional[float], Optional[float]]] = []
+    rows: List[Tuple[str, Optional[str], str, float, Optional[float], Optional[float], Optional[float]]] = []
 
     for benchmark in current:
         if not isinstance(benchmark, dict):
             continue
         key = benchmark_key(benchmark)
         mean_ns = float(benchmark.get("mean_ns", 0.0))
+        stddev_ns = float(benchmark.get("stddev_ns", 0.0))
         previous = history.get(key)
         previous_ns = float(previous.get("mean_ns", 0.0)) if previous else None
+        previous_stddev_ns = float(previous.get("stddev_ns", 0.0)) if previous else None
         delta = ((mean_ns - previous_ns) / previous_ns * 100.0) if previous_ns else None
-        rows.append((key[0], key[1], key[2], mean_ns, previous_ns, delta))
+        sigma = signal_sigma(mean_ns, stddev_ns, previous_ns, previous_stddev_ns)
+        rows.append((key[0], key[1], key[2], mean_ns, previous_ns, delta, sigma))
 
     if not rows:
         return
@@ -272,23 +353,29 @@ def print_comparison(current_run: Dict[str, Any], history_path: str) -> None:
     w_mean = 10
     w_prev = 10
     w_delta = 8
-    sep = "-" * (w_workload + w_variant + w_mean + w_prev + w_delta + 10)
+    w_signal = 16
+    sep = "-" * (w_workload + w_variant + w_mean + w_prev + w_delta + w_signal + 12)
+    color_enabled = use_color()
 
     print()
     print(f"Compared with: {history_path}")
     print(
         f"{'WORKLOAD':<{w_workload}}  {'VARIANT':<{w_variant}}  "
-        f"{'MEAN':>{w_mean}}  {'PREV':>{w_prev}}  {'DELTA':>{w_delta}}"
+        f"{'MEAN':>{w_mean}}  {'PREV':>{w_prev}}  {'DELTA':>{w_delta}}  {'SIGNAL':>{w_signal}}"
     )
     print(sep)
 
-    for workload, section, variant, mean_ns, previous_ns, delta in rows:
+    for workload, section, variant, mean_ns, previous_ns, delta, sigma in rows:
         label = workload if section is None else f"{workload} / {section}"
         prev = fmt_time(previous_ns) if previous_ns is not None else ""
-        print(
+        signal = signal_label(sigma)
+        line = (
             f"{label:<{w_workload}}  {variant:<{w_variant}}  "
-            f"{fmt_time(mean_ns):>{w_mean}}  {prev:>{w_prev}}  {fmt_delta(delta):>{w_delta}}"
+            f"{fmt_time(mean_ns):>{w_mean}}  {prev:>{w_prev}}  "
+            f"{fmt_delta(delta):>{w_delta}}  {fmt_signal(sigma):>{w_signal}}"
         )
+        color = signal_color(delta, signal) if color_enabled else ""
+        print(f"{color}{line}{RESET if color else ''}")
 
 
 def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row]) -> Dict[str, Any]:
@@ -341,7 +428,7 @@ def main() -> int:
 
     try:
         run_bench(resolved, bench_args, xml_path)
-        rows = parse_xml(xml_path)
+        rows = sort_rows(parse_xml(xml_path))
         print_report(rows)
         if json_out or json_append or compare_path:
             run = build_json_run(resolved, bench_args, rows)
