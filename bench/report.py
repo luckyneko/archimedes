@@ -3,13 +3,14 @@
 Run bench-archimedes and print a compact Catch2 benchmark summary.
 
 Usage:
-    python3 bench/report.py [--exec <path>] [--json-out <path>] [--json-append <path>] [bench-archimedes args...]
+    python3 bench/report.py [--exec <path>] [--json-out <path>] [--json-append <path>] [--compare <path>] [bench-archimedes args...]
 
 Examples:
     python3 bench/report.py "[fast]"
     python3 bench/report.py "[bench]" --benchmark-samples=30
     python3 bench/report.py "[fast]" --json-out build/bench-latest.json
     python3 bench/report.py "[fast]" --json-append build/bench-history.json
+    python3 bench/report.py "[fast]" --compare build/bench-history.json --json-append build/bench-history.json
     python3 bench/report.py --exec build-release/bench-archimedes "[bench]"
 """
 
@@ -61,10 +62,11 @@ def fmt_time(ns: float) -> str:
     return f"{ns:.1f} ns"
 
 
-def split_args(argv: List[str]) -> Tuple[str, Optional[str], Optional[str], List[str]]:
+def split_args(argv: List[str]) -> Tuple[str, Optional[str], Optional[str], Optional[str], List[str]]:
     exec_path = DEFAULT_EXEC
     json_out: Optional[str] = None
     json_append: Optional[str] = None
+    compare_path: Optional[str] = None
     rest: List[str] = []
     i = 0
     while i < len(argv):
@@ -83,10 +85,15 @@ def split_args(argv: List[str]) -> Tuple[str, Optional[str], Optional[str], List
                 sys.exit("error: --json-append requires a path argument")
             json_append = argv[i + 1]
             i += 2
+        elif argv[i] == "--compare":
+            if i + 1 >= len(argv):
+                sys.exit("error: --compare requires a path argument")
+            compare_path = argv[i + 1]
+            i += 2
         else:
             rest.append(argv[i])
             i += 1
-    return exec_path, json_out, json_append, rest
+    return exec_path, json_out, json_append, compare_path, rest
 
 
 def run_bench(exec_path: str, bench_args: List[str], xml_path: str) -> None:
@@ -98,6 +105,7 @@ def run_bench(exec_path: str, bench_args: List[str], xml_path: str) -> None:
 
 Benchmark = Tuple[str, float, float]
 Row = Tuple[str, Optional[str], List[Benchmark]]
+BenchmarkKey = Tuple[str, Optional[str], str]
 
 
 def parse_xml(xml_path: str) -> List[Row]:
@@ -168,6 +176,12 @@ def print_report(rows: List[Row]) -> None:
             )
 
 
+def fmt_delta(ratio: Optional[float]) -> str:
+    if ratio is None:
+        return ""
+    return f"{ratio:+.1f}%"
+
+
 def git_value(args: List[str]) -> Optional[str]:
     result = subprocess.run(["git"] + args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     if result.returncode != 0:
@@ -200,6 +214,81 @@ def flatten_rows(rows: List[Row]) -> List[Dict[str, Any]]:
                 }
             )
     return out
+
+
+def benchmark_key(benchmark: Dict[str, Any]) -> BenchmarkKey:
+    return (
+        str(benchmark.get("workload", "")),
+        benchmark.get("section"),
+        str(benchmark.get("variant", "")),
+    )
+
+
+def load_json_runs(path: str) -> List[Dict[str, Any]]:
+    if not os.path.exists(path) or not os.path.getsize(path):
+        return []
+
+    with open(path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    if isinstance(payload, dict) and isinstance(payload.get("runs"), list):
+        return payload["runs"]
+    if isinstance(payload, dict) and isinstance(payload.get("benchmarks"), list):
+        return [payload]
+    if isinstance(payload, list):
+        return payload
+    sys.exit(f"error: {path} is not a bench JSON run or history file")
+
+
+def latest_by_key(runs: List[Dict[str, Any]]) -> Dict[BenchmarkKey, Dict[str, Any]]:
+    latest: Dict[BenchmarkKey, Dict[str, Any]] = {}
+    for run in runs:
+        for benchmark in run.get("benchmarks", []):
+            if isinstance(benchmark, dict):
+                latest[benchmark_key(benchmark)] = benchmark
+    return latest
+
+
+def print_comparison(current_run: Dict[str, Any], history_path: str) -> None:
+    history = latest_by_key(load_json_runs(history_path))
+    current = current_run.get("benchmarks", [])
+    rows: List[Tuple[str, Optional[str], str, float, Optional[float], Optional[float]]] = []
+
+    for benchmark in current:
+        if not isinstance(benchmark, dict):
+            continue
+        key = benchmark_key(benchmark)
+        mean_ns = float(benchmark.get("mean_ns", 0.0))
+        previous = history.get(key)
+        previous_ns = float(previous.get("mean_ns", 0.0)) if previous else None
+        delta = ((mean_ns - previous_ns) / previous_ns * 100.0) if previous_ns else None
+        rows.append((key[0], key[1], key[2], mean_ns, previous_ns, delta))
+
+    if not rows:
+        return
+
+    w_workload = 34
+    w_variant = 32
+    w_mean = 10
+    w_prev = 10
+    w_delta = 8
+    sep = "-" * (w_workload + w_variant + w_mean + w_prev + w_delta + 10)
+
+    print()
+    print(f"Compared with: {history_path}")
+    print(
+        f"{'WORKLOAD':<{w_workload}}  {'VARIANT':<{w_variant}}  "
+        f"{'MEAN':>{w_mean}}  {'PREV':>{w_prev}}  {'DELTA':>{w_delta}}"
+    )
+    print(sep)
+
+    for workload, section, variant, mean_ns, previous_ns, delta in rows:
+        label = workload if section is None else f"{workload} / {section}"
+        prev = fmt_time(previous_ns) if previous_ns is not None else ""
+        print(
+            f"{label:<{w_workload}}  {variant:<{w_variant}}  "
+            f"{fmt_time(mean_ns):>{w_mean}}  {prev:>{w_prev}}  {fmt_delta(delta):>{w_delta}}"
+        )
 
 
 def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row]) -> Dict[str, Any]:
@@ -238,7 +327,7 @@ def append_json(path: str, run: Dict[str, Any]) -> None:
 
 
 def main() -> int:
-    exec_path, json_out, json_append, bench_args = split_args(sys.argv[1:])
+    exec_path, json_out, json_append, compare_path, bench_args = split_args(sys.argv[1:])
     resolved = resolve_exec(exec_path)
     if resolved is None:
         sys.exit(
@@ -254,8 +343,10 @@ def main() -> int:
         run_bench(resolved, bench_args, xml_path)
         rows = parse_xml(xml_path)
         print_report(rows)
-        if json_out or json_append:
+        if json_out or json_append or compare_path:
             run = build_json_run(resolved, bench_args, rows)
+            if compare_path:
+                print_comparison(run, compare_path)
             if json_out:
                 write_json(json_out, run)
             if json_append:

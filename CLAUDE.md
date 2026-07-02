@@ -701,6 +701,7 @@ Run the benchmarks directly through Catch2, or through the compact report helper
 python3 bench/report.py "[fast]"
 python3 bench/report.py "[fast]" --json-out build/bench-latest.json
 python3 bench/report.py "[fast]" --json-append build/bench-history.json
+python3 bench/report.py "[fast]" --compare build/bench-history.json --json-append build/bench-history.json
 ```
 
 The benchmark executable is `bench-archimedes`; workloads live in [bench/](bench/)
@@ -719,7 +720,9 @@ per-run resource counts, so calibration cannot build up thousands of live Vulkan
 objects before cleanup. `bench/report.py --json-out` writes one run record with
 UTC timestamp, git branch/hash/dirty metadata, forwarded Catch2 args, and flat
 benchmark rows in nanoseconds; `--json-append` maintains a `runs[]` history file
-for later graphing.
+for later graphing. `--compare <history.json>` compares the current run against
+the latest previous result for each matching workload/section/variant key before
+any same-command append happens.
 
 `-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` /
 `-DARCHIMEDES_BUILD_BENCHMARK=OFF` build only the library (headers only — no
