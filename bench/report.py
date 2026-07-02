@@ -3,20 +3,24 @@
 Run bench-archimedes and print a compact Catch2 benchmark summary.
 
 Usage:
-    python3 bench/report.py [--exec <path>] [bench-archimedes args...]
+    python3 bench/report.py [--exec <path>] [--json-out <path>] [--json-append <path>] [bench-archimedes args...]
 
 Examples:
     python3 bench/report.py "[fast]"
     python3 bench/report.py "[bench]" --benchmark-samples=30
+    python3 bench/report.py "[fast]" --json-out build/bench-latest.json
+    python3 bench/report.py "[fast]" --json-append build/bench-history.json
     python3 bench/report.py --exec build-release/bench-archimedes "[bench]"
 """
 
+import datetime
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 DEFAULT_EXEC = "./build/bench-archimedes"
 
@@ -57,8 +61,10 @@ def fmt_time(ns: float) -> str:
     return f"{ns:.1f} ns"
 
 
-def split_args(argv: List[str]) -> Tuple[str, List[str]]:
+def split_args(argv: List[str]) -> Tuple[str, Optional[str], Optional[str], List[str]]:
     exec_path = DEFAULT_EXEC
+    json_out: Optional[str] = None
+    json_append: Optional[str] = None
     rest: List[str] = []
     i = 0
     while i < len(argv):
@@ -67,10 +73,20 @@ def split_args(argv: List[str]) -> Tuple[str, List[str]]:
                 sys.exit("error: --exec requires a path argument")
             exec_path = argv[i + 1]
             i += 2
+        elif argv[i] == "--json-out":
+            if i + 1 >= len(argv):
+                sys.exit("error: --json-out requires a path argument")
+            json_out = argv[i + 1]
+            i += 2
+        elif argv[i] == "--json-append":
+            if i + 1 >= len(argv):
+                sys.exit("error: --json-append requires a path argument")
+            json_append = argv[i + 1]
+            i += 2
         else:
             rest.append(argv[i])
             i += 1
-    return exec_path, rest
+    return exec_path, json_out, json_append, rest
 
 
 def run_bench(exec_path: str, bench_args: List[str], xml_path: str) -> None:
@@ -85,6 +101,9 @@ Row = Tuple[str, Optional[str], List[Benchmark]]
 
 
 def parse_xml(xml_path: str) -> List[Row]:
+    if not os.path.getsize(xml_path):
+        return []
+
     tree = ET.parse(xml_path)
     root = tree.getroot()
     rows: List[Row] = []
@@ -122,6 +141,11 @@ def parse_xml(xml_path: str) -> List[Row]:
 
 
 def print_report(rows: List[Row]) -> None:
+    if not rows:
+        print()
+        print("No benchmark results.")
+        return
+
     w_workload = 34
     w_variant = 32
     w_mean = 10
@@ -144,8 +168,77 @@ def print_report(rows: List[Row]) -> None:
             )
 
 
+def git_value(args: List[str]) -> Optional[str]:
+    result = subprocess.run(["git"] + args, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def git_metadata() -> Dict[str, Any]:
+    status = git_value(["status", "--porcelain"])
+    commit = git_value(["rev-parse", "HEAD"])
+    return {
+        "commit": commit,
+        "short_commit": git_value(["rev-parse", "--short", "HEAD"]),
+        "branch": git_value(["branch", "--show-current"]),
+        "dirty": bool(status),
+    }
+
+
+def flatten_rows(rows: List[Row]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for tc_name, sec_name, benchmarks in rows:
+        for name, mean_ns, sd_ns in benchmarks:
+            out.append(
+                {
+                    "workload": tc_name,
+                    "section": sec_name,
+                    "variant": name,
+                    "mean_ns": mean_ns,
+                    "stddev_ns": sd_ns,
+                }
+            )
+    return out
+
+
+def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row]) -> Dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "executable": exec_path,
+        "args": bench_args,
+        "git": git_metadata(),
+        "benchmarks": flatten_rows(rows),
+    }
+
+
+def write_json(path: str, payload: Dict[str, Any]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def append_json(path: str, run: Dict[str, Any]) -> None:
+    payload: Dict[str, Any]
+    if os.path.exists(path) and os.path.getsize(path):
+        with open(path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        if isinstance(existing, dict) and isinstance(existing.get("runs"), list):
+            payload = existing
+        elif isinstance(existing, list):
+            payload = {"schema_version": 1, "runs": existing}
+        else:
+            sys.exit(f"error: {path} is not a bench history JSON file")
+    else:
+        payload = {"schema_version": 1, "runs": []}
+
+    payload["runs"].append(run)
+    write_json(path, payload)
+
+
 def main() -> int:
-    exec_path, bench_args = split_args(sys.argv[1:])
+    exec_path, json_out, json_append, bench_args = split_args(sys.argv[1:])
     resolved = resolve_exec(exec_path)
     if resolved is None:
         sys.exit(
@@ -159,7 +252,14 @@ def main() -> int:
 
     try:
         run_bench(resolved, bench_args, xml_path)
-        print_report(parse_xml(xml_path))
+        rows = parse_xml(xml_path)
+        print_report(rows)
+        if json_out or json_append:
+            run = build_json_run(resolved, bench_args, rows)
+            if json_out:
+                write_json(json_out, run)
+            if json_append:
+                append_json(json_append, run)
     finally:
         try:
             os.unlink(xml_path)

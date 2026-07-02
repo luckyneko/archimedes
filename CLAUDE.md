@@ -699,6 +699,8 @@ Run the benchmarks directly through Catch2, or through the compact report helper
 ```sh
 ./build/run_bench-archimedes.sh "[fast]"
 python3 bench/report.py "[fast]"
+python3 bench/report.py "[fast]" --json-out build/bench-latest.json
+python3 bench/report.py "[fast]" --json-append build/bench-history.json
 ```
 
 The benchmark executable is `bench-archimedes`; workloads live in [bench/](bench/)
@@ -714,7 +716,10 @@ unless the caller already set `VK_ICD_FILENAMES`. The helper also defaults
 keeps MoltenVK's default info-level startup logs out of test/benchmark output.
 Resource-creation benchmarks use bounded batches rather than Catch2's adaptive
 per-run resource counts, so calibration cannot build up thousands of live Vulkan
-objects before cleanup.
+objects before cleanup. `bench/report.py --json-out` writes one run record with
+UTC timestamp, git branch/hash/dirty metadata, forwarded Catch2 args, and flat
+benchmark rows in nanoseconds; `--json-append` maintains a `runs[]` history file
+for later graphing.
 
 `-DARCHIMEDES_BUILD_TESTBED=OFF` / `-DARCHIMEDES_BUILD_TESTING=OFF` /
 `-DARCHIMEDES_BUILD_BENCHMARK=OFF` build only the library (headers only — no
