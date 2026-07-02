@@ -19,211 +19,228 @@
 #include <utility>
 #include <vector>
 
-acm::vulkan::Pipeline::Pipeline(acm::vulkan::Device& owner, const acm::PipelineConfig& config)
+namespace acm::vulkan
 {
-	if (!config.vertex.valid() || !config.fragment.valid() || !config.target.valid())
-	{
-		m_error = acm::Error("failed to create pipeline from invalid shader or render target");
-		return;
-	}
-	if (&config.vertex.native()->owner() != &owner || &config.fragment.native()->owner() != &owner || &config.target.native()->owner() != &owner)
-	{
-		m_error = acm::Error("failed to create pipeline from resources owned by another device");
-		return;
-	}
-	if (config.descriptorLayout.valid() && &config.descriptorLayout.native()->owner() != &owner)
-	{
-		m_error = acm::Error("failed to create pipeline from descriptor layout owned by another device");
-		return;
-	}
-	if (config.depthTest && !config.target.hasDepth())
-	{
-		m_error = acm::Error("failed to create depth-test pipeline for target without depth");
-		return;
-	}
-	m_owner = &owner;
 
-	VkPipelineShaderStageCreateInfo vertStage = {};
-	vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertStage.module = config.vertex.native()->vkShaderModule();
-	vertStage.pName = "main";
-	VkPipelineShaderStageCreateInfo fragStage = {};
-	fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragStage.module = config.fragment.native()->vkShaderModule();
-	fragStage.pName = "main";
-	if (!vertStage.module || !fragStage.module)
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
+
+	Pipeline::Pipeline(Device& owner, const acm::PipelineConfig& config)
 	{
-		m_error = acm::Error("failed to create pipeline from invalid shader module");
-		return;
-	}
-	VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+		if (!config.vertex.valid() || !config.fragment.valid() || !config.target.valid())
+		{
+			m_error = acm::Error("failed to create pipeline from invalid shader or render target");
+			return;
+		}
+		if (&config.vertex.native()->owner() != &owner || &config.fragment.native()->owner() != &owner || &config.target.native()->owner() != &owner)
+		{
+			m_error = acm::Error("failed to create pipeline from resources owned by another device");
+			return;
+		}
+		if (config.descriptorLayout.valid() && &config.descriptorLayout.native()->owner() != &owner)
+		{
+			m_error = acm::Error("failed to create pipeline from descriptor layout owned by another device");
+			return;
+		}
+		if (config.depthTest && !config.target.hasDepth())
+		{
+			m_error = acm::Error("failed to create depth-test pipeline for target without depth");
+			return;
+		}
+		m_owner = &owner;
 
-	VkVertexInputBindingDescription binding = {};
-	binding.binding = 0;
-	binding.stride = config.vertexLayout.stride;
-	binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	std::vector<VkVertexInputAttributeDescription> attributes;
-	attributes.reserve(config.vertexLayout.attributes.size());
-	for (const auto& attribute : config.vertexLayout.attributes)
-		attributes.push_back({attribute.location, 0, acm::vulkan::toVk(attribute.format), attribute.offset});
-	VkPipelineVertexInputStateCreateInfo vertexInput = {};
-	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	if (config.vertexLayout.stride > 0 && !attributes.empty())
+		VkPipelineShaderStageCreateInfo vertStage = {};
+		vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vertStage.module = config.vertex.native()->vkShaderModule();
+		vertStage.pName = "main";
+		VkPipelineShaderStageCreateInfo fragStage = {};
+		fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragStage.module = config.fragment.native()->vkShaderModule();
+		fragStage.pName = "main";
+		if (!vertStage.module || !fragStage.module)
+		{
+			m_error = acm::Error("failed to create pipeline from invalid shader module");
+			return;
+		}
+		VkPipelineShaderStageCreateInfo stages[] = {vertStage, fragStage};
+
+		VkVertexInputBindingDescription binding = {};
+		binding.binding = 0;
+		binding.stride = config.vertexLayout.stride;
+		binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		std::vector<VkVertexInputAttributeDescription> attributes;
+		attributes.reserve(config.vertexLayout.attributes.size());
+		for (const auto& attribute : config.vertexLayout.attributes)
+			attributes.push_back({attribute.location, 0, toVk(attribute.format), attribute.offset});
+		VkPipelineVertexInputStateCreateInfo vertexInput = {};
+		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		if (config.vertexLayout.stride > 0 && !attributes.empty())
+		{
+			vertexInput.vertexBindingDescriptionCount = 1;
+			vertexInput.pVertexBindingDescriptions = &binding;
+			vertexInput.vertexAttributeDescriptionCount = uint32_t(attributes.size());
+			vertexInput.pVertexAttributeDescriptions = attributes.data();
+		}
+
+		VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		inputAssembly.topology = toVk(config.topology);
+		VkPipelineViewportStateCreateInfo viewportState = {};
+		viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		viewportState.viewportCount = 1;
+		viewportState.scissorCount = 1;
+		VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+		VkPipelineDynamicStateCreateInfo dynamicState = {};
+		dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicState.dynamicStateCount = 2;
+		dynamicState.pDynamicStates = dynamicStates;
+
+		acm::PolygonMode polygonMode = config.polygonMode;
+		if (polygonMode == acm::PolygonMode::Line && !owner.enabledFeatures().fillModeNonSolid)
+			polygonMode = acm::PolygonMode::Fill;
+		float lineWidth = config.lineWidth;
+		if (lineWidth != 1.0f && !owner.enabledFeatures().wideLines)
+			lineWidth = 1.0f;
+		VkPipelineRasterizationStateCreateInfo rasterizer = {};
+		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		rasterizer.polygonMode = toVk(polygonMode);
+		rasterizer.lineWidth = lineWidth;
+		rasterizer.cullMode = toVk(config.cullMode);
+		rasterizer.frontFace = toVk(config.frontFace);
+
+		VkPipelineMultisampleStateCreateInfo multisampling = {};
+		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisampling.rasterizationSamples = config.target.native()->sampleCount();
+		if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
+		{
+			multisampling.sampleShadingEnable = VK_TRUE;
+			multisampling.minSampleShading = std::min(config.minSampleShading, 1.0f);
+		}
+
+		VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		if (config.blend == acm::BlendMode::AlphaBlend)
+		{
+			colorBlendAttachment.blendEnable = VK_TRUE;
+			colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+			colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+		}
+		VkPipelineColorBlendStateCreateInfo colorBlending = {};
+		colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlending.attachmentCount = 1;
+		colorBlending.pAttachments = &colorBlendAttachment;
+		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		depthStencil.depthTestEnable = VK_TRUE;
+		depthStencil.depthWriteEnable = VK_TRUE;
+		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		const VkFormat colorFormat = config.target.native()->colorFormat();
+		if (colorFormat == VK_FORMAT_UNDEFINED)
+		{
+			m_error = acm::Error("failed to create pipeline from invalid render target format");
+			return;
+		}
+		VkPipelineRenderingCreateInfo renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachmentFormats = &colorFormat;
+		renderingInfo.depthAttachmentFormat = config.target.native()->depthFormat();
+
+		const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.native()->vkLayout() : VK_NULL_HANDLE;
+		VkPipelineLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		if (setLayout)
+		{
+			layoutInfo.setLayoutCount = 1;
+			layoutInfo.pSetLayouts = &setLayout;
+		}
+		if (vkCreatePipelineLayout(owner.vkDevice(), &layoutInfo, nullptr, &m_layout) != VK_SUCCESS)
+		{
+			m_error = acm::Error("failed to create pipeline layout");
+			return;
+		}
+
+		VkGraphicsPipelineCreateInfo pipelineInfo = {};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineInfo.pNext = &renderingInfo;
+		pipelineInfo.stageCount = 2;
+		pipelineInfo.pStages = stages;
+		pipelineInfo.pVertexInputState = &vertexInput;
+		pipelineInfo.pInputAssemblyState = &inputAssembly;
+		pipelineInfo.pViewportState = &viewportState;
+		pipelineInfo.pRasterizationState = &rasterizer;
+		pipelineInfo.pMultisampleState = &multisampling;
+		pipelineInfo.pColorBlendState = &colorBlending;
+		pipelineInfo.pDepthStencilState = config.depthTest ? &depthStencil : nullptr;
+		pipelineInfo.pDynamicState = &dynamicState;
+		pipelineInfo.layout = m_layout;
+		if (vkCreateGraphicsPipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
+		{
+			m_error = acm::Error("failed to create graphics pipeline");
+			return;
+		}
+
+		m_descriptorLayout = config.descriptorLayout;
+	}
+
+	Pipeline::~Pipeline()
 	{
-		vertexInput.vertexBindingDescriptionCount = 1;
-		vertexInput.pVertexBindingDescriptions = &binding;
-		vertexInput.vertexAttributeDescriptionCount = uint32_t(attributes.size());
-		vertexInput.pVertexAttributeDescriptions = attributes.data();
+		release();
 	}
 
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = acm::vulkan::toVk(config.topology);
-	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount = 1;
-	viewportState.scissorCount = 1;
-	VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-	VkPipelineDynamicStateCreateInfo dynamicState = {};
-	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicState.dynamicStateCount = 2;
-	dynamicState.pDynamicStates = dynamicStates;
-
-	acm::PolygonMode polygonMode = config.polygonMode;
-	if (polygonMode == acm::PolygonMode::Line && !owner.enabledFeatures().fillModeNonSolid)
-		polygonMode = acm::PolygonMode::Fill;
-	float lineWidth = config.lineWidth;
-	if (lineWidth != 1.0f && !owner.enabledFeatures().wideLines)
-		lineWidth = 1.0f;
-	VkPipelineRasterizationStateCreateInfo rasterizer = {};
-	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizer.polygonMode = acm::vulkan::toVk(polygonMode);
-	rasterizer.lineWidth = lineWidth;
-	rasterizer.cullMode = acm::vulkan::toVk(config.cullMode);
-	rasterizer.frontFace = acm::vulkan::toVk(config.frontFace);
-
-	VkPipelineMultisampleStateCreateInfo multisampling = {};
-	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.rasterizationSamples = config.target.native()->sampleCount();
-	if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
+	Pipeline::Pipeline(Pipeline&& other) noexcept
 	{
-		multisampling.sampleShadingEnable = VK_TRUE;
-		multisampling.minSampleShading = std::min(config.minSampleShading, 1.0f);
+		*this = std::move(other);
 	}
 
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	if (config.blend == acm::BlendMode::AlphaBlend)
+	Pipeline& Pipeline::operator=(Pipeline&& other) noexcept
 	{
-		colorBlendAttachment.blendEnable = VK_TRUE;
-		colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-	}
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &colorBlendAttachment;
-	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencil.depthTestEnable = VK_TRUE;
-	depthStencil.depthWriteEnable = VK_TRUE;
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-	const VkFormat colorFormat = config.target.native()->colorFormat();
-	if (colorFormat == VK_FORMAT_UNDEFINED)
-	{
-		m_error = acm::Error("failed to create pipeline from invalid render target format");
-		return;
-	}
-	VkPipelineRenderingCreateInfo renderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachmentFormats = &colorFormat;
-	renderingInfo.depthAttachmentFormat = config.target.native()->depthFormat();
-
-	const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.native()->vkLayout() : VK_NULL_HANDLE;
-	VkPipelineLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	if (setLayout)
-	{
-		layoutInfo.setLayoutCount = 1;
-		layoutInfo.pSetLayouts = &setLayout;
-	}
-	if (vkCreatePipelineLayout(owner.vkDevice(), &layoutInfo, nullptr, &m_layout) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create pipeline layout");
-		return;
-	}
-
-	VkGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.pNext = &renderingInfo;
-	pipelineInfo.stageCount = 2;
-	pipelineInfo.pStages = stages;
-	pipelineInfo.pVertexInputState = &vertexInput;
-	pipelineInfo.pInputAssemblyState = &inputAssembly;
-	pipelineInfo.pViewportState = &viewportState;
-	pipelineInfo.pRasterizationState = &rasterizer;
-	pipelineInfo.pMultisampleState = &multisampling;
-	pipelineInfo.pColorBlendState = &colorBlending;
-	pipelineInfo.pDepthStencilState = config.depthTest ? &depthStencil : nullptr;
-	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = m_layout;
-	if (vkCreateGraphicsPipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
-	{
-		m_error = acm::Error("failed to create graphics pipeline");
-		return;
-	}
-
-	m_descriptorLayout = config.descriptorLayout;
-}
-
-acm::vulkan::Pipeline::~Pipeline()
-{
-	release();
-}
-
-acm::vulkan::Pipeline::Pipeline(Pipeline&& other) noexcept
-{
-	*this = std::move(other);
-}
-
-acm::vulkan::Pipeline& acm::vulkan::Pipeline::operator=(Pipeline&& other) noexcept
-{
-	if (this == &other)
+		if (this == &other)
+			return *this;
+		release();
+		m_owner = std::exchange(other.m_owner, nullptr);
+		m_descriptorLayout = std::move(other.m_descriptorLayout);
+		m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
+		m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
+		m_error = std::move(other.m_error);
 		return *this;
-	release();
-	m_owner = std::exchange(other.m_owner, nullptr);
-	m_descriptorLayout = std::move(other.m_descriptorLayout);
-	m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
-	m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
-	m_error = std::move(other.m_error);
-	return *this;
-}
+	}
 
-VkPipeline acm::vulkan::Pipeline::vkPipeline() const
-{
-	return m_pipeline;
-}
+	// -----------------------------------------------------------------------------
+	// State
+	// -----------------------------------------------------------------------------
 
-VkPipelineLayout acm::vulkan::Pipeline::vkLayout() const
-{
-	return m_layout;
-}
+	VkPipeline Pipeline::vkPipeline() const
+	{
+		return m_pipeline;
+	}
 
-void acm::vulkan::Pipeline::release()
-{
-	acm::vulkan::Device* owner = std::exchange(m_owner, nullptr);
-	const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
-	const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
-	if (owner && pipeline)
-		vkDestroyPipeline(owner->vkDevice(), pipeline, nullptr);
-	if (owner && layout)
-		vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
-	m_descriptorLayout.reset();
-}
+	VkPipelineLayout Pipeline::vkLayout() const
+	{
+		return m_layout;
+	}
+
+	// -----------------------------------------------------------------------------
+	// Internals
+	// -----------------------------------------------------------------------------
+
+	void Pipeline::release()
+	{
+		Device* owner = std::exchange(m_owner, nullptr);
+		const VkPipeline pipeline = std::exchange(m_pipeline, VK_NULL_HANDLE);
+		const VkPipelineLayout layout = std::exchange(m_layout, VK_NULL_HANDLE);
+		if (owner && pipeline)
+			vkDestroyPipeline(owner->vkDevice(), pipeline, nullptr);
+		if (owner && layout)
+			vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
+		m_descriptorLayout.reset();
+	}
+
+} // namespace acm::vulkan

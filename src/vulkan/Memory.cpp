@@ -12,25 +12,6 @@
 
 namespace acm::vulkan
 {
-	VkDeviceSize MemoryAllocator::alignUp(VkDeviceSize value, VkDeviceSize alignment)
-	{
-		if (alignment == 0)
-			return value;
-		return (value + alignment - 1) & ~(alignment - 1);
-	}
-
-	uint32_t MemoryAllocator::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const
-	{
-		for (uint32_t index = 0; index < m_memoryProperties.memoryTypeCount; ++index)
-		{
-			const bool typeAllowed = (typeBits & (1u << index)) != 0;
-			const bool hasProperties = (m_memoryProperties.memoryTypes[index].propertyFlags & properties) == properties;
-			if (typeAllowed && hasProperties)
-				return index;
-		}
-		return UINT32_MAX;
-	}
-
 	// One VkDeviceMemory block, sub-divided by a free list of [offset,size) regions
 	// kept sorted by offset (so neighbours can coalesce on free).
 	struct MemoryAllocator::Block
@@ -95,6 +76,10 @@ namespace acm::vulkan
 		}
 	};
 
+	// -----------------------------------------------------------------------------
+	// Lifetime
+	// -----------------------------------------------------------------------------
+
 	MemoryAllocator::MemoryAllocator(VkDevice device, VkPhysicalDevice physicalDevice)
 		: m_device(device)
 	{
@@ -113,6 +98,10 @@ namespace acm::vulkan
 			vkFreeMemory(m_device, block->memory, nullptr);
 		}
 	}
+
+	// -----------------------------------------------------------------------------
+	// Allocation
+	// -----------------------------------------------------------------------------
 
 	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
 	{
@@ -183,9 +172,36 @@ namespace acm::vulkan
 		static_cast<Block*>(allocation.block)->freeRange(allocation.offset, allocation.size);
 	}
 
+	// -----------------------------------------------------------------------------
+	// Diagnostics
+	// -----------------------------------------------------------------------------
+
 	size_t MemoryAllocator::blockCount() const
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		return m_blocks.size();
+	}
+
+	// -----------------------------------------------------------------------------
+	// Internals
+	// -----------------------------------------------------------------------------
+
+	VkDeviceSize MemoryAllocator::alignUp(VkDeviceSize value, VkDeviceSize alignment)
+	{
+		if (alignment == 0)
+			return value;
+		return (value + alignment - 1) & ~(alignment - 1);
+	}
+
+	uint32_t MemoryAllocator::findMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const
+	{
+		for (uint32_t index = 0; index < m_memoryProperties.memoryTypeCount; ++index)
+		{
+			const bool typeAllowed = (typeBits & (1u << index)) != 0;
+			const bool hasProperties = (m_memoryProperties.memoryTypes[index].propertyFlags & properties) == properties;
+			if (typeAllowed && hasProperties)
+				return index;
+		}
+		return UINT32_MAX;
 	}
 } // namespace acm::vulkan

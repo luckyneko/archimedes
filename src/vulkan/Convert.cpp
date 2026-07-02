@@ -12,6 +12,10 @@
 
 namespace acm::vulkan
 {
+	// -----------------------------------------------------------------------------
+	// Formats
+	// -----------------------------------------------------------------------------
+
 	VkFormat toVk(acm::Format format)
 	{
 		switch (format)
@@ -95,6 +99,10 @@ namespace acm::vulkan
 		}
 	}
 
+	// -----------------------------------------------------------------------------
+	// Surface Presentation
+	// -----------------------------------------------------------------------------
+
 	VkColorSpaceKHR toVk(acm::ColorSpace colorSpace)
 	{
 		switch (colorSpace)
@@ -156,6 +164,10 @@ namespace acm::vulkan
 		}
 	}
 
+	// -----------------------------------------------------------------------------
+	// Physical Devices
+	// -----------------------------------------------------------------------------
+
 	acm::PhysicalDeviceType fromVk(VkPhysicalDeviceType type)
 	{
 		switch (type)
@@ -174,6 +186,10 @@ namespace acm::vulkan
 				return acm::PhysicalDeviceType::Other;
 		}
 	}
+
+	// -----------------------------------------------------------------------------
+	// Buffers
+	// -----------------------------------------------------------------------------
 
 	VkBufferUsageFlags toVk(acm::BufferUsage usage)
 	{
@@ -198,6 +214,10 @@ namespace acm::vulkan
 		return 0;
 	}
 
+	// -----------------------------------------------------------------------------
+	// Descriptors
+	// -----------------------------------------------------------------------------
+
 	VkDescriptorType toVk(acm::DescriptorType type)
 	{
 		switch (type)
@@ -216,6 +236,10 @@ namespace acm::vulkan
 		assert(false && "acm::vulkan::toVk: invalid acm::DescriptorType");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	}
+
+	// -----------------------------------------------------------------------------
+	// Shader Stages
+	// -----------------------------------------------------------------------------
 
 	// ShaderStage is a flag set, so OR the matching Vk bits (a single value works too).
 	VkShaderStageFlags toVk(acm::ShaderStage stage)
@@ -243,6 +267,10 @@ namespace acm::vulkan
 		return flags ? flags : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 	}
 
+	// -----------------------------------------------------------------------------
+	// Images
+	// -----------------------------------------------------------------------------
+
 	VkLayoutInfo toVk(acm::ImageLayout layout)
 	{
 		switch (layout)
@@ -261,6 +289,10 @@ namespace acm::vulkan
 		assert(false && "acm::vulkan::toVk: invalid acm::ImageLayout");
 		return {VK_IMAGE_LAYOUT_UNDEFINED, VK_ACCESS_2_NONE, VK_PIPELINE_STAGE_2_NONE};
 	}
+
+	// -----------------------------------------------------------------------------
+	// Pipelines
+	// -----------------------------------------------------------------------------
 
 	VkPrimitiveTopology toVk(acm::Topology topology)
 	{
