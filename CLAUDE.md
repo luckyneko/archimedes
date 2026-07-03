@@ -744,7 +744,9 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   backend names stay inside the selected backend.
 - **Formatting:** [.clang-format](.clang-format) — Allman braces, tabs (width 4),
   no column limit, `All` namespace indentation, left pointer alignment. Run
-  clang-format (v21) on touched files; `editor.formatOnSave` is on in VS Code.
+  `cmake --build build --target format` on touched files, or
+  `cmake --build build --target format-check` in CI/review; the CMake target uses
+  pinned clang-format v20.
 - **Shaders:** the `vk_target_shaders()` helper compiles testbed GLSL to SPIR-V
   for the Vulkan 1.3 target environment via `glslc` or `glslang`.
 

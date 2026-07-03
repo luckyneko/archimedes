@@ -1,0 +1,7 @@
+# C/C++ source roots formatted by the CMake `format` / `format-check` targets.
+include
+private
+src
+test
+testbed/src
+bench

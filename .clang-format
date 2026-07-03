@@ -1,5 +1,5 @@
 # Custom Format based on Visual-Studio style.
-# The tree is formatted with clang-format v21 (Apple clang-format 21.0.0).
+# The tree is formatted with the pinned clang-format v20 CMake target.
 # Option reference: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 
 # Defaults

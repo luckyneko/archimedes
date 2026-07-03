@@ -16,6 +16,7 @@ endif()
 option(ARCHIMEDES_BUILD_TESTBED "Build the testbed executable" ${NOT_SUBPROJECT})
 option(ARCHIMEDES_BUILD_TESTING "Build the unit/integration tests" ${NOT_SUBPROJECT})
 option(ARCHIMEDES_BUILD_BENCHMARK "Build the benchmark executable" ${NOT_SUBPROJECT})
+option(ARCHIMEDES_FORMAT "Provide clang-format format / format-check targets" ${NOT_SUBPROJECT})
 set(ARCHIMEDES_MOLTENVK_LOG_LEVEL "1" CACHE STRING "MoltenVK MVK_CONFIG_LOG_LEVEL default for Archimedes-run executables: 0 none, 1 errors, 2 warnings, 3 info, 4 debug")
 
 # Disable building in-source
@@ -24,6 +25,10 @@ if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
+if(ARCHIMEDES_FORMAT)
+    include(addclangformat)
+endif()
 
 # Vendored dependencies. Each add*.cmake prefers a system package, otherwise
 # fetches a pinned release via FetchContent — archives cached under
