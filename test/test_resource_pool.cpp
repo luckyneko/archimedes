@@ -137,7 +137,7 @@ TEST_CASE("ResourcePool refs are safe across wrapper copies", "[acm][unit]")
 	std::atomic<bool> failed{false};
 	std::vector<std::thread> threads;
 	for (uint32_t thread = 0; thread < ThreadCount; ++thread)
-		threads.emplace_back([resource, &failed]
+		threads.emplace_back([resource, &failed, Iterations]
 							 {
 							 for (uint32_t iteration = 0; iteration < Iterations; ++iteration)
 							 {
