@@ -16,7 +16,10 @@ namespace acm
 	{
 	public:
 		Error() = default;
-		explicit Error(std::string msg) : m(std::move(msg)) {}
+		explicit Error(std::string msg)
+			: m(std::move(msg))
+		{
+		}
 
 		explicit operator bool() const { return !m.empty(); }
 		bool ok() const { return m.empty(); }

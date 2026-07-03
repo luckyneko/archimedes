@@ -9,7 +9,6 @@
 #include "archimedes/DeferredDestroyQueue.h"
 
 #include <catch2/catch_all.hpp>
-
 #include <memory>
 #include <utility>
 

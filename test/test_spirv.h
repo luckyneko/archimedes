@@ -2936,7 +2936,6 @@ namespace acmtest
 								 reinterpret_cast<const char*>(kSamplerArrayFragSpv) + sizeof(kSamplerArrayFragSpv));
 	}
 
-
 	// compute — fills a storage buffer: values[gl_GlobalInvocationID.x] = i*2 + 1.
 	// layout(local_size_x = 64); layout(std430, set=0, binding=0) buffer Data { uint values[]; }.
 	inline std::vector<char> computeFillSpirv()
@@ -3161,7 +3160,6 @@ namespace acmtest
 		return std::vector<char>(reinterpret_cast<const char*>(kComputeFillSpv),
 								 reinterpret_cast<const char*>(kComputeFillSpv) + sizeof(kComputeFillSpv));
 	}
-
 
 	// compute — writes a green vec4 into storage[0]: color = vec4(0,1,0,1).
 	inline std::vector<char> computeColorSpirv()
@@ -3469,7 +3467,6 @@ namespace acmtest
 		return std::vector<char>(reinterpret_cast<const char*>(kStorageReadFragSpv),
 								 reinterpret_cast<const char*>(kStorageReadFragSpv) + sizeof(kStorageReadFragSpv));
 	}
-
 
 	// compute — writes solid green into a storage image (rgba8) at set 0, binding 0.
 	// layout(local_size_x=8, local_size_y=8); imageStore(img, gid, vec4(0,1,0,1)).
