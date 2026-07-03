@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache fetched tools
+        uses: actions/cache@v4
+        with:
+          path: .cache/fetch
+          key: ${{ runner.os }}-format-${{ hashFiles('.clang-format', '.clang-format-include', 'cmake/addclangformat.cmake') }}
+          restore-keys: |
+            ${{ runner.os }}-format-
+
+      - name: Configure formatter
+        run: >
+          cmake -S . -B build-format
+          -DARCHIMEDES_FORMAT=ON
+          -DARCHIMEDES_BUILD_TESTBED=OFF
+          -DARCHIMEDES_BUILD_TESTING=OFF
+          -DARCHIMEDES_BUILD_BENCHMARK=OFF
+
+      - name: Check formatting
+        run: cmake --build build-format --target format-check
+
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux Release
+            os: ubuntu-24.04
+            build_type: Release
+            install_linux_deps: true
+
+          - name: macOS Release
+            os: macos-15
+            build_type: Release
+            install_linux_deps: false
+
+          - name: Windows Release
+            os: windows-2022
+            build_type: Release
+            install_linux_deps: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/fetch
+          key: ${{ runner.os }}-deps-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', 'test/CMakeLists.txt', 'testbed/CMakeLists.txt', 'bench/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install Linux windowing dependencies
+        if: ${{ matrix.install_linux_deps }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+      - name: Configure library-only
+        run: >
+          cmake -S . -B build-lib
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DARCHIMEDES_FORMAT=OFF
+          -DARCHIMEDES_BUILD_TESTBED=OFF
+          -DARCHIMEDES_BUILD_TESTING=OFF
+          -DARCHIMEDES_BUILD_BENCHMARK=OFF
+
+      - name: Build library-only
+        run: cmake --build build-lib --parallel --config ${{ matrix.build_type }}
+
+      - name: Configure full build
+        run: >
+          cmake -S . -B build-full
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DARCHIMEDES_FORMAT=OFF
+
+      - name: Build full graph
+        run: cmake --build build-full --parallel --config ${{ matrix.build_type }}
+
+      - name: Test
+        run: ctest --test-dir build-full --output-on-failure -C ${{ matrix.build_type }}
