@@ -146,6 +146,7 @@ is a lifetime hierarchy, not shared ownership.
 Instance ── enumerates ──> GPU[] (physical devices, queue families)
    │
    ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-GPU support query
+   ├── createHeadlessSurface([extent]) ──────> Surface   // windowless offscreen surface (headless ext, or an owned off-screen window)
    │
    └── createDevice(GPU, queueIndex) ─────────────> Device    // logical device + queue
           │
@@ -168,6 +169,20 @@ Instance ── enumerates ──> GPU[] (physical devices, queue families)
           ├── createDescriptorSetLayout(bindings) ──> DescriptorSetLayout // typed/staged bindings (n-sampler convenience form too)
           └── createDescriptorSet(layout) ──────────> DescriptorSet // owns pool + set; .setTexture(...) / .setBuffer(...)
 ```
+
+**Surfaces.** `createVulkanSurface(VkSurfaceKHR)` wraps a caller-owned platform surface
+(the testbed builds one from GLFW). `createHeadlessSurface(extent)` is the windowless
+counterpart for offscreen rendering that still exercises the real swapchain/present path:
+it prefers `VK_EXT_headless_surface` (a true windowless surface, e.g. MoltenVK) and
+otherwise creates an **off-screen platform window** the surface owns and destroys after
+its `VkSurfaceKHR` (Windows desktop ICDs lack the headless extension). It returns an
+invalid `Surface` where no mechanism exists. The `extent` sizes that backing window on
+platforms that need one and is unused where a true windowless surface exists — on the
+latter the swapchain's own desired extent drives the render size, so pass the intended
+size to both for cross-platform consistency. The one place raw Vulkan platform surface
+creation lives (the `#ifdef _WIN32` / `<windows.h>` seam) is
+[PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp), keeping the rest of the backend —
+and the tests — backend-neutral.
 
 A `CommandBuffer` is a recording handle over a named backend owner containing its
 `VkCommandBuffer`. It retains the parent `CommandPool` wrapper and queues
@@ -589,8 +604,8 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
 
 - **Pure unit** (`[acm]`, `[handle]`, `[version]`) — wrapper validity/reset/share
   semantics and `Version`. No driver needed.
-- **Integration** (`[gpu]`) — mostly headless via a **headless surface**
-  (`vkCreateHeadlessSurfaceEXT` — no window): `acm::Instance`/`Device` creation +
+- **Integration** (`[gpu]`) — mostly headless via `acm::Instance::createHeadlessSurface`
+  (the first-class windowless surface — see the Instance factories): `acm::Instance`/`Device` creation +
   GPU enumeration, `acm::Surface` per-GPU support, `acm::SwapChain` extent
   clamping, `acm::CommandPool`/`CommandBuffer` (device-only — needs no surface),
   `acm::Shader`/`acm::Pipeline` creation, the `acm::Renderer` frame loop
@@ -639,9 +654,10 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   GPU workloads SKIP when no live driver is available.
   `test/CMakeLists.txt` points `VK_ICD_FILENAMES` at the vendored MoltenVK ICD
   (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not fails) when no
-  driver / extension / capability is present, so a GPU-less CI stays green — and
-  the pipeline/render tests SKIP on drivers lacking `VK_EXT_headless_surface`
-  (e.g. some Windows ICDs) since they need a swapchain-backed target. (Note:
+  driver / extension / capability is present, so a GPU-less CI stays green. The
+  swapchain-backed tests need a real surface: they use `VK_EXT_headless_surface`
+  where available and otherwise (Windows desktop ICDs) an off-screen
+  `VK_KHR_win32_surface`, so they run on Windows rather than skipping. (Note:
   ctest reports a Catch2 `SKIP` as "Passed"; run the binary with the ICD env to
   confirm assertions actually execute.)
 
@@ -653,9 +669,10 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   live Metal access.
 
 Shared `[gpu]` scaffolding lives in [test/vk_test_helpers.h](test/vk_test_helpers.h)
-— headless-surface + graphics-GPU selection, plus `buildHeadlessStack()` (the full
-instance→surface→device→swapchain, SKIP-ing with a specific reason on any missing
-layer). Reuse it, don't re-roll it. The pipeline/render tests use precompiled
+— graphics-GPU selection plus `buildHeadlessStack()` (the full
+instance→surface→device→swapchain via `createHeadlessSurface`, SKIP-ing with a specific
+reason on any missing layer). It is backend-neutral — no raw Vulkan or platform headers,
+since the windowless surface is now a first-class API. Reuse it, don't re-roll it. The pipeline/render tests use precompiled
 SPIR-V embedded in [test/test_spirv.h](test/test_spirv.h) (so tests need no
 build-time shader compiler — regenerate it with `glslangValidator -V --target-env vulkan1.3` if the GLSL
 in its header comment changes). Add new tests in place; do not duplicate the
@@ -775,9 +792,11 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - `[gpu]` tests cover wrapper semantics, instance/device/surface/swapchain, command
   pool/buffer, pipeline, the renderer frame loop, and render-to-texture (the RTT
   test reads pixels back and checks them; the swapchain-backed tests only assert
-  success/validity). The swapchain-backed cases need a headless-surface-capable
-  driver (e.g. MoltenVK) and SKIP elsewhere; the device-only ones (command
-  pool/buffer, RTT) run anywhere with a graphics queue.
+  success/validity). The swapchain-backed cases need a real surface, which
+  `createHeadlessSurface` supplies (a headless-extension surface, e.g. MoltenVK, or
+  its off-screen-window fallback), so they SKIP only where no headless mechanism
+  exists; the device-only ones (command pool/buffer, RTT) run anywhere with a
+  graphics queue.
 - The pooling `MemoryAllocator` is deliberately simple: a per-block first-fit free
   list (no best-fit / buddy / defragmentation, O(regions) allocate), a fixed 64 MB
   block size, no shrinking (blocks live until the `Device` dies), and it isn't

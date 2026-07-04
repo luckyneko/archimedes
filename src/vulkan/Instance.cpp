@@ -14,6 +14,7 @@
 #include "archimedes/acmVersion.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
+#include "archimedes/vulkan/PlatformSurface.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -145,6 +146,21 @@ namespace acm::vulkan
 										   { return Surface(*this, surface); });
 		if (!inserted.valid())
 			return acm::Surface(inserted.error ? std::move(inserted.error) : acm::Error("failed to create surface"));
+		return acm::Surface(std::move(inserted.resource));
+	}
+
+	acm::Surface Instance::createHeadlessSurface(acm::Extent2D extent)
+	{
+		HeadlessSurface headless = acm::vulkan::createHeadlessSurface(m_instance, extent);
+		if (headless.surface == VK_NULL_HANDLE)
+			return acm::Surface(acm::Error("headless surface is unavailable on this platform/driver"));
+
+		m_surfaces.collectGarbage();
+		const VkSurfaceKHR surface = headless.surface;
+		auto inserted = m_surfaces.emplace([this, surface, window = std::move(headless.window)]() mutable
+										   { return Surface(*this, surface, std::move(window)); });
+		if (!inserted.valid())
+			return acm::Surface(inserted.error ? std::move(inserted.error) : acm::Error("failed to create headless surface"));
 		return acm::Surface(std::move(inserted.resource));
 	}
 

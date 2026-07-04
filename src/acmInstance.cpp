@@ -73,6 +73,11 @@ namespace acm
 		return m ? m->createVulkanSurface(surface) : Surface{};
 	}
 
+	Surface Instance::createHeadlessSurface(Extent2D extent)
+	{
+		return m ? m->createHeadlessSurface(extent) : Surface{};
+	}
+
 	Device Instance::createDevice(const GPU& gpu, uint32_t queueIndex)
 	{
 		return m ? m->createDevice(gpu, queueIndex) : Device{};

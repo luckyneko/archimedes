@@ -4,104 +4,118 @@
       "args": [],
       "benchmarks": [
         {
-          "mean_ns": 27305.0,
+          "mean_ns": 27120.0,
           "section": "100 draws",
-          "stddev_ns": 4394.74,
+          "stddev_ns": 4327.49,
           "variant": "acm(draw-sequence)",
           "workload": "command_recording"
         },
         {
-          "mean_ns": 250908.0,
+          "mean_ns": 243977.0,
           "section": "1000 draws",
-          "stddev_ns": 6496.45,
+          "stddev_ns": 4649.71,
           "variant": "acm(draw-sequence)",
           "workload": "command_recording"
         },
         {
-          "mean_ns": 2501330.0,
+          "mean_ns": 2458870.0,
           "section": "10000 draws",
-          "stddev_ns": 45795.1,
+          "stddev_ns": 21448.4,
           "variant": "acm(draw-sequence)",
           "workload": "command_recording"
         },
         {
-          "mean_ns": 80.9897,
+          "mean_ns": 63.5465,
           "section": null,
-          "stddev_ns": 11.0392,
+          "stddev_ns": 1.26054,
           "variant": "acm(combined-image-sampler)",
           "workload": "descriptor_updates"
         },
         {
-          "mean_ns": 65.0032,
+          "mean_ns": 45.3069,
           "section": null,
-          "stddev_ns": 12.7262,
+          "stddev_ns": 1.23591,
           "variant": "acm(dynamic-uniform-buffer)",
           "workload": "descriptor_updates"
         },
         {
-          "mean_ns": 71.7636,
+          "mean_ns": 63.2593,
           "section": null,
-          "stddev_ns": 17.7686,
+          "stddev_ns": 1.46515,
           "variant": "acm(uniform-buffer)",
           "workload": "descriptor_updates"
         },
         {
-          "mean_ns": 31750.0,
+          "mean_ns": 5724630.0,
           "section": null,
-          "stddev_ns": 4811.15,
+          "stddev_ns": 5994580.0,
+          "variant": "acm(empty-frame)",
+          "workload": "renderer_frame"
+        },
+        {
+          "mean_ns": 5716140.0,
+          "section": null,
+          "stddev_ns": 5979630.0,
+          "variant": "acm(simple-draw-frame)",
+          "workload": "renderer_frame"
+        },
+        {
+          "mean_ns": 31399.0,
+          "section": null,
+          "stddev_ns": 4473.11,
           "variant": "acm(buffer-uniform-4k-x64)",
           "workload": "resource_creation"
         },
         {
-          "mean_ns": 167018.0,
+          "mean_ns": 119591.0,
           "section": null,
-          "stddev_ns": 42828.9,
+          "stddev_ns": 12614.4,
           "variant": "acm(pipeline-triangle-x4)",
           "workload": "resource_creation"
         },
         {
-          "mean_ns": 26749.0,
+          "mean_ns": 24006.0,
           "section": null,
-          "stddev_ns": 11398.3,
+          "stddev_ns": 2401.91,
           "variant": "acm(render-target-bgra8-64-x16)",
           "workload": "resource_creation"
         },
         {
-          "mean_ns": 29195.0,
+          "mean_ns": 28441.0,
           "section": null,
-          "stddev_ns": 5481.43,
+          "stddev_ns": 5049.18,
           "variant": "acm(shader-triangle-vert-x16)",
           "workload": "resource_creation"
         },
         {
-          "mean_ns": 34344.0,
+          "mean_ns": 34737.0,
           "section": null,
-          "stddev_ns": 6830.64,
+          "stddev_ns": 7057.39,
           "variant": "acm(texture-bgra8-64-x16)",
           "workload": "resource_creation"
         },
         {
-          "mean_ns": 38.7559,
+          "mean_ns": 35.3131,
           "section": null,
-          "stddev_ns": 4.96256,
+          "stddev_ns": 1.89104,
           "variant": "acm(pool-emplace)",
           "workload": "resource_pool"
         },
         {
-          "mean_ns": 253371.0,
+          "mean_ns": 218738.0,
           "section": null,
-          "stddev_ns": 49247.3,
+          "stddev_ns": 2287.33,
           "variant": "acm(ref-copy-access-10k)",
           "workload": "resource_pool"
         }
       ],
       "executable": "./build/bench-archimedes.exe",
-      "generated_at": "2026-07-03T06:57:46.968923Z",
+      "generated_at": "2026-07-04T01:10:23.314313Z",
       "git": {
         "branch": "develop",
-        "commit": "84263a002bcc96afa91b5a8a4c87ab621ae02357",
+        "commit": "bfc3af81e2e7e6fa83b28b6e653ee40765764e3b",
         "dirty": true,
-        "short_commit": "84263a0"
+        "short_commit": "bfc3af8"
       },
       "schema_version": 1
     }
