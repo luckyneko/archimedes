@@ -24,7 +24,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	const std::vector<acm::DeviceOption> options = instance.deviceOptions();
+	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
 	if (options.empty())
 		SKIP("no graphics-capable queue family");
 	const acm::DeviceOption option = options.front();

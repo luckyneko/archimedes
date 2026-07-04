@@ -11,13 +11,14 @@
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
+#include <vector>
 
 // Integration: exercises acm::Surface without a window via the first-class
 // acm::Instance::createHeadlessSurface() (VK_EXT_headless_surface where available,
 // e.g. MoltenVK, else an off-screen platform window). SKIPs without a live driver
 // or any headless mechanism.
 
-TEST_CASE("Surface (headless) reports per-device support", "[acm][gpu]")
+TEST_CASE("Surface (headless) produces compatible surface options", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
 	if (!instance.valid())
@@ -27,14 +28,18 @@ TEST_CASE("Surface (headless) reports per-device support", "[acm][gpu]")
 	if (!surface.valid())
 		SKIP("headless surface unavailable");
 
-	// One support entry per enumerated device, mirroring its queue families.
-	const auto& devices = instance.devices();
-	const auto& support = surface.deviceSupport();
-	REQUIRE(support.size() == devices.size());
-	for (size_t i = 0; i < support.size(); ++i)
+	const std::vector<acm::SurfaceOption> options = instance.surfaceOptions(surface);
+	if (options.empty())
+		SKIP("headless surface exposes no compatible device options");
+	const std::vector<acm::DeviceInfo>& devices = instance.devices();
+	for (const acm::SurfaceOption& option : options)
 	{
-		REQUIRE(support[i].deviceIndex == devices[i].index);
-		REQUIRE(support[i].queuePresentSupport.size() == devices[i].queues.size());
+		REQUIRE(option.device.deviceIndex < devices.size());
+		const acm::DeviceInfo& device = devices[option.device.deviceIndex];
+		REQUIRE(option.device.queueFamily < device.queues.size());
+		REQUIRE(device.queues[option.device.queueFamily].graphics);
+		REQUIRE(option.capabilities.minImageCount > 0);
+		REQUIRE(option.format.format != acm::Format::Undefined);
 	}
 }
 

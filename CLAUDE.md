@@ -249,12 +249,12 @@ Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 the reported version is available as `DeviceInfo::apiVersion`. Device creation enables
 `synchronization2` and `dynamicRendering`, and command-buffer buffer/image barriers use
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
-submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::deviceOptions()`
+submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::graphicsOptions()`
 reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), and
 `Instance::createDevice(option)` is the preferred creation path when the caller does not
 need custom selection logic. `Instance::surfaceOptions(surface[s])` filters those device
 options to graphics queues that can present to one or more surfaces and supplies the
-surface format / present mode used by `Device::createSwapChain(surface, option, ...)`.
+surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`

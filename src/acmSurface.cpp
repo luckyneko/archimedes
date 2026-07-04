@@ -56,18 +56,6 @@ namespace acm
 	}
 
 	// -----------------------------------------------------------------------------
-	// Capabilities
-	// -----------------------------------------------------------------------------
-
-	const std::vector<SurfaceDeviceSupport>& Surface::deviceSupport() const
-	{
-		static const std::vector<SurfaceDeviceSupport> empty;
-		if (auto* resource = m_resource.access())
-			return resource->support();
-		return empty;
-	}
-
-	// -----------------------------------------------------------------------------
 	// Construction
 	// -----------------------------------------------------------------------------
 

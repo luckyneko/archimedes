@@ -25,7 +25,7 @@ namespace acmtest
 	// The pointer is valid for the lifetime of the instance.
 	inline const acm::DeviceInfo* selectGraphicsDevice(const acm::Instance& instance, uint32_t& queueIndex)
 	{
-		const std::vector<acm::DeviceOption> options = instance.deviceOptions();
+		const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
 		if (options.empty())
 			return nullptr;
 		const acm::DeviceOption& option = options.front();

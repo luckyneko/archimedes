@@ -67,7 +67,7 @@ namespace acm
 
 		// Enumeration
 		const std::vector<acm::DeviceInfo>& devices() const;
-		std::vector<acm::DeviceOption> deviceOptions() const;
+		std::vector<acm::DeviceOption> graphicsOptions() const;
 		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface) const;
 		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces) const;
 

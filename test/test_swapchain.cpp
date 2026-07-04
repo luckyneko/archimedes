@@ -33,12 +33,15 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (options.empty())
 		SKIP("headless surface exposes no compatible device options");
 	const acm::SurfaceOption option = options.front();
-	const acm::SurfaceDeviceSupport& support = surface.deviceSupport()[option.device.deviceIndex];
 
 	acm::Device device = instance.createDevice(option.device);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D desired{800, 600};
+	acm::SurfaceOption mismatched = option;
+	++mismatched.device.deviceIndex;
+	REQUIRE_FALSE(device.createSwapChain(surface, mismatched, desired).valid());
+
 	acm::SwapChain swapChain = device.createSwapChain(surface, option, desired);
 	if (!swapChain.valid())
 		SKIP("driver does not support a headless swapchain");
@@ -46,7 +49,7 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	// Proof the undefined-extent branch ran: the chosen extent is a real value
 	// inside the surface's allowed range (not the UINT32_MAX sentinel), so the
 	// swapchain could actually be created.
-	const acm::SurfaceCapabilities& caps = support.capabilities;
+	const acm::SurfaceCapabilities& caps = option.capabilities;
 	const acm::Extent2D extent = swapChain.extent();
 	REQUIRE(extent.width != UINT32_MAX);
 	REQUIRE(extent.width >= caps.minImageExtent.width);

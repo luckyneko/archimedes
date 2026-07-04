@@ -67,6 +67,42 @@ namespace acm
 
 	SwapChain Device::createSwapChain(const Surface& surface, const SurfaceOption& option, Extent2D desiredExtent, bool depth, SampleCount samples)
 	{
+		if (!m || option.device.deviceIndex != deviceInfo().index)
+			return SwapChain{};
+		backend::Surface* backendSurface = surface.backend();
+		if (!backendSurface)
+			return SwapChain{};
+
+		const SurfaceDeviceSupport* support = nullptr;
+		for (const SurfaceDeviceSupport& candidate : backendSurface->support())
+			if (candidate.deviceIndex == option.device.deviceIndex)
+			{
+				support = &candidate;
+				break;
+			}
+		if (!support || option.device.queueFamily >= support->queuePresentSupport.size() || !support->queuePresentSupport[option.device.queueFamily])
+			return SwapChain{};
+
+		bool formatSupported = false;
+		for (const SurfaceFormat& format : support->formats)
+			if (format.format == option.format.format && format.colorSpace == option.format.colorSpace)
+			{
+				formatSupported = true;
+				break;
+			}
+		if (!formatSupported)
+			return SwapChain{};
+
+		bool presentModeSupported = false;
+		for (PresentMode presentMode : support->presentModes)
+			if (presentMode == option.presentMode)
+			{
+				presentModeSupported = true;
+				break;
+			}
+		if (!presentModeSupported)
+			return SwapChain{};
+
 		return createSwapChain(surface, option.format, option.presentMode, desiredExtent, depth, samples);
 	}
 

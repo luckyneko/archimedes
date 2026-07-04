@@ -57,6 +57,7 @@ namespace acm
 		acm::DeviceOption device;
 		acm::SurfaceFormat format;
 		acm::PresentMode presentMode{acm::PresentMode::Fifo};
+		acm::SurfaceCapabilities capabilities;
 	};
 
 	struct SurfaceDeviceSupport

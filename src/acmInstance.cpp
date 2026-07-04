@@ -101,7 +101,7 @@ namespace acm
 		return m ? m->devices() : empty;
 	}
 
-	std::vector<DeviceOption> Instance::deviceOptions() const
+	std::vector<DeviceOption> Instance::graphicsOptions() const
 	{
 		std::vector<DeviceOption> options;
 		for (const DeviceInfo& deviceInfo : devices())
@@ -148,14 +148,20 @@ namespace acm
 			return support.presentModes[0];
 		};
 
-		for (const DeviceOption& deviceOption : deviceOptions())
+		for (const DeviceOption& deviceOption : graphicsOptions())
 		{
 			SurfaceOption option;
 			option.device = deviceOption;
 			bool compatible = true;
 			for (size_t surfaceIndex = 0; surfaceIndex < surfaces.size(); ++surfaceIndex)
 			{
-				const std::vector<SurfaceDeviceSupport>& supportList = surfaces[surfaceIndex].deviceSupport();
+				backend::Surface* surface = surfaces[surfaceIndex].backend();
+				if (!surface)
+				{
+					compatible = false;
+					break;
+				}
+				const std::vector<SurfaceDeviceSupport>& supportList = surface->support();
 				const SurfaceDeviceSupport* support = nullptr;
 				for (const SurfaceDeviceSupport& candidate : supportList)
 					if (candidate.deviceIndex == deviceOption.deviceIndex)
@@ -173,6 +179,7 @@ namespace acm
 				{
 					option.format = support->formats[0];
 					option.presentMode = preferredPresentMode(*support);
+					option.capabilities = support->capabilities;
 				}
 				else if (!hasFormat(*support, option.format) || !hasPresentMode(*support, option.presentMode))
 				{

@@ -35,9 +35,6 @@ namespace acm
 		acm::Error error() const;
 		acm::backend::Surface* backend() const;
 
-		// Capabilities
-		const std::vector<acm::SurfaceDeviceSupport>& deviceSupport() const;
-
 	private:
 		// Construction
 		friend acm::backend::Instance;
