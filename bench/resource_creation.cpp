@@ -105,7 +105,7 @@ TEST_CASE("resource_creation", "[bench][fast][gpu]")
 		std::vector<acm::Pipeline> pipelines;
 		pipelines.reserve(4);
 		for (uint32_t i = 0; i < 4; ++i)
-			pipelines.push_back(stack.device.createPipeline(vertex, fragment, target));
+			pipelines.push_back(stack.device.createPipeline(acm::PipelineShaders{vertex, fragment}, target));
 
 		bool valid = true;
 		for (const acm::Pipeline& pipeline : pipelines)

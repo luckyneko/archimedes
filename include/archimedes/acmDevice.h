@@ -47,10 +47,8 @@ namespace acm
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, const acm::RenderTargetConfig& config = {});
 		// spirv is compiled SPIR-V bytecode; loading it from disk is the caller's job.
 		acm::Shader createShader(const std::vector<char>& spirv);
-		// Convenience: a pipeline with no vertex input and no descriptors (geometry
-		// from the shader). For vertex buffers / descriptors, use the config form.
-		acm::Pipeline createPipeline(const acm::Shader& vertex, const acm::Shader& fragment, const acm::RenderTarget& target);
-		acm::Pipeline createPipeline(const acm::PipelineConfig& config);
+		acm::Pipeline createPipeline(const acm::PipelineShaders& shaders, const acm::RenderTarget& target);
+		acm::Pipeline createPipeline(const acm::PipelineShaders& shaders, const acm::RenderTarget& target, const acm::PipelineConfig& config);
 		// A compute pipeline: a compute `Shader` + a `DescriptorSetLayout` for the
 		// resources it reads/writes (a storage buffer, an optional uniform). Record
 		// bindComputePipeline -> bindComputeDescriptorSet -> dispatch, then submit.

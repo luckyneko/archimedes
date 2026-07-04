@@ -64,16 +64,16 @@ TEST_CASE("indexed draw from vertex + index buffers", "[acm][gpu]")
 	vertexBuffer.write(vertices, sizeof(vertices));
 	indexBuffer.write(indices, sizeof(indices));
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::vertexColorVertSpirv());
+	shaders.fragment = device.createShader(acmtest::vertexColorFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::vertexColorVertSpirv());
-	config.fragment = device.createShader(acmtest::vertexColorFragSpirv());
-	config.target = target;
 	config.vertexLayout.stride = sizeof(Vertex);
 	config.vertexLayout.attributes = {
 		{0, acm::Format::R32G32_Sfloat, offsetof(Vertex, pos)},
 		{1, acm::Format::R32G32B32_Sfloat, offsetof(Vertex, color)},
 	};
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

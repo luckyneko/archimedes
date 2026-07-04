@@ -41,8 +41,8 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 	// Pass 1: red triangle into A, left ready to sample.
 	acm::Texture texA = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget targetA = device.createRenderTarget(texA, acm::RenderTargetConfig{acm::RenderTargetFinish::Sampled});
-	acm::Pipeline pipeA = device.createPipeline(device.createShader(acmtest::triangleVertSpirv()),
-												device.createShader(acmtest::triangleFragSpirv()),
+	acm::Pipeline pipeA = device.createPipeline(acm::PipelineShaders{device.createShader(acmtest::triangleVertSpirv()),
+																	 device.createShader(acmtest::triangleFragSpirv())},
 												targetA);
 	REQUIRE(targetA.valid());
 	REQUIRE(pipeA.valid());
@@ -64,12 +64,12 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 	REQUIRE(descriptors.valid());
 	descriptors.setTexture(0, texA, sampler);
 
+	acm::PipelineShaders shadersB;
+	shadersB.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shadersB.fragment = device.createShader(acmtest::sampleTextureFragSpirv());
 	acm::PipelineConfig configB;
-	configB.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	configB.fragment = device.createShader(acmtest::sampleTextureFragSpirv());
-	configB.target = targetB;
 	configB.descriptorLayout = layout;
-	acm::Pipeline pipeB = device.createPipeline(configB);
+	acm::Pipeline pipeB = device.createPipeline(shadersB, targetB, configB);
 	REQUIRE(pipeB.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

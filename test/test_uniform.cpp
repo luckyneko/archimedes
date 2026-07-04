@@ -68,12 +68,12 @@ TEST_CASE("a uniform buffer drives shader output", "[acm][gpu]")
 	descriptors.setBuffer(0, transformBuf);
 	descriptors.setBuffer(1, colorBuf);
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
+	shaders.fragment = device.createShader(acmtest::uniformColorFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
-	config.fragment = device.createShader(acmtest::uniformColorFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

@@ -20,14 +20,14 @@ namespace acm::vulkan
 	class DescriptorSetLayout;
 	class RenderTarget;
 
-	// Move-only graphics pipeline and layout. Retains shaders/target/descriptor layout
-	// through public wrappers supplied by PipelineConfig.
+	// Move-only graphics pipeline and layout. Retains descriptor layout through its
+	// public wrapper; shaders/target are needed only for creation.
 	class Pipeline
 	{
 	public:
 		// Lifetime
 		Pipeline() = default;
-		Pipeline(acm::vulkan::Device& owner, const acm::PipelineConfig& config);
+		Pipeline(acm::vulkan::Device& owner, const acm::PipelineShaders& shaders, const acm::RenderTarget& target, const acm::PipelineConfig& config);
 		~Pipeline();
 		Pipeline(const Pipeline&) = delete;
 		Pipeline& operator=(const Pipeline&) = delete;

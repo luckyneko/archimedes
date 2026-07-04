@@ -80,12 +80,12 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::storageWriteFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	config.fragment = device.createShader(acmtest::storageWriteFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::CommandPool pool = device.createCommandPool();
@@ -136,12 +136,12 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::multiStageVertSpirv());
+	shaders.fragment = device.createShader(acmtest::multiStageFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::multiStageVertSpirv());
-	config.fragment = device.createShader(acmtest::multiStageFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
@@ -202,12 +202,12 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 
 	acm::Texture out = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::samplerArrayFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	config.fragment = device.createShader(acmtest::samplerArrayFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

@@ -48,12 +48,12 @@ TEST_CASE("wireframe polygon mode draws only edges", "[acm][gpu]")
 
 	auto makePipeline = [&](acm::RenderTarget target, acm::PolygonMode mode)
 	{
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
+		shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
 		acm::PipelineConfig config;
-		config.vertex = device.createShader(acmtest::triangleVertSpirv());
-		config.fragment = device.createShader(acmtest::triangleFragSpirv());
-		config.target = target;
 		config.polygonMode = mode;
-		return device.createPipeline(config);
+		return device.createPipeline(shaders, target, config);
 	};
 	acm::Pipeline pipeFill = makePipeline(targetFill, acm::PolygonMode::Fill);
 	acm::Pipeline pipeWire = makePipeline(targetWire, acm::PolygonMode::Line);

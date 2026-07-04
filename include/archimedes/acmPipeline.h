@@ -19,15 +19,19 @@
 
 namespace acm
 {
-	// Everything a graphics pipeline is built from. `vertexLayout` defaults to empty
-	// (no vertex input -- geometry from the shader); `descriptorLayout` defaults to
-	// null (empty pipeline layout). The target supplies the compatible attachment
-	// formats and sample count.
-	struct PipelineConfig
+	struct PipelineShaders
 	{
 		acm::Shader vertex;
 		acm::Shader fragment;
-		acm::RenderTarget target;
+		acm::Shader geometry;
+	};
+
+	// Optional graphics pipeline state. `vertexLayout` defaults to empty (no vertex
+	// input -- geometry from the shader); `descriptorLayout` defaults to null (empty
+	// pipeline layout). The target supplies the compatible attachment formats and
+	// sample count.
+	struct PipelineConfig
+	{
 		acm::VertexLayout vertexLayout;
 		acm::DescriptorSetLayout descriptorLayout;
 		// Must match the target: enable depth test/write only for a target that has a

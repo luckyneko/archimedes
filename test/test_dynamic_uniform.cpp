@@ -62,12 +62,12 @@ TEST_CASE("a dynamic uniform offset selects the right slice", "[acm][gpu]")
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::colorUniformFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	config.fragment = device.createShader(acmtest::colorUniformFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

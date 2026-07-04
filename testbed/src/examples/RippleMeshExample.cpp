@@ -81,14 +81,11 @@ bool RippleMeshExample::onInit(acm::Device& device, const std::vector<RenderCont
 		vd.descriptor.setTexture(2, m_scene.texture(), m_scene.sampler());
 
 		acm::PipelineConfig config;
-		config.vertex = vertex;
-		config.fragment = fragment;
-		config.target = m_views[i]->renderTarget();
 		config.descriptorLayout = m_layout;
 		config.depth = acm::DepthState::TestWrite();
 		config.cullMode = acm::CullMode::None; // the rippling grid is viewed from both sides
 		// Empty vertexLayout: geometry comes from the SSBO via gl_VertexIndex.
-		vd.pipeline = device.createPipeline(config);
+		vd.pipeline = device.createPipeline(acm::PipelineShaders{vertex, fragment}, m_views[i]->renderTarget(), config);
 		if (!vd.pipeline.valid())
 			return false;
 	}

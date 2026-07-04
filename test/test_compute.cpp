@@ -111,12 +111,12 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::storageReadFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	config.fragment = device.createShader(acmtest::storageReadFragSpirv());
-	config.target = target;
 	config.descriptorLayout = layout;
-	acm::Pipeline graphics = device.createPipeline(config);
+	acm::Pipeline graphics = device.createPipeline(shaders, target, config);
 	REQUIRE(graphics.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

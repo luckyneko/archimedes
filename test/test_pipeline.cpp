@@ -46,25 +46,20 @@ TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 	REQUIRE(vert.valid());
 	REQUIRE(frag.valid());
 
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.renderTarget(0));
+	const acm::PipelineShaders shaders{vert, frag};
+	acm::Pipeline pipeline = s.device.createPipeline(shaders, s.swapChain.renderTarget(0));
 	REQUIRE(pipeline.valid());
 
 	acm::PipelineConfig incompatible;
-	incompatible.vertex = vert;
-	incompatible.fragment = frag;
-	incompatible.target = s.swapChain.renderTarget(0);
 	incompatible.depth = acm::DepthState::TestWrite();
-	REQUIRE_FALSE(s.device.createPipeline(incompatible).valid());
+	REQUIRE_FALSE(s.device.createPipeline(shaders, s.swapChain.renderTarget(0), incompatible).valid());
 
 	acm::Texture texture = s.device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{32, 32});
 	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(depthTarget.valid());
 	acm::PipelineConfig writeOnlyDepth;
-	writeOnlyDepth.vertex = vert;
-	writeOnlyDepth.fragment = frag;
-	writeOnlyDepth.target = depthTarget;
 	writeOnlyDepth.depth.write = true;
-	REQUIRE_FALSE(s.device.createPipeline(writeOnlyDepth).valid());
+	REQUIRE_FALSE(s.device.createPipeline(shaders, depthTarget, writeOnlyDepth).valid());
 
 	acm::Pipeline retained = pipeline;
 	pipeline.reset();
@@ -91,7 +86,7 @@ TEST_CASE("Pipeline is invalid when a shader is", "[acm][gpu]")
 	REQUIRE(frag.valid());
 
 	// A null vertex shader can't build a pipeline.
-	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.renderTarget(0));
+	acm::Pipeline pipeline = s.device.createPipeline(acm::PipelineShaders{acm::Shader(), frag}, s.swapChain.renderTarget(0));
 	REQUIRE_FALSE(pipeline.valid());
 }
 
@@ -121,11 +116,7 @@ TEST_CASE("Command buffer refuses a pipeline incompatible with the active render
 	REQUIRE(vert.valid());
 	REQUIRE(frag.valid());
 
-	acm::PipelineConfig config;
-	config.vertex = vert;
-	config.fragment = frag;
-	config.target = noDepthTarget;
-	acm::Pipeline noDepthPipeline = device.createPipeline(config);
+	acm::Pipeline noDepthPipeline = device.createPipeline(acm::PipelineShaders{vert, frag}, noDepthTarget);
 	REQUIRE(noDepthPipeline.valid());
 
 	acm::Texture depthTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);

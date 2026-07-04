@@ -121,18 +121,14 @@ namespace acm
 		return m ? m->createShader(spirv) : Shader{};
 	}
 
-	Pipeline Device::createPipeline(const Shader& vertex, const Shader& fragment, const RenderTarget& target)
+	Pipeline Device::createPipeline(const PipelineShaders& shaders, const RenderTarget& target)
 	{
-		PipelineConfig config;
-		config.vertex = vertex;
-		config.fragment = fragment;
-		config.target = target;
-		return m ? m->createPipeline(config) : Pipeline{};
+		return createPipeline(shaders, target, PipelineConfig{});
 	}
 
-	Pipeline Device::createPipeline(const PipelineConfig& config)
+	Pipeline Device::createPipeline(const PipelineShaders& shaders, const RenderTarget& target, const PipelineConfig& config)
 	{
-		return m ? m->createPipeline(config) : Pipeline{};
+		return m ? m->createPipeline(shaders, target, config) : Pipeline{};
 	}
 
 	ComputePipeline Device::createComputePipeline(const Shader& compute, const DescriptorSetLayout& layout)

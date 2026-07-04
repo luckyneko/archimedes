@@ -22,7 +22,7 @@ TEST_CASE("command_recording", "[bench][fast][gpu]")
 	acm::RenderTarget target = stack.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::Shader vertex = stack.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader fragment = stack.device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = stack.device.createPipeline(vertex, fragment, target);
+	acm::Pipeline pipeline = stack.device.createPipeline(acm::PipelineShaders{vertex, fragment}, target);
 	acm::Buffer vertexBuffer = stack.device.createBuffer(256, acm::BufferUsage::Vertex);
 	acm::CommandPool pool = stack.device.createCommandPool();
 	acm::CommandBuffer commandBuffer = pool.allocate();

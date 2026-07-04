@@ -91,9 +91,6 @@ bool InstancedCubesExample::onInit(acm::Device& device, const std::vector<Render
 		return false;
 
 	acm::PipelineConfig config;
-	config.vertex = vertex;
-	config.fragment = fragment;
-	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depth = acm::DepthState::TestWrite();
 	config.cullMode = acm::CullMode::None;
@@ -102,7 +99,7 @@ bool InstancedCubesExample::onInit(acm::Device& device, const std::vector<Render
 		{0, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, pos)},
 		{1, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, normal)},
 	};
-	m_pipeline = device.createPipeline(config);
+	m_pipeline = device.createPipeline(acm::PipelineShaders{vertex, fragment}, m_views[0]->renderTarget(), config);
 	return m_pipeline.valid();
 }
 

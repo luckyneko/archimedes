@@ -76,13 +76,13 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 		v.target = device.createRenderTarget(v.tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 		REQUIRE(v.target.valid());
 
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
+		shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
 		acm::PipelineConfig config;
-		config.vertex = device.createShader(acmtest::triangleVertSpirv());
-		config.fragment = device.createShader(acmtest::triangleFragSpirv());
-		config.target = v.target;
 		config.cullMode = v.cull;
 		config.frontFace = v.front;
-		v.pipeline = device.createPipeline(config);
+		v.pipeline = device.createPipeline(shaders, v.target, config);
 		REQUIRE(v.pipeline.valid());
 
 		v.readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

@@ -72,13 +72,13 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		});
 		REQUIRE(layout.valid());
 
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
+		shaders.fragment = device.createShader(acmtest::uniformColorFragSpirv());
 		acm::PipelineConfig config;
-		config.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
-		config.fragment = device.createShader(acmtest::uniformColorFragSpirv());
-		config.target = target;
 		config.descriptorLayout = layout;
 		config.depth = acm::DepthState::TestWrite();
-		acm::Pipeline pipeline = device.createPipeline(config);
+		acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 		REQUIRE(pipeline.valid());
 
 		// Build the two draws: near+green and far+red.
@@ -162,12 +162,12 @@ TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 	REQUIRE(target.valid());
 	REQUIRE(target.hasDepth());
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
+	shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::triangleVertSpirv());
-	config.fragment = device.createShader(acmtest::triangleFragSpirv());
-	config.target = target;
 	config.depth = acm::DepthState::Test(acm::CompareOp::Never);
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

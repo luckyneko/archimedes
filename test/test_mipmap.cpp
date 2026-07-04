@@ -65,12 +65,12 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 		acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 		REQUIRE(target.valid());
 
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+		shaders.fragment = device.createShader(acmtest::sampleTextureLodFragSpirv());
 		acm::PipelineConfig config;
-		config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-		config.fragment = device.createShader(acmtest::sampleTextureLodFragSpirv());
-		config.target = target;
 		config.descriptorLayout = layout;
-		acm::Pipeline pipeline = device.createPipeline(config);
+		acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 		REQUIRE(pipeline.valid());
 
 		acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

@@ -62,7 +62,7 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 
 	acm::Shader vert = device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader frag = device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = device.createPipeline(vert, frag, target);
+	acm::Pipeline pipeline = device.createPipeline(acm::PipelineShaders{vert, frag}, target);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

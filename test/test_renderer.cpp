@@ -59,7 +59,7 @@ TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
 
 	acm::Shader vert = s.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader frag = s.device.createShader(acmtest::triangleFragSpirv());
-	acm::Pipeline pipeline = s.device.createPipeline(vert, frag, s.swapChain.renderTarget(0));
+	acm::Pipeline pipeline = s.device.createPipeline(acm::PipelineShaders{vert, frag}, s.swapChain.renderTarget(0));
 	REQUIRE(pipeline.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
@@ -98,11 +98,10 @@ TEST_CASE("Renderer returns command recording errors from draw callbacks", "[acm
 	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(depthTarget.valid());
 
-	acm::PipelineConfig config;
-	config.vertex = s.device.createShader(acmtest::triangleVertSpirv());
-	config.fragment = s.device.createShader(acmtest::triangleFragSpirv());
-	config.target = depthTarget;
-	acm::Pipeline pipeline = s.device.createPipeline(config);
+	acm::PipelineShaders shaders;
+	shaders.vertex = s.device.createShader(acmtest::triangleVertSpirv());
+	shaders.fragment = s.device.createShader(acmtest::triangleFragSpirv());
+	acm::Pipeline pipeline = s.device.createPipeline(shaders, depthTarget);
 	REQUIRE(pipeline.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
@@ -136,7 +135,10 @@ TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 	acm::ComputePipeline compute = s.device.createComputePipeline(s.device.createShader(acmtest::computeFillSpirv()), computeLayout);
 	REQUIRE(compute.valid());
 
-	acm::Pipeline graphics = s.device.createPipeline(s.device.createShader(acmtest::triangleVertSpirv()), s.device.createShader(acmtest::triangleFragSpirv()), s.swapChain.renderTarget(0));
+	acm::Pipeline graphics = s.device.createPipeline(
+		acm::PipelineShaders{s.device.createShader(acmtest::triangleVertSpirv()),
+							 s.device.createShader(acmtest::triangleFragSpirv())},
+		s.swapChain.renderTarget(0));
 	REQUIRE(graphics.valid());
 
 	acm::Renderer renderer = s.device.createRenderer(s.swapChain);

@@ -60,10 +60,10 @@ bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderConte
 		return false;
 	m_descriptor.setBuffer(0, m_uniform);
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
+	shaders.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
 	acm::PipelineConfig config;
-	config.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
-	config.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
-	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
 	config.depth = acm::DepthState::TestWrite();
 	config.cullMode = acm::CullMode::None;		 // see all edges
@@ -74,7 +74,7 @@ bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderConte
 		{0, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, pos)},
 		{1, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, normal)},
 	};
-	m_pipeline = device.createPipeline(config);
+	m_pipeline = device.createPipeline(shaders, m_views[0]->renderTarget(), config);
 	return m_pipeline.valid();
 }
 

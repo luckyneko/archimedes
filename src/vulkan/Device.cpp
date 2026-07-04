@@ -369,10 +369,10 @@ namespace acm::vulkan
 		return acm::DescriptorSet(std::move(inserted.resource));
 	}
 
-	acm::Pipeline Device::createPipeline(const acm::PipelineConfig& config)
+	acm::Pipeline Device::createPipeline(const acm::PipelineShaders& shaders, const acm::RenderTarget& target, const acm::PipelineConfig& config)
 	{
-		auto inserted = emplaceResource(m_pipelines, [this, &config]
-										{ return Pipeline(*this, config); });
+		auto inserted = emplaceResource(m_pipelines, [this, &shaders, &target, &config]
+										{ return Pipeline(*this, shaders, target, config); });
 		if (!inserted.valid())
 			return acm::Pipeline(constructionError(std::move(inserted.error), "failed to create pipeline"));
 		return acm::Pipeline(std::move(inserted.resource));

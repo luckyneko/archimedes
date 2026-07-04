@@ -69,10 +69,10 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 		return false;
 	m_cubeDescriptor.setBuffer(0, m_cubeUniform);
 
+	acm::PipelineShaders cubeShaders;
+	cubeShaders.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
+	cubeShaders.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
 	acm::PipelineConfig cubeCfg;
-	cubeCfg.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
-	cubeCfg.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
-	cubeCfg.target = m_offscreenTarget;
 	cubeCfg.descriptorLayout = m_cubeLayout;
 	cubeCfg.depth = acm::DepthState::TestWrite();
 	cubeCfg.cullMode = acm::CullMode::None;
@@ -81,7 +81,7 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 		{0, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, pos)},
 		{1, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, normal)},
 	};
-	m_cubePipeline = device.createPipeline(cubeCfg);
+	m_cubePipeline = device.createPipeline(cubeShaders, m_offscreenTarget, cubeCfg);
 	if (!m_cubePipeline.valid())
 		return false;
 
@@ -95,12 +95,12 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 		return false;
 	m_quadDescriptor.setTexture(0, m_offscreenColor, m_sampler);
 
+	acm::PipelineShaders quadShaders;
+	quadShaders.vertex = tb::loadShader(device, "fullscreen.vert.spv");
+	quadShaders.fragment = tb::loadShader(device, "sample.frag.spv");
 	acm::PipelineConfig quadCfg;
-	quadCfg.vertex = tb::loadShader(device, "fullscreen.vert.spv");
-	quadCfg.fragment = tb::loadShader(device, "sample.frag.spv");
-	quadCfg.target = m_views[0]->renderTarget();
 	quadCfg.descriptorLayout = m_quadLayout;
-	m_quadPipeline = device.createPipeline(quadCfg);
+	m_quadPipeline = device.createPipeline(quadShaders, m_views[0]->renderTarget(), quadCfg);
 	return m_quadPipeline.valid();
 }
 

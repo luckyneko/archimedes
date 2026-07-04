@@ -66,12 +66,12 @@ TEST_CASE("an anisotropic sampler samples correctly", "[acm][gpu]")
 	REQUIRE(descriptors.valid());
 	descriptors.setTexture(0, texA, sampler);
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::sampleTextureFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
-	config.fragment = device.createShader(acmtest::sampleTextureFragSpirv());
-	config.target = targetB;
 	config.descriptorLayout = layout;
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, targetB, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

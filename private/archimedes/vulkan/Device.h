@@ -74,7 +74,7 @@ namespace acm::vulkan
 		acm::Shader createShader(const std::vector<char>& spirv);
 		acm::DescriptorSetLayout createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings);
 		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
-		acm::Pipeline createPipeline(const acm::PipelineConfig& config);
+		acm::Pipeline createPipeline(const acm::PipelineShaders& shaders, const acm::RenderTarget& target, const acm::PipelineConfig& config);
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, const acm::RenderTargetConfig& config);

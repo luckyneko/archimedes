@@ -62,11 +62,10 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, false, samples});
 		REQUIRE(target.valid());
 
-		acm::PipelineConfig config;
-		config.vertex = device.createShader(acmtest::triangleVertSpirv());
-		config.fragment = device.createShader(acmtest::triangleFragSpirv());
-		config.target = target;
-		acm::Pipeline pipeline = device.createPipeline(config);
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
+		shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
+		acm::Pipeline pipeline = device.createPipeline(shaders, target);
 		REQUIRE(pipeline.valid());
 
 		readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
@@ -131,12 +130,12 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, false, acm::SampleCount::Four});
 	REQUIRE(target.valid());
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
+	shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
 	acm::PipelineConfig config;
-	config.vertex = device.createShader(acmtest::triangleVertSpirv());
-	config.fragment = device.createShader(acmtest::triangleFragSpirv());
-	config.target = target;
 	config.minSampleShading = 1.0f; // shade every sample
-	acm::Pipeline pipeline = device.createPipeline(config);
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
 	REQUIRE(pipeline.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

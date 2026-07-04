@@ -155,7 +155,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
           ├────────┴── vulkan::SwapChain builds each target from the borrowed image
           │                                             // view + dynamic-rendering metadata (+ per-image depth / MSAA color buffers)
           ├── createShader(spirv) ──────────────────> Shader      // VkShaderModule from SPIR-V bytecode
-          ├── createPipeline(vert, frag, target) ─────> Pipeline   // owns VkPipeline + VkPipelineLayout; dynamic viewport/scissor
+          ├── createPipeline(PipelineShaders, target[, PipelineConfig]) ─> Pipeline // owns VkPipeline + VkPipelineLayout
           ├── createComputePipeline(compute, layout) ─> ComputePipeline // owns a compute VkPipeline + layout; bind -> dispatch
           ├── createCommandPool() ──────────────────> CommandPool // owns VkCommandPool; .allocate() -> CommandBuffer
           ├── createRenderer(SwapChain) ────────────> Renderer
@@ -340,8 +340,9 @@ and a `CompareOp::Never` pipeline rejects all fragments.
 **MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on render-target creation or
 `SwapChainConfig` (`RenderTargetConfig::samples`,
 `config.samples = SampleCount::Four`). A
-request is clamped to `Device::maxSampleCount()`, and `PipelineConfig::target` supplies
-that exact resolved sample count to the pipeline, so callers cannot configure a mismatch.
+request is clamped to `Device::maxSampleCount()`, and the pipeline's explicit
+`RenderTarget` supplies that exact resolved sample count, so callers cannot configure a
+mismatch.
 When samples > 1 the `RenderTarget`
 owns a multisampled color image (and, with depth, a multisampled depth image) that the
 dynamic rendering scope renders into and **resolves** into the single-sampled target —
@@ -421,20 +422,24 @@ renderer callback. Writing that slot is safe because the renderer already waited
 its fence. `ComputeTextureExample` demonstrates this with a descriptor set containing
 both a storage image and a per-frame time uniform.
 
-**`PipelineConfig`** ([acmPipeline.h](include/archimedes/acmPipeline.h)) bundles the
-pipeline's inputs — `vertex`/`fragment` shaders, a `target`, optional `vertexLayout`,
-optional `descriptorLayout`, `depth` (`DepthState::None` / `Test` / `TestWrite`), and the fixed-function knobs `topology`,
-`cullMode`, `frontFace`, `blend`, `polygonMode`, `lineWidth`,
-`minSampleShading` — so independent optional knobs don't become a combinatorial pile of
-`createPipeline` overloads. The knobs default to the original smoke-test state
+**`PipelineShaders`** ([acmPipeline.h](include/archimedes/acmPipeline.h)) groups the
+required shader stages for graphics pipeline creation: `vertex` and `fragment` today,
+with a future `geometry` slot that is rejected until the backend genuinely supports it.
+The `RenderTarget` remains an explicit required factory argument.
+
+**`PipelineConfig`** bundles optional graphics pipeline state — `vertexLayout`,
+`descriptorLayout`, `depth` (`DepthState::None` / `Test` / `TestWrite`), and the
+fixed-function knobs `topology`, `cullMode`, `frontFace`, `blend`, `polygonMode`,
+`lineWidth`, `minSampleShading` — so independent optional knobs don't become a
+combinatorial pile of `createPipeline` overloads. The knobs default to the original
+smoke-test state
 (`TriangleList`, `CullMode::None`, `FrontFace::Clockwise`, `BlendMode::Opaque`,
 `PolygonMode::Fill`, width 1, no sample shading); the target supplies the sample count.
 The neutral enums live in [acmTypes.h](include/archimedes/acmTypes.h) and
 convert in [Convert.cpp](src/vulkan/Convert.cpp). `polygonMode`/`lineWidth`/
 `minSampleShading` are gated on the device's enabled features (see above) and fall back
-when unsupported. `device.createPipeline(config)` is the general
-form; `createPipeline(vert, frag, target)` stays as the convenience that takes the
-defaults (no vertex input, no descriptors, no depth).
+when unsupported. `device.createPipeline(shaders, target, config)` is the general
+form; omitting `config` takes the defaults (no vertex input, no descriptors, no depth).
 
 Backend `RenderTarget` records dynamic rendering metadata: color/depth formats for
 pipeline creation, image views for `vkCmdBeginRendering`, explicit synchronization2

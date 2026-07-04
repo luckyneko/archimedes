@@ -24,6 +24,7 @@ namespace acm
 	struct InstanceConfig;
 	class Pipeline;
 	struct PipelineConfig;
+	struct PipelineShaders;
 	class Renderer;
 	class RenderTarget;
 	class Sampler;

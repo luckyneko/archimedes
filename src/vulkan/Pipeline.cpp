@@ -26,14 +26,19 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Pipeline::Pipeline(Device& owner, const acm::PipelineConfig& config)
+	Pipeline::Pipeline(Device& owner, const acm::PipelineShaders& shaders, const acm::RenderTarget& target, const acm::PipelineConfig& config)
 	{
-		if (!config.vertex.valid() || !config.fragment.valid() || !config.target.valid())
+		if (shaders.geometry.valid())
+		{
+			m_error = acm::Error("failed to create pipeline: geometry shaders are not supported yet");
+			return;
+		}
+		if (!shaders.vertex.valid() || !shaders.fragment.valid() || !target.valid())
 		{
 			m_error = acm::Error("failed to create pipeline from invalid shader or render target");
 			return;
 		}
-		if (&config.vertex.backend()->owner() != &owner || &config.fragment.backend()->owner() != &owner || &config.target.backend()->owner() != &owner)
+		if (&shaders.vertex.backend()->owner() != &owner || &shaders.fragment.backend()->owner() != &owner || &target.backend()->owner() != &owner)
 		{
 			m_error = acm::Error("failed to create pipeline from resources owned by another device");
 			return;
@@ -49,7 +54,7 @@ namespace acm::vulkan
 			m_error = acm::Error("failed to create depth-write pipeline without depth test");
 			return;
 		}
-		if (usesDepth && !config.target.hasDepth())
+		if (usesDepth && !target.hasDepth())
 		{
 			m_error = acm::Error("failed to create depth pipeline for target without depth");
 			return;
@@ -59,12 +64,12 @@ namespace acm::vulkan
 		VkPipelineShaderStageCreateInfo vertStage = {};
 		vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-		vertStage.module = config.vertex.backend()->vkShaderModule();
+		vertStage.module = shaders.vertex.backend()->vkShaderModule();
 		vertStage.pName = "main";
 		VkPipelineShaderStageCreateInfo fragStage = {};
 		fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		fragStage.module = config.fragment.backend()->vkShaderModule();
+		fragStage.module = shaders.fragment.backend()->vkShaderModule();
 		fragStage.pName = "main";
 		if (!vertStage.module || !fragStage.module)
 		{
@@ -119,7 +124,7 @@ namespace acm::vulkan
 
 		VkPipelineMultisampleStateCreateInfo multisampling = {};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampling.rasterizationSamples = config.target.backend()->sampleCount();
+		multisampling.rasterizationSamples = target.backend()->sampleCount();
 		if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
 		{
 			multisampling.sampleShadingEnable = VK_TRUE;
@@ -147,15 +152,15 @@ namespace acm::vulkan
 		depthStencil.depthTestEnable = config.depth.test ? VK_TRUE : VK_FALSE;
 		depthStencil.depthWriteEnable = config.depth.write ? VK_TRUE : VK_FALSE;
 		depthStencil.depthCompareOp = toVk(config.depth.compare);
-		const VkFormat colorFormat = config.target.backend()->colorFormat();
+		const VkFormat colorFormat = target.backend()->colorFormat();
 		if (colorFormat == VK_FORMAT_UNDEFINED)
 		{
 			m_error = acm::Error("failed to create pipeline from invalid render target format");
 			return;
 		}
 		m_colorFormat = colorFormat;
-		m_depthFormat = config.target.backend()->depthFormat();
-		m_sampleCount = config.target.backend()->sampleCount();
+		m_depthFormat = target.backend()->depthFormat();
+		m_sampleCount = target.backend()->sampleCount();
 		VkPipelineRenderingCreateInfo renderingInfo = {};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 		renderingInfo.colorAttachmentCount = 1;

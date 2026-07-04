@@ -64,12 +64,12 @@ bool ComputeTextureExample::onInit(acm::Device& device, const std::vector<Render
 		return false;
 	m_graphicsSet.setTexture(0, m_image, m_sampler);
 
+	acm::PipelineShaders shaders;
+	shaders.vertex = tb::loadShader(device, "fullscreen.vert.spv");
+	shaders.fragment = tb::loadShader(device, "sample.frag.spv");
 	acm::PipelineConfig config;
-	config.vertex = tb::loadShader(device, "fullscreen.vert.spv");
-	config.fragment = tb::loadShader(device, "sample.frag.spv");
-	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_graphicsLayout;
-	m_graphics = device.createPipeline(config);
+	m_graphics = device.createPipeline(shaders, m_views[0]->renderTarget(), config);
 	return m_graphics.valid();
 }
 
