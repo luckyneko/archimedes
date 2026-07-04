@@ -10,7 +10,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmGPU.h"
+#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmTypes.h"
 #include "archimedes/DeferredDestroyQueue.h"
 #include "archimedes/ResourcePool.h"

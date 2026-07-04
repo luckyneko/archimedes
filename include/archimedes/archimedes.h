@@ -15,7 +15,7 @@
 #include "archimedes/acmDescriptorSet.h"
 #include "archimedes/acmDescriptorSetLayout.h"
 #include "archimedes/acmDevice.h"
-#include "archimedes/acmGPU.h"
+#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderer.h"

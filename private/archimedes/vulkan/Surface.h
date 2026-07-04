@@ -9,7 +9,7 @@
 #pragma once
 
 #include "archimedes/acmError.h"
-#include "archimedes/acmGPU.h"
+#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/vulkan/PlatformSurface.h"
 
 #include <vulkan/vulkan.h>

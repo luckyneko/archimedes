@@ -242,7 +242,7 @@ in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
 
 `DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
-([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
+([acmDeviceInfo.h](include/archimedes/acmDeviceInfo.h)) are plain data structs, not handles.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
 `dynamicRendering` features;

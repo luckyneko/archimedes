@@ -11,7 +11,7 @@
 #include "archimedes/acmBackend.h"
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmGPU.h"
+#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmTypes.h"
 
 #include <cstddef>
