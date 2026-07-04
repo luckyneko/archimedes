@@ -54,6 +54,11 @@ jobs:
             build_type: Release
             install_linux_deps: true
 
+          - name: Linux Debug
+            os: ubuntu-24.04
+            build_type: Debug
+            install_linux_deps: true
+
           - name: macOS Release
             os: macos-15
             build_type: Release
@@ -104,3 +109,28 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-full --output-on-failure -C ${{ matrix.build_type }}
+
+  subproject:
+    name: add_subdirectory smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@v4
+        with:
+          path: .github/subproject-smoke/.cache/fetch
+          key: ${{ runner.os }}-subproject-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', '.github/subproject-smoke/*') }}
+          restore-keys: |
+            ${{ runner.os }}-subproject-
+
+      - name: Configure parent project
+        run: >
+          cmake -S .github/subproject-smoke -B build-subproject
+          -DCMAKE_BUILD_TYPE=Release
+          -DARCHIMEDES_SOURCE_DIR=${{ github.workspace }}
+
+      - name: Build parent project
+        run: cmake --build build-subproject --parallel
