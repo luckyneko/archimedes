@@ -46,6 +46,12 @@ namespace acm
 		acm::DeviceFeatures features; // what this physical device supports (of the curated set)
 	};
 
+	struct DeviceOption
+	{
+		uint32_t deviceIndex{0};
+		uint32_t queueFamily{0};
+	};
+
 	struct SurfaceDeviceSupport
 	{
 		uint32_t deviceIndex{0};

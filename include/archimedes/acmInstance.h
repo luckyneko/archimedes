@@ -62,10 +62,12 @@ namespace acm
 		// backing window on platforms that need one and is otherwise unused — pass
 		// the intended render size for consistent behaviour across platforms.
 		acm::Surface createHeadlessSurface(acm::Extent2D extent = {1, 1});
-		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
+		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueFamily);
+		acm::Device createDevice(const acm::DeviceOption& option);
 
 		// Enumeration
 		const std::vector<acm::DeviceInfo>& devices() const;
+		std::vector<acm::DeviceOption> deviceOptions() const;
 
 	private:
 		std::unique_ptr<acm::backend::Instance> m;

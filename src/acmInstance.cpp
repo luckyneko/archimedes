@@ -78,9 +78,17 @@ namespace acm
 		return m ? m->createHeadlessSurface(extent) : Surface{};
 	}
 
-	Device Instance::createDevice(const DeviceInfo& deviceInfo, uint32_t queueIndex)
+	Device Instance::createDevice(const DeviceInfo& deviceInfo, uint32_t queueFamily)
 	{
-		return m ? m->createDevice(deviceInfo, queueIndex) : Device{};
+		return m ? m->createDevice(deviceInfo, queueFamily) : Device{};
+	}
+
+	Device Instance::createDevice(const DeviceOption& option)
+	{
+		const std::vector<DeviceInfo>& available = devices();
+		if (option.deviceIndex >= available.size())
+			return Device{};
+		return createDevice(available[option.deviceIndex], option.queueFamily);
 	}
 
 	// -----------------------------------------------------------------------------
@@ -91,6 +99,16 @@ namespace acm
 	{
 		static const std::vector<DeviceInfo> empty;
 		return m ? m->devices() : empty;
+	}
+
+	std::vector<DeviceOption> Instance::deviceOptions() const
+	{
+		std::vector<DeviceOption> options;
+		for (const DeviceInfo& deviceInfo : devices())
+			for (const QueueInfo& queue : deviceInfo.queues)
+				if (queue.graphics)
+					options.push_back({deviceInfo.index, queue.family});
+		return options;
 	}
 
 } // namespace acm

@@ -42,7 +42,7 @@ namespace acm::vulkan
 		// Factories
 		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
 		acm::Surface createHeadlessSurface(acm::Extent2D extent);
-		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
+		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueFamily);
 
 	private:
 		// Internals

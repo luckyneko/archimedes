@@ -57,8 +57,7 @@ namespace
 	// serves all its surfaces, but we check each.)
 	struct Selection
 	{
-		uint32_t deviceIndex{0};
-		uint32_t queueIndex{0};
+		acm::DeviceOption device;
 		acm::SurfaceFormat format;
 		acm::PresentMode presentMode{acm::PresentMode::Fifo};
 		bool ok{false};
@@ -101,8 +100,7 @@ namespace
 					continue;
 
 				Selection sel;
-				sel.deviceIndex = deviceInfo.index;
-				sel.queueIndex = qf.family;
+				sel.device = {deviceInfo.index, qf.family};
 				sel.format = support[0]->formats[0];
 				sel.presentMode = support[0]->presentModes[0];
 				for (acm::PresentMode pm : support[0]->presentModes)
@@ -177,13 +175,13 @@ int App::run(Example& example)
 		fprintf(stderr, "no device presents to all windows\n");
 		return 1;
 	}
-	acm::Device device = instance.createDevice(instance.devices()[sel.deviceIndex], sel.queueIndex);
+	acm::Device device = instance.createDevice(sel.device);
 	if (!device.valid())
 	{
 		fprintf(stderr, "CreateACMDevice: FAIL\n");
 		return 1;
 	}
-	printf("Selected device: %s\n", instance.devices()[sel.deviceIndex].name.c_str());
+	printf("Selected device: %s\n", instance.devices()[sel.device.deviceIndex].name.c_str());
 
 	// A RenderContext per window. Sized up front so the pointers handed to the example
 	// (and the workers) stay stable.

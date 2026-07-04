@@ -25,7 +25,7 @@ namespace acm::vulkan
 		VkCommandPoolCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		createInfo.queueFamilyIndex = owner.queueIndex();
+		createInfo.queueFamilyIndex = owner.queueFamily();
 		if (vkCreateCommandPool(owner.vkDevice(), &createInfo, nullptr, &m_pool) != VK_SUCCESS)
 			m_error = acm::Error("failed to create command pool");
 	}

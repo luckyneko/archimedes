@@ -34,7 +34,7 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Device::Device(Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueIndex)
+	Device::Device(Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily)
 		: m_instance(&instance)
 	{
 		if (!m_instance || !m_instance->valid() || deviceInfo.index >= m_instance->devices().size())
@@ -44,7 +44,7 @@ namespace acm::vulkan
 		}
 		m_deviceInfo = m_instance->devices()[deviceInfo.index];
 		m_physicalDevice = m_instance->physicalDevice(deviceInfo.index);
-		if (!m_physicalDevice || queueIndex >= m_deviceInfo.queues.size())
+		if (!m_physicalDevice || queueFamily >= m_deviceInfo.queues.size())
 		{
 			m_error = acm::Error("failed to create device from invalid queue family");
 			return;
@@ -55,7 +55,7 @@ namespace acm::vulkan
 		float queuePriority = 1.0f;
 		VkDeviceQueueCreateInfo queueCreateInfo = {};
 		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = queueIndex;
+		queueCreateInfo.queueFamilyIndex = queueFamily;
 		queueCreateInfo.queueCount = 1;
 		queueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -100,8 +100,8 @@ namespace acm::vulkan
 			return;
 		}
 
-		vkGetDeviceQueue(m_device, queueIndex, 0, &m_queue);
-		m_queueIndex = queueIndex;
+		vkGetDeviceQueue(m_device, queueFamily, 0, &m_queue);
+		m_queueFamily = queueFamily;
 		m_enabledFeatures = m_deviceInfo.features;
 		m_allocator = std::make_unique<MemoryAllocator>(m_device, m_physicalDevice);
 	}
@@ -229,7 +229,7 @@ namespace acm::vulkan
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		poolInfo.queueFamilyIndex = m_queueIndex;
+		poolInfo.queueFamilyIndex = m_queueFamily;
 		VkCommandPool pool = VK_NULL_HANDLE;
 		if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &pool) != VK_SUCCESS)
 			return acm::Error("failed to create one-shot command pool");

@@ -34,7 +34,7 @@ namespace acm::vulkan
 	{
 	public:
 		// Lifetime
-		Device(acm::vulkan::Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
+		Device(acm::vulkan::Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily);
 		~Device();
 
 		// State
@@ -44,7 +44,7 @@ namespace acm::vulkan
 		// Capabilities
 		const acm::DeviceInfo& deviceInfo() const { return m_deviceInfo; }
 		acm::vulkan::Instance& instance() const { return *m_instance; }
-		uint32_t queueIndex() const { return m_queueIndex; }
+		uint32_t queueFamily() const { return m_queueFamily; }
 		const acm::DeviceFeatures& enabledFeatures() const { return m_enabledFeatures; }
 		const VkPhysicalDeviceProperties& properties() const { return m_properties.properties; }
 		VkSampleCountFlagBits sampleCount(acm::SampleCount requested) const;
@@ -109,7 +109,7 @@ namespace acm::vulkan
 
 		acm::vulkan::Instance* m_instance{nullptr};
 		acm::DeviceInfo m_deviceInfo;
-		uint32_t m_queueIndex{0};
+		uint32_t m_queueFamily{0};
 		acm::DeviceFeatures m_enabledFeatures;
 		VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
 		VkPhysicalDeviceProperties2 m_properties{};

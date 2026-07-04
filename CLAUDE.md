@@ -148,7 +148,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
    ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-device support query
    ├── createHeadlessSurface([extent]) ──────> Surface   // windowless offscreen surface (headless ext, or an owned off-screen window)
    │
-   └── createDevice(DeviceInfo, queueIndex) ─────────────> Device    // logical device + queue
+   └── createDevice(DeviceOption) ───────────────────────> Device    // logical device + queue family
           │
           ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
@@ -241,7 +241,7 @@ barriers, image transitions) into the same command buffer as the draws — so a 
 in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
 
-`DeviceInfo`, `QueueInfo`, `SurfaceDeviceSupport`, and `DeviceFeatures`
+`DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
 ([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
@@ -249,7 +249,10 @@ Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 the reported version is available as `DeviceInfo::apiVersion`. Device creation enables
 `synchronization2` and `dynamicRendering`, and command-buffer buffer/image barriers use
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
-submissions use `VkSubmitInfo2` through the device-owned submission path.
+submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::deviceOptions()`
+reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), and
+`Instance::createDevice(option)` is the preferred creation path when the caller does not
+need custom selection logic.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`

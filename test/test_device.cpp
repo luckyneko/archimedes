@@ -24,18 +24,18 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIndex = 0;
-	const acm::DeviceInfo* chosen = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!chosen)
+	const std::vector<acm::DeviceOption> options = instance.deviceOptions();
+	if (options.empty())
 		SKIP("no graphics-capable queue family");
-	const uint32_t deviceIndex = chosen->index;
+	const acm::DeviceOption option = options.front();
+	const acm::DeviceInfo& chosen = instance.devices()[option.deviceIndex];
 
-	acm::Device device = instance.createDevice(*chosen, queueIndex);
+	acm::Device device = instance.createDevice(option);
 	REQUIRE(device.valid());
-	REQUIRE(device.queueIndex() == queueIndex);
-	REQUIRE(device.deviceInfo().index == deviceIndex);
-	REQUIRE(device.enabledFeatures().fillModeNonSolid == chosen->features.fillModeNonSolid);
-	REQUIRE(device.enabledFeatures().wideLines == chosen->features.wideLines);
-	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen->features.samplerAnisotropy);
-	REQUIRE(device.enabledFeatures().sampleRateShading == chosen->features.sampleRateShading);
+	REQUIRE(device.queueFamily() == option.queueFamily);
+	REQUIRE(device.deviceInfo().index == option.deviceIndex);
+	REQUIRE(device.enabledFeatures().fillModeNonSolid == chosen.features.fillModeNonSolid);
+	REQUIRE(device.enabledFeatures().wideLines == chosen.features.wideLines);
+	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen.features.samplerAnisotropy);
+	REQUIRE(device.enabledFeatures().sampleRateShading == chosen.features.sampleRateShading);
 }

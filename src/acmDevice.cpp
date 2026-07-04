@@ -151,9 +151,9 @@ namespace acm
 		return m->deviceInfo();
 	}
 
-	uint32_t Device::queueIndex() const
+	uint32_t Device::queueFamily() const
 	{
-		return m->queueIndex();
+		return m->queueFamily();
 	}
 
 	const DeviceFeatures& Device::enabledFeatures() const

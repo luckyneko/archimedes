@@ -12,6 +12,8 @@
 
 #include <catch2/catch_all.hpp>
 
+#include <vector>
+
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so
 // each test translation unit can include it without an extra link target. The
 // windowless surface (and its Windows off-screen-window fallback) is a first-class
@@ -23,14 +25,12 @@ namespace acmtest
 	// The pointer is valid for the lifetime of the instance.
 	inline const acm::DeviceInfo* selectGraphicsDevice(const acm::Instance& instance, uint32_t& queueIndex)
 	{
-		for (const auto& gpu : instance.devices())
-			for (const auto& qf : gpu.queues)
-				if (qf.graphics)
-				{
-					queueIndex = qf.family;
-					return &gpu;
-				}
-		return nullptr;
+		const std::vector<acm::DeviceOption> options = instance.deviceOptions();
+		if (options.empty())
+			return nullptr;
+		const acm::DeviceOption& option = options.front();
+		queueIndex = option.queueFamily;
+		return &instance.devices()[option.deviceIndex];
 	}
 
 	// The full headless stack (instance -> surface -> device -> swapchain) that

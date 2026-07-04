@@ -72,7 +72,7 @@ namespace acm
 
 		// Capabilities
 		const acm::DeviceInfo& deviceInfo() const;
-		uint32_t queueIndex() const;
+		uint32_t queueFamily() const;
 		// The curated optional features actually enabled on this device. Check before
 		// using, e.g., wireframe.
 		const acm::DeviceFeatures& enabledFeatures() const;
