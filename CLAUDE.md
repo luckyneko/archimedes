@@ -255,6 +255,9 @@ reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), 
 need custom selection logic. `Instance::surfaceOptions(surface[s])` filters those device
 options to graphics queues that can present to one or more surfaces and supplies the
 surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
+Pass `SurfacePreferences` to rank the compatible format and present-mode combinations;
+the default preferences put common SRGB surface formats first and prefer FIFO presentation
+as the portable vsynced default.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`

@@ -12,6 +12,7 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/backendAPI.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace acm
@@ -111,12 +112,12 @@ namespace acm
 		return options;
 	}
 
-	std::vector<SurfaceOption> Instance::surfaceOptions(const Surface& surface) const
+	std::vector<SurfaceOption> Instance::surfaceOptions(const Surface& surface, const SurfacePreferences& preferences) const
 	{
-		return surfaceOptions(std::vector<Surface>{surface});
+		return surfaceOptions(std::vector<Surface>{surface}, preferences);
 	}
 
-	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces) const
+	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces, const SurfacePreferences& preferences) const
 	{
 		std::vector<SurfaceOption> options;
 		if (surfaces.empty())
@@ -140,19 +141,25 @@ namespace acm
 					return true;
 			return false;
 		};
-		const auto preferredPresentMode = [](const SurfaceDeviceSupport& support)
+		const auto formatRank = [&sameFormat, &preferences](const SurfaceFormat& format)
 		{
-			for (PresentMode mode : support.presentModes)
-				if (mode == PresentMode::Fifo)
-					return mode;
-			return support.presentModes[0];
+			for (size_t index = 0; index < preferences.formats.size(); ++index)
+				if (sameFormat(preferences.formats[index], format))
+					return index;
+			return preferences.formats.size();
+		};
+		const auto presentModeRank = [&preferences](PresentMode presentMode)
+		{
+			for (size_t index = 0; index < preferences.presentModes.size(); ++index)
+				if (preferences.presentModes[index] == presentMode)
+					return index;
+			return preferences.presentModes.size();
 		};
 
 		for (const DeviceOption& deviceOption : graphicsOptions())
 		{
-			SurfaceOption option;
-			option.device = deviceOption;
 			bool compatible = true;
+			std::vector<const SurfaceDeviceSupport*> supports;
 			for (size_t surfaceIndex = 0; surfaceIndex < surfaces.size(); ++surfaceIndex)
 			{
 				backend::Surface* surface = surfaces[surfaceIndex].backend();
@@ -175,20 +182,44 @@ namespace acm
 					break;
 				}
 
-				if (surfaceIndex == 0)
-				{
-					option.format = support->formats[0];
-					option.presentMode = preferredPresentMode(*support);
-					option.capabilities = support->capabilities;
-				}
-				else if (!hasFormat(*support, option.format) || !hasPresentMode(*support, option.presentMode))
-				{
-					compatible = false;
-					break;
-				}
+				supports.push_back(support);
 			}
 			if (compatible)
-				options.push_back(option);
+			{
+				std::vector<SurfaceFormat> formats = supports[0]->formats;
+				std::vector<PresentMode> presentModes = supports[0]->presentModes;
+				for (size_t supportIndex = 1; supportIndex < supports.size(); ++supportIndex)
+				{
+					const SurfaceDeviceSupport& support = *supports[supportIndex];
+					formats.erase(
+						std::remove_if(formats.begin(), formats.end(),
+									   [&support, &hasFormat](const SurfaceFormat& format)
+									   { return !hasFormat(support, format); }),
+						formats.end());
+					presentModes.erase(
+						std::remove_if(presentModes.begin(), presentModes.end(),
+									   [&support, &hasPresentMode](PresentMode presentMode)
+									   { return !hasPresentMode(support, presentMode); }),
+						presentModes.end());
+				}
+				std::stable_sort(formats.begin(), formats.end(),
+								 [&formatRank](const SurfaceFormat& a, const SurfaceFormat& b)
+								 { return formatRank(a) < formatRank(b); });
+				std::stable_sort(presentModes.begin(), presentModes.end(),
+								 [&presentModeRank](PresentMode a, PresentMode b)
+								 { return presentModeRank(a) < presentModeRank(b); });
+
+				for (const SurfaceFormat& format : formats)
+					for (PresentMode presentMode : presentModes)
+					{
+						SurfaceOption option;
+						option.device = deviceOption;
+						option.format = format;
+						option.presentMode = presentMode;
+						option.capabilities = supports[0]->capabilities;
+						options.push_back(option);
+					}
+			}
 		}
 		return options;
 	}

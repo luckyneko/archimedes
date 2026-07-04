@@ -52,6 +52,22 @@ namespace acm
 		uint32_t queueFamily{0};
 	};
 
+	struct SurfacePreferences
+	{
+		std::vector<acm::SurfaceFormat> formats{
+			{acm::Format::R8G8B8A8_Srgb, acm::ColorSpace::SrgbNonlinear},
+			{acm::Format::B8G8R8A8_Srgb, acm::ColorSpace::SrgbNonlinear},
+			{acm::Format::R8G8B8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
+			{acm::Format::B8G8R8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
+		};
+		std::vector<acm::PresentMode> presentModes{
+			acm::PresentMode::Fifo,
+			acm::PresentMode::Mailbox,
+			acm::PresentMode::FifoRelaxed,
+			acm::PresentMode::Immediate,
+		};
+	};
+
 	struct SurfaceOption
 	{
 		acm::DeviceOption device;

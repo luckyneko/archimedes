@@ -11,6 +11,7 @@
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
+#include <cstddef>
 #include <vector>
 
 // Integration: exercises acm::Surface without a window via the first-class
@@ -31,6 +32,42 @@ TEST_CASE("Surface (headless) produces compatible surface options", "[acm][gpu]"
 	const std::vector<acm::SurfaceOption> options = instance.surfaceOptions(surface);
 	if (options.empty())
 		SKIP("headless surface exposes no compatible device options");
+
+	acm::SurfacePreferences preferences;
+	preferences.presentModes = {
+		acm::PresentMode::Immediate,
+		acm::PresentMode::Mailbox,
+		acm::PresentMode::FifoRelaxed,
+		acm::PresentMode::Fifo,
+	};
+	const std::vector<acm::SurfaceOption> preferredOptions = instance.surfaceOptions(surface, preferences);
+	REQUIRE_FALSE(preferredOptions.empty());
+	const auto sameDevice = [](const acm::DeviceOption& a, const acm::DeviceOption& b)
+	{
+		return a.deviceIndex == b.deviceIndex && a.queueFamily == b.queueFamily;
+	};
+	const auto sameFormat = [](const acm::SurfaceFormat& a, const acm::SurfaceFormat& b)
+	{
+		return a.format == b.format && a.colorSpace == b.colorSpace;
+	};
+	const auto presentModeRank = [&preferences](acm::PresentMode presentMode)
+	{
+		for (size_t index = 0; index < preferences.presentModes.size(); ++index)
+			if (preferences.presentModes[index] == presentMode)
+				return index;
+		return preferences.presentModes.size();
+	};
+	const acm::SurfaceOption firstOption = preferredOptions.front();
+	size_t previousRank = 0;
+	for (const acm::SurfaceOption& option : preferredOptions)
+	{
+		if (!sameDevice(option.device, firstOption.device) || !sameFormat(option.format, firstOption.format))
+			break;
+		const size_t rank = presentModeRank(option.presentMode);
+		REQUIRE(rank >= previousRank);
+		previousRank = rank;
+	}
+
 	const std::vector<acm::DeviceInfo>& devices = instance.devices();
 	for (const acm::SurfaceOption& option : options)
 	{
