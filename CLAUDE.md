@@ -143,12 +143,12 @@ private backend pools and require their public owning root to outlive them. The 
 is a lifetime hierarchy, not shared ownership.
 
 ```
-Instance ── enumerates ──> GPU[] (physical devices, queue families)
+Instance ── enumerates ──> DeviceInfo[] (physical devices, queue families)
    │
-   ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-GPU support query
+   ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-device support query
    ├── createHeadlessSurface([extent]) ──────> Surface   // windowless offscreen surface (headless ext, or an owned off-screen window)
    │
-   └── createDevice(GPU, queueIndex) ─────────────> Device    // logical device + queue
+   └── createDevice(DeviceInfo, queueIndex) ─────────────> Device    // logical device + queue
           │
           ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
@@ -241,18 +241,18 @@ barriers, image transitions) into the same command buffer as the draws — so a 
 in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
 
-`GPU`, `GPUQueueFamily`, `GPUSurfaceSupport`, and `GPUFeatures`
+`DeviceInfo`, `QueueInfo`, `SurfaceDeviceSupport`, and `DeviceFeatures`
 ([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
 `dynamicRendering` features;
-the reported version is available as `GPU::apiVersion`. Device creation enables
+the reported version is available as `DeviceInfo::apiVersion`. Device creation enables
 `synchronization2` and `dynamicRendering`, and command-buffer buffer/image barriers use
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
 submissions use `VkSubmitInfo2` through the device-owned submission path.
-`GPUFeatures` is the curated subset of optional device features the renderer can use
-(`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each GPU's
-availability through `VkPhysicalDeviceFeatures2` into `GPU::features`, and `Device`
+`DeviceFeatures` is the curated subset of optional device features the renderer can use
+(`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
+device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`
 creation enables the supported subset through the matching `VkDeviceCreateInfo::pNext`
 chain and reports it via `Device::enabledFeatures()`. Consumers that want a feature check it
 and degrade-with-a-warning when it's off rather than producing an invalid object — a
@@ -562,7 +562,7 @@ The framework (`testbed/src/`):
   generic plumbing: its `acm::SwapChain` + `acm::Renderer`, exposing `renderer()` /
   `renderPass()` / `extent()`. The example records into it.
 - **`App`** ([App.cpp](testbed/src/App.cpp)) — owns the lifecycle: instance + GLFW, the
-  example's windows + surfaces (all GLFW on the main thread), a GPU/queue that presents to
+  example's windows + surfaces (all GLFW on the main thread), a device/queue that presents to
   *every* surface, a shared device + a `RenderContext` per window, then the loop
   (`poll → onUpdate → render all views`, fork-join across `RenderWorker`s for multi-window,
   inline for single) and the **device-before-surface** teardown. `TESTBED_FRAME_CAP=<n>`
@@ -614,7 +614,7 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   semantics and `Version`. No driver needed.
 - **Integration** (`[gpu]`) — mostly headless via `acm::Instance::createHeadlessSurface`
   (the first-class windowless surface — see the Instance factories): `acm::Instance`/`Device` creation +
-  GPU enumeration, `acm::Surface` per-GPU support, `acm::SwapChain` extent
+  device enumeration, `acm::Surface` per-device support, `acm::SwapChain` extent
   clamping, `acm::CommandPool`/`CommandBuffer` (device-only — needs no surface),
   `acm::Shader`/`acm::Pipeline` creation, the `acm::Renderer` frame loop
   (acquire → record → submit → present over the headless swapchain), and a
@@ -677,7 +677,7 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   live Metal access.
 
 Shared `[gpu]` scaffolding lives in [test/vk_test_helpers.h](test/vk_test_helpers.h)
-— graphics-GPU selection plus `buildHeadlessStack()` (the full
+— graphics-device selection plus `buildHeadlessStack()` (the full
 instance→surface→device→swapchain via `createHeadlessSurface`, SKIP-ing with a specific
 reason on any missing layer). It is backend-neutral — no raw Vulkan or platform headers,
 since the windowless surface is now a first-class API. Reuse it, don't re-roll it. The pipeline/render tests use precompiled
@@ -783,7 +783,7 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   cull). `BlendMode` is a two-way preset (opaque / src-alpha-over), not arbitrary
   factors.
 - Device features are a curated, all-or-nothing set (`fillModeNonSolid`, `wideLines`,
-  `samplerAnisotropy`, `sampleRateShading`): enabled automatically when the GPU supports
+  `samplerAnisotropy`, `sampleRateShading`): enabled automatically when the device supports
   them, with no way to request others, and consumers silently degrade (warn) rather than
   erroring when a wanted feature is off.
 - Mipmaps are generate-on-upload only: levels come from a linear blit-down chain (a box

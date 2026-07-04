@@ -49,7 +49,7 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
@@ -113,7 +113,7 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
@@ -175,7 +175,7 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);

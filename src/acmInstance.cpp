@@ -78,19 +78,19 @@ namespace acm
 		return m ? m->createHeadlessSurface(extent) : Surface{};
 	}
 
-	Device Instance::createDevice(const GPU& gpu, uint32_t queueIndex)
+	Device Instance::createDevice(const DeviceInfo& deviceInfo, uint32_t queueIndex)
 	{
-		return m ? m->createDevice(gpu, queueIndex) : Device{};
+		return m ? m->createDevice(deviceInfo, queueIndex) : Device{};
 	}
 
 	// -----------------------------------------------------------------------------
 	// Enumeration
 	// -----------------------------------------------------------------------------
 
-	const std::vector<GPU>& Instance::getAvailableGPUs() const
+	const std::vector<DeviceInfo>& Instance::devices() const
 	{
-		static const std::vector<GPU> empty;
-		return m ? m->gpus() : empty;
+		static const std::vector<DeviceInfo> empty;
+		return m ? m->devices() : empty;
 	}
 
 } // namespace acm

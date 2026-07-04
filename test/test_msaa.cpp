@@ -44,7 +44,7 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
@@ -113,7 +113,7 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 

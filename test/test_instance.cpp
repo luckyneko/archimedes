@@ -37,19 +37,19 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	REQUIRE(vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateMacOSSurfaceMVK") == nullptr);
 #endif
 
-	const auto& gpus = instance.getAvailableGPUs();
-	REQUIRE_FALSE(gpus.empty());
+	const auto& devices = instance.devices();
+	REQUIRE_FALSE(devices.empty());
 
 	bool anyGraphics = false;
-	for (uint32_t i = 0; i < gpus.size(); ++i)
+	for (uint32_t i = 0; i < devices.size(); ++i)
 	{
-		const auto& gpu = gpus[i];
-		REQUIRE(gpu.index == i);		 // index mirrors enumeration order
-		REQUIRE_FALSE(gpu.name.empty()); // neutral GPU info populated
-		REQUIRE((gpu.apiVersion.major > 1 || (gpu.apiVersion.major == 1 && gpu.apiVersion.minor >= 3)));
-		REQUIRE_FALSE(gpu.queueFamilies.empty());
-		for (const auto& qf : gpu.queueFamilies)
-			anyGraphics = anyGraphics || qf.supportsGraphics;
+		const auto& device = devices[i];
+		REQUIRE(device.index == i);		 // index mirrors enumeration order
+		REQUIRE_FALSE(device.name.empty()); // neutral device info populated
+		REQUIRE((device.apiVersion.major > 1 || (device.apiVersion.major == 1 && device.apiVersion.minor >= 3)));
+		REQUIRE_FALSE(device.queues.empty());
+		for (const auto& qf : device.queues)
+			anyGraphics = anyGraphics || qf.graphics;
 	}
 	REQUIRE(anyGraphics);
 }

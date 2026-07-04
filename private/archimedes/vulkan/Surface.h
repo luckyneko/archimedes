@@ -20,7 +20,7 @@ namespace acm::vulkan
 {
 	class Instance;
 
-	// Move-only VkSurfaceKHR owner plus per-GPU support snapshot.
+	// Move-only VkSurfaceKHR owner plus per-device support snapshot.
 	class Surface
 	{
 	public:
@@ -42,7 +42,7 @@ namespace acm::vulkan
 		acm::Error error() const { return m_error; }
 
 		// Capabilities
-		const std::vector<acm::GPUSurfaceSupport>& support() const;
+		const std::vector<acm::SurfaceDeviceSupport>& support() const;
 		VkSurfaceKHR vkSurface() const;
 
 	private:
@@ -52,7 +52,7 @@ namespace acm::vulkan
 		acm::vulkan::Instance* m_owner{nullptr};
 		VkSurfaceKHR m_surface{VK_NULL_HANDLE};
 		PlatformWindow m_window;
-		std::vector<acm::GPUSurfaceSupport> m_gpuSupport;
+		std::vector<acm::SurfaceDeviceSupport> m_deviceSupport;
 		acm::Error m_error;
 	};
 } // namespace acm::vulkan

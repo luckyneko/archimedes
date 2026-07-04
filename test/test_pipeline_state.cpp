@@ -39,7 +39,7 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 

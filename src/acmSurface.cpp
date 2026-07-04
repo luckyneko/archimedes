@@ -59,9 +59,9 @@ namespace acm
 	// Capabilities
 	// -----------------------------------------------------------------------------
 
-	const std::vector<GPUSurfaceSupport>& Surface::getGPUSupport() const
+	const std::vector<SurfaceDeviceSupport>& Surface::deviceSupport() const
 	{
-		static const std::vector<GPUSurfaceSupport> empty;
+		static const std::vector<SurfaceDeviceSupport> empty;
 		if (auto* resource = m_resource.access())
 			return resource->support();
 		return empty;

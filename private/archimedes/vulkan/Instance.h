@@ -36,13 +36,13 @@ namespace acm::vulkan
 		VkInstance vulkanInstance() const { return m_instance; }
 
 		// Enumeration
-		const std::vector<acm::GPU>& gpus() const { return m_gpus; }
+		const std::vector<acm::DeviceInfo>& devices() const { return m_devices; }
 		VkPhysicalDevice physicalDevice(uint32_t index) const;
 
 		// Factories
 		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
 		acm::Surface createHeadlessSurface(acm::Extent2D extent);
-		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
+		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
 
 	private:
 		// Internals
@@ -53,12 +53,12 @@ namespace acm::vulkan
 		static VkResult createDebugMessenger(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkDebugUtilsMessengerEXT* messenger);
 		static void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger);
 		static VKAPI_ATTR VkBool32 VKAPI_CALL validationCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData);
-		void enumerateGPUs();
+		void enumerateDevices();
 
 		VkInstance m_instance{VK_NULL_HANDLE};
 		VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 		std::vector<const char*> m_layerNames;
-		std::vector<acm::GPU> m_gpus;
+		std::vector<acm::DeviceInfo> m_devices;
 		std::vector<VkPhysicalDevice> m_physicalDevices;
 		acm::ResourcePool<acm::vulkan::Surface> m_surfaces;
 		acm::Error m_error;

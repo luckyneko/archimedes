@@ -31,7 +31,7 @@ namespace acm
 		bool debug{false};
 	};
 
-	// Unique owning root for Vulkan instance state. It enumerates GPUs and builds
+	// Unique owning root for Vulkan instance state. It enumerates physical devices and builds
 	// Surfaces/Devices; every Surface and Device created from it must be reset before
 	// the Instance is destroyed.
 	class Instance
@@ -62,10 +62,10 @@ namespace acm
 		// backing window on platforms that need one and is otherwise unused — pass
 		// the intended render size for consistent behaviour across platforms.
 		acm::Surface createHeadlessSurface(acm::Extent2D extent = {1, 1});
-		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
+		acm::Device createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
 
 		// Enumeration
-		const std::vector<acm::GPU>& getAvailableGPUs() const;
+		const std::vector<acm::DeviceInfo>& devices() const;
 
 	private:
 		std::unique_ptr<acm::backend::Instance> m;

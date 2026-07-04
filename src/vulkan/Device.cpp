@@ -34,17 +34,17 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Device::Device(Instance& instance, const acm::GPU& gpu, uint32_t queueIndex)
+	Device::Device(Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueIndex)
 		: m_instance(&instance)
 	{
-		if (!m_instance || !m_instance->valid() || gpu.index >= m_instance->gpus().size())
+		if (!m_instance || !m_instance->valid() || deviceInfo.index >= m_instance->devices().size())
 		{
-			m_error = acm::Error("failed to create device from invalid instance or GPU");
+			m_error = acm::Error("failed to create device from invalid instance or DeviceInfo");
 			return;
 		}
-		m_gpu = m_instance->gpus()[gpu.index];
-		m_physicalDevice = m_instance->physicalDevice(gpu.index);
-		if (!m_physicalDevice || queueIndex >= m_gpu.queueFamilies.size())
+		m_deviceInfo = m_instance->devices()[deviceInfo.index];
+		m_physicalDevice = m_instance->physicalDevice(deviceInfo.index);
+		if (!m_physicalDevice || queueIndex >= m_deviceInfo.queues.size())
 		{
 			m_error = acm::Error("failed to create device from invalid queue family");
 			return;
@@ -81,10 +81,10 @@ namespace acm::vulkan
 		VkPhysicalDeviceFeatures2 deviceFeatures = {};
 		deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		deviceFeatures.pNext = &vulkan13Features;
-		deviceFeatures.features.fillModeNonSolid = m_gpu.features.fillModeNonSolid ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.wideLines = m_gpu.features.wideLines ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.samplerAnisotropy = m_gpu.features.samplerAnisotropy ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.sampleRateShading = m_gpu.features.sampleRateShading ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.fillModeNonSolid = m_deviceInfo.features.fillModeNonSolid ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.wideLines = m_deviceInfo.features.wideLines ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.samplerAnisotropy = m_deviceInfo.features.samplerAnisotropy ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.sampleRateShading = m_deviceInfo.features.sampleRateShading ? VK_TRUE : VK_FALSE;
 
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -102,7 +102,7 @@ namespace acm::vulkan
 
 		vkGetDeviceQueue(m_device, queueIndex, 0, &m_queue);
 		m_queueIndex = queueIndex;
-		m_enabledFeatures = m_gpu.features;
+		m_enabledFeatures = m_deviceInfo.features;
 		m_allocator = std::make_unique<MemoryAllocator>(m_device, m_physicalDevice);
 	}
 

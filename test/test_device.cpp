@@ -25,15 +25,15 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* chosen = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* chosen = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!chosen)
 		SKIP("no graphics-capable queue family");
-	const uint32_t gpuIndex = chosen->index;
+	const uint32_t deviceIndex = chosen->index;
 
 	acm::Device device = instance.createDevice(*chosen, queueIndex);
 	REQUIRE(device.valid());
 	REQUIRE(device.queueIndex() == queueIndex);
-	REQUIRE(device.gpu().index == gpuIndex);
+	REQUIRE(device.deviceInfo().index == deviceIndex);
 	REQUIRE(device.enabledFeatures().fillModeNonSolid == chosen->features.fillModeNonSolid);
 	REQUIRE(device.enabledFeatures().wideLines == chosen->features.wideLines);
 	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen->features.samplerAnisotropy);

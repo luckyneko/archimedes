@@ -52,12 +52,12 @@ namespace
 		return instance.createVulkanSurface(vulkanSurface);
 	}
 
-	// Pick a GPU + queue family that supports graphics and can present to *every* window
+	// Pick a device + queue family that supports graphics and can present to *every* window
 	// surface, plus a format/present mode. (A windowing system's present queue typically
 	// serves all its surfaces, but we check each.)
 	struct Selection
 	{
-		uint32_t gpuIdx{0};
+		uint32_t deviceIndex{0};
 		uint32_t queueIndex{0};
 		acm::SurfaceFormat format;
 		acm::PresentMode presentMode{acm::PresentMode::Fifo};
@@ -66,17 +66,17 @@ namespace
 
 	Selection selectSettings(const acm::Instance& instance, const std::vector<acm::Surface>& surfaces)
 	{
-		for (const acm::GPU& gpu : instance.getAvailableGPUs())
+		for (const acm::DeviceInfo& deviceInfo : instance.devices())
 		{
-			std::vector<const acm::GPUSurfaceSupport*> support(surfaces.size(), nullptr);
+			std::vector<const acm::SurfaceDeviceSupport*> support(surfaces.size(), nullptr);
 			bool allSupported = true;
 			for (size_t i = 0; i < surfaces.size(); ++i)
 			{
-				const auto& list = surfaces[i].getGPUSupport();
+				const auto& list = surfaces[i].deviceSupport();
 				auto it = std::find_if(list.begin(), list.end(),
-									   [index = gpu.index](const acm::GPUSurfaceSupport& s)
-									   { return s.gpuIndex == index; });
-				if (it == list.end() || it->supportedFormats.empty() || it->supportedPresentModes.empty())
+									   [index = deviceInfo.index](const acm::SurfaceDeviceSupport& s)
+									   { return s.deviceIndex == index; });
+				if (it == list.end() || it->formats.empty() || it->presentModes.empty())
 				{
 					allSupported = false;
 					break;
@@ -86,13 +86,13 @@ namespace
 			if (!allSupported)
 				continue;
 
-			for (const acm::GPUQueueFamily& qf : gpu.queueFamilies)
+			for (const acm::QueueInfo& qf : deviceInfo.queues)
 			{
-				if (!qf.supportsGraphics)
+				if (!qf.graphics)
 					continue;
 				bool presentsAll = true;
-				for (const acm::GPUSurfaceSupport* s : support)
-					if (qf.index >= s->queueFamilySupportsPresent.size() || !s->queueFamilySupportsPresent[qf.index])
+				for (const acm::SurfaceDeviceSupport* s : support)
+					if (qf.family >= s->queuePresentSupport.size() || !s->queuePresentSupport[qf.family])
 					{
 						presentsAll = false;
 						break;
@@ -101,11 +101,11 @@ namespace
 					continue;
 
 				Selection sel;
-				sel.gpuIdx = gpu.index;
-				sel.queueIndex = qf.index;
-				sel.format = support[0]->supportedFormats[0];
-				sel.presentMode = support[0]->supportedPresentModes[0];
-				for (acm::PresentMode pm : support[0]->supportedPresentModes)
+				sel.deviceIndex = deviceInfo.index;
+				sel.queueIndex = qf.family;
+				sel.format = support[0]->formats[0];
+				sel.presentMode = support[0]->presentModes[0];
+				for (acm::PresentMode pm : support[0]->presentModes)
 					if (pm == acm::PresentMode::Fifo) // vsync: cap frames to the refresh rate
 					{
 						sel.presentMode = pm;
@@ -174,16 +174,16 @@ int App::run(Example& example)
 	const Selection sel = selectSettings(instance, surfaces);
 	if (!sel.ok)
 	{
-		fprintf(stderr, "no GPU presents to all windows\n");
+		fprintf(stderr, "no device presents to all windows\n");
 		return 1;
 	}
-	acm::Device device = instance.createDevice(instance.getAvailableGPUs()[sel.gpuIdx], sel.queueIndex);
+	acm::Device device = instance.createDevice(instance.devices()[sel.deviceIndex], sel.queueIndex);
 	if (!device.valid())
 	{
 		fprintf(stderr, "CreateACMDevice: FAIL\n");
 		return 1;
 	}
-	printf("SelectedGPU: %s\n", instance.getAvailableGPUs()[sel.gpuIdx].name.c_str());
+	printf("Selected device: %s\n", instance.devices()[sel.deviceIndex].name.c_str());
 
 	// A RenderContext per window. Sized up front so the pointers handed to the example
 	// (and the workers) stay stable.

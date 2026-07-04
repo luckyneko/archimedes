@@ -31,14 +31,14 @@ namespace acm::vulkan
 		m_owner = &owner;
 		m_surface = surface;
 		m_window = std::move(window);
-		const auto& gpus = owner.gpus();
-		m_gpuSupport.resize(gpus.size());
-		for (size_t gpuIndex = 0; gpuIndex < gpus.size(); ++gpuIndex)
+		const auto& devices = owner.devices();
+		m_deviceSupport.resize(devices.size());
+		for (size_t deviceIndex = 0; deviceIndex < devices.size(); ++deviceIndex)
 		{
-			const acm::GPU& gpu = gpus[gpuIndex];
-			const VkPhysicalDevice physicalDevice = owner.physicalDevice(uint32_t(gpuIndex));
-			acm::GPUSurfaceSupport& support = m_gpuSupport[gpuIndex];
-			support.gpuIndex = gpu.index;
+			const acm::DeviceInfo& device = devices[deviceIndex];
+			const VkPhysicalDevice physicalDevice = owner.physicalDevice(uint32_t(deviceIndex));
+			acm::SurfaceDeviceSupport& support = m_deviceSupport[deviceIndex];
+			support.deviceIndex = device.index;
 
 			VkSurfaceCapabilitiesKHR capabilities = {};
 			vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities);
@@ -57,7 +57,7 @@ namespace acm::vulkan
 				acm::Format neutralFormat;
 				acm::ColorSpace colorSpace;
 				if (tryFromVk(format.format, neutralFormat) && tryFromVk(format.colorSpace, colorSpace))
-					support.supportedFormats.push_back({neutralFormat, colorSpace});
+					support.formats.push_back({neutralFormat, colorSpace});
 			}
 
 			uint32_t modeCount = 0;
@@ -68,15 +68,15 @@ namespace acm::vulkan
 			{
 				acm::PresentMode neutralMode;
 				if (tryFromVk(mode, neutralMode))
-					support.supportedPresentModes.push_back(neutralMode);
+					support.presentModes.push_back(neutralMode);
 			}
 
-			support.queueFamilySupportsPresent.resize(gpu.queueFamilies.size());
-			for (const acm::GPUQueueFamily& queue : gpu.queueFamilies)
+			support.queuePresentSupport.resize(device.queues.size());
+			for (const acm::QueueInfo& queue : device.queues)
 			{
 				VkBool32 present = VK_FALSE;
-				vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queue.index, surface, &present);
-				support.queueFamilySupportsPresent[queue.index] = present == VK_TRUE;
+				vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queue.family, surface, &present);
+				support.queuePresentSupport[queue.family] = present == VK_TRUE;
 			}
 		}
 	}
@@ -99,7 +99,7 @@ namespace acm::vulkan
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_surface = std::exchange(other.m_surface, VK_NULL_HANDLE);
 		m_window = std::move(other.m_window);
-		m_gpuSupport = std::move(other.m_gpuSupport);
+		m_deviceSupport = std::move(other.m_deviceSupport);
 		m_error = std::move(other.m_error);
 		return *this;
 	}
@@ -108,9 +108,9 @@ namespace acm::vulkan
 	// Capabilities
 	// -----------------------------------------------------------------------------
 
-	const std::vector<acm::GPUSurfaceSupport>& Surface::support() const
+	const std::vector<acm::SurfaceDeviceSupport>& Surface::support() const
 	{
-		return m_gpuSupport;
+		return m_deviceSupport;
 	}
 
 	VkSurfaceKHR Surface::vkSurface() const
@@ -126,7 +126,7 @@ namespace acm::vulkan
 	{
 		Instance* owner = std::exchange(m_owner, nullptr);
 		const VkSurfaceKHR surface = std::exchange(m_surface, VK_NULL_HANDLE);
-		m_gpuSupport.clear();
+		m_deviceSupport.clear();
 		if (owner && surface)
 			vkDestroySurfaceKHR(owner->vulkanInstance(), surface, nullptr);
 		// The backing window (if any) must outlive its surface: destroy it only after

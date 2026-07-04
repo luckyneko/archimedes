@@ -25,7 +25,7 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
@@ -33,15 +33,15 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (!surface.valid())
 		SKIP("headless surface unavailable");
 
-	const acm::GPUSurfaceSupport& support = surface.getGPUSupport()[gpu->index];
-	if (support.supportedFormats.empty() || support.supportedPresentModes.empty())
+	const acm::SurfaceDeviceSupport& support = surface.deviceSupport()[gpu->index];
+	if (support.formats.empty() || support.presentModes.empty())
 		SKIP("headless surface exposes no formats/present modes");
 
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D desired{800, 600};
-	acm::SwapChain swapChain = device.createSwapChain(surface, support.supportedFormats[0], support.supportedPresentModes[0], desired);
+	acm::SwapChain swapChain = device.createSwapChain(surface, support.formats[0], support.presentModes[0], desired);
 	if (!swapChain.valid())
 		SKIP("driver does not support a headless swapchain");
 

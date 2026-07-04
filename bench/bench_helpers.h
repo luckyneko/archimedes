@@ -32,7 +32,7 @@ namespace acmbench
 		}
 
 		uint32_t queueIndex = 0;
-		const acm::GPU* gpu = acmtest::selectGraphicsGPU(out.instance, queueIndex);
+		const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(out.instance, queueIndex);
 		if (!gpu)
 		{
 			SKIP("no graphics-capable queue family");

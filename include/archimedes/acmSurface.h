@@ -17,7 +17,7 @@
 namespace acm
 {
 	// Copyable handle to a platform window surface created by Instance. Surface support
-	// is captured per enumerated GPU so callers can pick a present-capable queue.
+	// is captured per enumerated physical device so callers can pick a present-capable queue.
 	class Surface
 	{
 	public:
@@ -36,7 +36,7 @@ namespace acm
 		acm::backend::Surface* backend() const;
 
 		// Capabilities
-		const std::vector<acm::GPUSurfaceSupport>& getGPUSupport() const;
+		const std::vector<acm::SurfaceDeviceSupport>& deviceSupport() const;
 
 	private:
 		// Construction

@@ -34,7 +34,7 @@ namespace acm::vulkan
 	{
 	public:
 		// Lifetime
-		Device(acm::vulkan::Instance& instance, const acm::GPU& gpu, uint32_t queueIndex);
+		Device(acm::vulkan::Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueIndex);
 		~Device();
 
 		// State
@@ -42,10 +42,10 @@ namespace acm::vulkan
 		acm::Error error() const { return m_error; }
 
 		// Capabilities
-		const acm::GPU& gpu() const { return m_gpu; }
+		const acm::DeviceInfo& deviceInfo() const { return m_deviceInfo; }
 		acm::vulkan::Instance& instance() const { return *m_instance; }
 		uint32_t queueIndex() const { return m_queueIndex; }
-		const acm::GPUFeatures& enabledFeatures() const { return m_enabledFeatures; }
+		const acm::DeviceFeatures& enabledFeatures() const { return m_enabledFeatures; }
 		const VkPhysicalDeviceProperties& properties() const { return m_properties.properties; }
 		VkSampleCountFlagBits sampleCount(acm::SampleCount requested) const;
 		acm::SampleCount maxSampleCount() const;
@@ -108,9 +108,9 @@ namespace acm::vulkan
 		}
 
 		acm::vulkan::Instance* m_instance{nullptr};
-		acm::GPU m_gpu;
+		acm::DeviceInfo m_deviceInfo;
 		uint32_t m_queueIndex{0};
-		acm::GPUFeatures m_enabledFeatures;
+		acm::DeviceFeatures m_enabledFeatures;
 		VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
 		VkPhysicalDeviceProperties2 m_properties{};
 		VkDevice m_device{VK_NULL_HANDLE};

@@ -25,7 +25,7 @@ TEST_CASE("a compute shader writes a storage image", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);

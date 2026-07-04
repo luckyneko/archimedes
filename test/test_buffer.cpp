@@ -16,7 +16,7 @@
 // Integration: Buffer's heap-by-usage behavior. A host-visible buffer (Uniform /
 // TransferDst) is CPU-mappable; a device-local one (Vertex / Index) is not, so map()
 // returns null there and uploads go through staging instead. (That the staged upload
-// actually lands on the GPU is proven by the indexed-draw test, which renders from a
+// actually lands on the DeviceInfo is proven by the indexed-draw test, which renders from a
 // device-local vertex buffer.) Device-only — runs anywhere with a graphics queue.
 
 TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
@@ -26,7 +26,7 @@ TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 

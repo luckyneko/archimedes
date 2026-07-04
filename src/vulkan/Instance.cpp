@@ -114,7 +114,7 @@ namespace acm::vulkan
 			}
 		}
 
-		enumerateGPUs();
+		enumerateDevices();
 	}
 
 	Instance::~Instance()
@@ -164,9 +164,9 @@ namespace acm::vulkan
 		return acm::Surface(std::move(inserted.resource));
 	}
 
-	acm::Device Instance::createDevice(const acm::GPU& gpu, uint32_t queueIndex)
+	acm::Device Instance::createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueIndex)
 	{
-		auto device = std::make_unique<Device>(*this, gpu, queueIndex);
+		auto device = std::make_unique<Device>(*this, deviceInfo, queueIndex);
 		return acm::Device(std::move(device));
 	}
 
@@ -231,7 +231,7 @@ namespace acm::vulkan
 		return VK_FALSE;
 	}
 
-	void Instance::enumerateGPUs()
+	void Instance::enumerateDevices()
 	{
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
@@ -256,36 +256,36 @@ namespace acm::vulkan
 				continue;
 
 			m_physicalDevices.push_back(physicalDevice);
-			acm::GPU& gpu = m_gpus.emplace_back();
-			gpu.index = uint32_t(m_gpus.size() - 1);
-			gpu.apiVersion = {uint8_t(VK_API_VERSION_MAJOR(properties.properties.apiVersion)), uint8_t(VK_API_VERSION_MINOR(properties.properties.apiVersion)), uint16_t(VK_API_VERSION_PATCH(properties.properties.apiVersion))};
-			gpu.name = properties.properties.deviceName;
-			gpu.type = fromVk(properties.properties.deviceType);
-			gpu.features.fillModeNonSolid = features.features.fillModeNonSolid == VK_TRUE;
-			gpu.features.wideLines = features.features.wideLines == VK_TRUE;
-			gpu.features.samplerAnisotropy = features.features.samplerAnisotropy == VK_TRUE;
-			gpu.features.sampleRateShading = features.features.sampleRateShading == VK_TRUE;
+			acm::DeviceInfo& device = m_devices.emplace_back();
+			device.index = uint32_t(m_devices.size() - 1);
+			device.apiVersion = {uint8_t(VK_API_VERSION_MAJOR(properties.properties.apiVersion)), uint8_t(VK_API_VERSION_MINOR(properties.properties.apiVersion)), uint16_t(VK_API_VERSION_PATCH(properties.properties.apiVersion))};
+			device.name = properties.properties.deviceName;
+			device.type = fromVk(properties.properties.deviceType);
+			device.features.fillModeNonSolid = features.features.fillModeNonSolid == VK_TRUE;
+			device.features.wideLines = features.features.wideLines == VK_TRUE;
+			device.features.samplerAnisotropy = features.features.samplerAnisotropy == VK_TRUE;
+			device.features.sampleRateShading = features.features.sampleRateShading == VK_TRUE;
 
 			uint32_t queueFamilyCount = 0;
 			vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
-			std::vector<VkQueueFamilyProperties2> queueFamilies(queueFamilyCount);
-			for (VkQueueFamilyProperties2& queueFamily : queueFamilies)
+			std::vector<VkQueueFamilyProperties2> queues(queueFamilyCount);
+			for (VkQueueFamilyProperties2& queueFamily : queues)
 				queueFamily.sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
-			vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, queueFamilies.data());
-			gpu.queueFamilies.resize(queueFamilyCount);
-			for (size_t queueIndex = 0; queueIndex < queueFamilies.size(); ++queueIndex)
+			vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, queues.data());
+			device.queues.resize(queueFamilyCount);
+			for (size_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
 			{
-				const VkQueueFamilyProperties& properties = queueFamilies[queueIndex].queueFamilyProperties;
-				acm::GPUQueueFamily& queue = gpu.queueFamilies[queueIndex];
-				queue.index = uint32_t(queueIndex);
-				queue.queueCount = properties.queueCount;
-				queue.supportsGraphics = (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
-				queue.supportsCompute = (properties.queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
-				queue.supportsTransfer = (properties.queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
+				const VkQueueFamilyProperties& properties = queues[queueIndex].queueFamilyProperties;
+				acm::QueueInfo& queue = device.queues[queueIndex];
+				queue.family = uint32_t(queueIndex);
+				queue.count = properties.queueCount;
+				queue.graphics = (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+				queue.compute = (properties.queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
+				queue.transfer = (properties.queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
 			}
 		}
 
-		if (m_gpus.empty())
+		if (m_devices.empty())
 			m_error = acm::Error("no Vulkan 1.3 physical device with synchronization2 and dynamicRendering available");
 	}
 

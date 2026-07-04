@@ -146,9 +146,9 @@ namespace acm
 	// Capabilities
 	// -----------------------------------------------------------------------------
 
-	const GPU& Device::gpu() const
+	const DeviceInfo& Device::deviceInfo() const
 	{
-		return m->gpu();
+		return m->deviceInfo();
 	}
 
 	uint32_t Device::queueIndex() const
@@ -156,7 +156,7 @@ namespace acm
 		return m->queueIndex();
 	}
 
-	const GPUFeatures& Device::enabledFeatures() const
+	const DeviceFeatures& Device::enabledFeatures() const
 	{
 		return m->enabledFeatures();
 	}

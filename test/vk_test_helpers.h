@@ -19,15 +19,15 @@
 // — no raw Vulkan or platform headers.
 namespace acmtest
 {
-	// First graphics-capable GPU and its queue family index; nullptr if none.
+	// First graphics-capable device and its queue family index; nullptr if none.
 	// The pointer is valid for the lifetime of the instance.
-	inline const acm::GPU* selectGraphicsGPU(const acm::Instance& instance, uint32_t& queueIndex)
+	inline const acm::DeviceInfo* selectGraphicsDevice(const acm::Instance& instance, uint32_t& queueIndex)
 	{
-		for (const auto& gpu : instance.getAvailableGPUs())
-			for (const auto& qf : gpu.queueFamilies)
-				if (qf.supportsGraphics)
+		for (const auto& gpu : instance.devices())
+			for (const auto& qf : gpu.queues)
+				if (qf.graphics)
 				{
-					queueIndex = qf.index;
+					queueIndex = qf.family;
 					return &gpu;
 				}
 		return nullptr;
@@ -55,7 +55,7 @@ namespace acmtest
 		}
 
 		uint32_t queueIndex = 0;
-		const acm::GPU* gpu = selectGraphicsGPU(out.instance, queueIndex);
+		const acm::DeviceInfo* gpu = selectGraphicsDevice(out.instance, queueIndex);
 		if (!gpu)
 		{
 			SKIP("no graphics-capable queue family");
@@ -69,8 +69,8 @@ namespace acmtest
 			return false;
 		}
 
-		const acm::GPUSurfaceSupport& support = out.surface.getGPUSupport()[gpu->index];
-		if (support.supportedFormats.empty() || support.supportedPresentModes.empty())
+		const acm::SurfaceDeviceSupport& support = out.surface.deviceSupport()[gpu->index];
+		if (support.formats.empty() || support.presentModes.empty())
 		{
 			SKIP("headless surface exposes no formats/present modes");
 			return false;
@@ -79,7 +79,7 @@ namespace acmtest
 		out.device = out.instance.createDevice(*gpu, queueIndex);
 		REQUIRE(out.device.valid());
 
-		out.swapChain = out.device.createSwapChain(out.surface, support.supportedFormats[0], support.supportedPresentModes[0], acm::Extent2D{800, 600});
+		out.swapChain = out.device.createSwapChain(out.surface, support.formats[0], support.presentModes[0], acm::Extent2D{800, 600});
 		if (!out.swapChain.valid())
 		{
 			SKIP("driver does not support a headless swapchain");

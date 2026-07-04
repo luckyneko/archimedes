@@ -71,11 +71,11 @@ namespace acm
 		acm::DescriptorSet createDescriptorSet(const acm::DescriptorSetLayout& layout);
 
 		// Capabilities
-		const acm::GPU& gpu() const;
+		const acm::DeviceInfo& deviceInfo() const;
 		uint32_t queueIndex() const;
-		// The curated optional features actually enabled on this device (the subset of
-		// the GPU's that the renderer turned on). Check before using, e.g., wireframe.
-		const acm::GPUFeatures& enabledFeatures() const;
+		// The curated optional features actually enabled on this device. Check before
+		// using, e.g., wireframe.
+		const acm::DeviceFeatures& enabledFeatures() const;
 		// The highest MSAA sample count usable for color+depth rendering targets here. A
 		// SampleCount request beyond this is clamped down to it.
 		acm::SampleCount maxSampleCount() const;

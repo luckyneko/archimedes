@@ -26,7 +26,7 @@ TEST_CASE("a compute shader fills a storage buffer", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
@@ -83,7 +83,7 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 	uint32_t queueIndex = 0;
-	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
