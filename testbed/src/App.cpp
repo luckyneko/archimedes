@@ -17,7 +17,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -50,70 +49,6 @@ namespace
 		}
 		outWindow = window;
 		return instance.createVulkanSurface(vulkanSurface);
-	}
-
-	// Pick a device + queue family that supports graphics and can present to *every* window
-	// surface, plus a format/present mode. (A windowing system's present queue typically
-	// serves all its surfaces, but we check each.)
-	struct Selection
-	{
-		acm::DeviceOption device;
-		acm::SurfaceFormat format;
-		acm::PresentMode presentMode{acm::PresentMode::Fifo};
-		bool ok{false};
-	};
-
-	Selection selectSettings(const acm::Instance& instance, const std::vector<acm::Surface>& surfaces)
-	{
-		for (const acm::DeviceInfo& deviceInfo : instance.devices())
-		{
-			std::vector<const acm::SurfaceDeviceSupport*> support(surfaces.size(), nullptr);
-			bool allSupported = true;
-			for (size_t i = 0; i < surfaces.size(); ++i)
-			{
-				const auto& list = surfaces[i].deviceSupport();
-				auto it = std::find_if(list.begin(), list.end(),
-									   [index = deviceInfo.index](const acm::SurfaceDeviceSupport& s)
-									   { return s.deviceIndex == index; });
-				if (it == list.end() || it->formats.empty() || it->presentModes.empty())
-				{
-					allSupported = false;
-					break;
-				}
-				support[i] = &*it;
-			}
-			if (!allSupported)
-				continue;
-
-			for (const acm::QueueInfo& qf : deviceInfo.queues)
-			{
-				if (!qf.graphics)
-					continue;
-				bool presentsAll = true;
-				for (const acm::SurfaceDeviceSupport* s : support)
-					if (qf.family >= s->queuePresentSupport.size() || !s->queuePresentSupport[qf.family])
-					{
-						presentsAll = false;
-						break;
-					}
-				if (!presentsAll)
-					continue;
-
-				Selection sel;
-				sel.device = {deviceInfo.index, qf.family};
-				sel.format = support[0]->formats[0];
-				sel.presentMode = support[0]->presentModes[0];
-				for (acm::PresentMode pm : support[0]->presentModes)
-					if (pm == acm::PresentMode::Fifo) // vsync: cap frames to the refresh rate
-					{
-						sel.presentMode = pm;
-						break;
-					}
-				sel.ok = true;
-				return sel;
-			}
-		}
-		return {};
 	}
 
 	bool anyWindowClosing(const std::vector<GLFWwindow*>& windows)
@@ -166,22 +101,23 @@ int App::run(Example& example)
 		{
 			fprintf(stderr, "CreateACMSurface: FAIL\n");
 			return 1;
-		}
+	}
 
 	// One shared device for every window.
-	const Selection sel = selectSettings(instance, surfaces);
-	if (!sel.ok)
+	const std::vector<acm::SurfaceOption> surfaceOptions = instance.surfaceOptions(surfaces);
+	if (surfaceOptions.empty())
 	{
 		fprintf(stderr, "no device presents to all windows\n");
 		return 1;
 	}
-	acm::Device device = instance.createDevice(sel.device);
+	const acm::SurfaceOption surfaceOption = surfaceOptions.front();
+	acm::Device device = instance.createDevice(surfaceOption.device);
 	if (!device.valid())
 	{
 		fprintf(stderr, "CreateACMDevice: FAIL\n");
 		return 1;
 	}
-	printf("Selected device: %s\n", instance.devices()[sel.device.deviceIndex].name.c_str());
+	printf("Selected device: %s\n", instance.devices()[surfaceOption.device.deviceIndex].name.c_str());
 
 	// A RenderContext per window. Sized up front so the pointers handed to the example
 	// (and the workers) stay stable.
@@ -191,7 +127,7 @@ int App::run(Example& example)
 	{
 		int fbW = 0, fbH = 0;
 		glfwGetFramebufferSize(windows[i], &fbW, &fbH);
-		if (!contexts[i].init(device, surfaces[i], sel.format, sel.presentMode, cfg.depth, cfg.samples, acm::Extent2D{uint32_t(fbW), uint32_t(fbH)}))
+		if (!contexts[i].init(device, surfaces[i], surfaceOption.format, surfaceOption.presentMode, cfg.depth, cfg.samples, acm::Extent2D{uint32_t(fbW), uint32_t(fbH)}))
 		{
 			fprintf(stderr, "RenderContext init: FAIL\n");
 			return 1;

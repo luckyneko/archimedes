@@ -52,6 +52,13 @@ namespace acm
 		uint32_t queueFamily{0};
 	};
 
+	struct SurfaceOption
+	{
+		acm::DeviceOption device;
+		acm::SurfaceFormat format;
+		acm::PresentMode presentMode{acm::PresentMode::Fifo};
+	};
+
 	struct SurfaceDeviceSupport
 	{
 		uint32_t deviceIndex{0};

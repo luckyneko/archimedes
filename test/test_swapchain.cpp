@@ -12,6 +12,7 @@
 
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <vector>
 
 // Integration: builds an acm::SwapChain on a headless surface — the case where
 // the surface leaves sizing to the app (currentExtent == UINT32_MAX), which the
@@ -24,24 +25,21 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	uint32_t queueIndex = 0;
-	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
-
 	acm::Surface surface = instance.createHeadlessSurface(acm::Extent2D{800, 600});
 	if (!surface.valid())
 		SKIP("headless surface unavailable");
 
-	const acm::SurfaceDeviceSupport& support = surface.deviceSupport()[gpu->index];
-	if (support.formats.empty() || support.presentModes.empty())
-		SKIP("headless surface exposes no formats/present modes");
+	const std::vector<acm::SurfaceOption> options = instance.surfaceOptions(surface);
+	if (options.empty())
+		SKIP("headless surface exposes no compatible device options");
+	const acm::SurfaceOption option = options.front();
+	const acm::SurfaceDeviceSupport& support = surface.deviceSupport()[option.device.deviceIndex];
 
-	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	acm::Device device = instance.createDevice(option.device);
 	REQUIRE(device.valid());
 
 	const acm::Extent2D desired{800, 600};
-	acm::SwapChain swapChain = device.createSwapChain(surface, support.formats[0], support.presentModes[0], desired);
+	acm::SwapChain swapChain = device.createSwapChain(surface, option.format, option.presentMode, desired);
 	if (!swapChain.valid())
 		SKIP("driver does not support a headless swapchain");
 

@@ -241,7 +241,7 @@ barriers, image transitions) into the same command buffer as the draws — so a 
 in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
 
-`DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
+`DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
 ([acmGPU.h](include/archimedes/acmGPU.h)) are plain data structs, not handles.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
@@ -252,7 +252,9 @@ the reported version is available as `DeviceInfo::apiVersion`. Device creation e
 submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::deviceOptions()`
 reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), and
 `Instance::createDevice(option)` is the preferred creation path when the caller does not
-need custom selection logic.
+need custom selection logic. `Instance::surfaceOptions(surface[s])` filters those device
+options to graphics queues that can present to one or more surfaces and supplies the
+surface format / present mode to use for swapchain creation.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`

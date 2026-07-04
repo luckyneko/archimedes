@@ -54,14 +54,6 @@ namespace acmtest
 			return false;
 		}
 
-		uint32_t queueIndex = 0;
-		const acm::DeviceInfo* gpu = selectGraphicsDevice(out.instance, queueIndex);
-		if (!gpu)
-		{
-			SKIP("no graphics-capable queue family");
-			return false;
-		}
-
 		out.surface = out.instance.createHeadlessSurface(acm::Extent2D{800, 600});
 		if (!out.surface.valid())
 		{
@@ -69,17 +61,18 @@ namespace acmtest
 			return false;
 		}
 
-		const acm::SurfaceDeviceSupport& support = out.surface.deviceSupport()[gpu->index];
-		if (support.formats.empty() || support.presentModes.empty())
+		const std::vector<acm::SurfaceOption> options = out.instance.surfaceOptions(out.surface);
+		if (options.empty())
 		{
-			SKIP("headless surface exposes no formats/present modes");
+			SKIP("headless surface exposes no compatible device options");
 			return false;
 		}
+		const acm::SurfaceOption option = options.front();
 
-		out.device = out.instance.createDevice(*gpu, queueIndex);
+		out.device = out.instance.createDevice(option.device);
 		REQUIRE(out.device.valid());
 
-		out.swapChain = out.device.createSwapChain(out.surface, support.formats[0], support.presentModes[0], acm::Extent2D{800, 600});
+		out.swapChain = out.device.createSwapChain(out.surface, option.format, option.presentMode, acm::Extent2D{800, 600});
 		if (!out.swapChain.valid())
 		{
 			SKIP("driver does not support a headless swapchain");

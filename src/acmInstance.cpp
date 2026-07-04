@@ -111,4 +111,79 @@ namespace acm
 		return options;
 	}
 
+	std::vector<SurfaceOption> Instance::surfaceOptions(const Surface& surface) const
+	{
+		return surfaceOptions(std::vector<Surface>{surface});
+	}
+
+	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces) const
+	{
+		std::vector<SurfaceOption> options;
+		if (surfaces.empty())
+			return options;
+
+		const auto sameFormat = [](const SurfaceFormat& a, const SurfaceFormat& b)
+		{
+			return a.format == b.format && a.colorSpace == b.colorSpace;
+		};
+		const auto hasFormat = [&sameFormat](const SurfaceDeviceSupport& support, const SurfaceFormat& format)
+		{
+			for (const SurfaceFormat& candidate : support.formats)
+				if (sameFormat(candidate, format))
+					return true;
+			return false;
+		};
+		const auto hasPresentMode = [](const SurfaceDeviceSupport& support, PresentMode presentMode)
+		{
+			for (PresentMode candidate : support.presentModes)
+				if (candidate == presentMode)
+					return true;
+			return false;
+		};
+		const auto preferredPresentMode = [](const SurfaceDeviceSupport& support)
+		{
+			for (PresentMode mode : support.presentModes)
+				if (mode == PresentMode::Fifo)
+					return mode;
+			return support.presentModes[0];
+		};
+
+		for (const DeviceOption& deviceOption : deviceOptions())
+		{
+			SurfaceOption option;
+			option.device = deviceOption;
+			bool compatible = true;
+			for (size_t surfaceIndex = 0; surfaceIndex < surfaces.size(); ++surfaceIndex)
+			{
+				const std::vector<SurfaceDeviceSupport>& supportList = surfaces[surfaceIndex].deviceSupport();
+				const SurfaceDeviceSupport* support = nullptr;
+				for (const SurfaceDeviceSupport& candidate : supportList)
+					if (candidate.deviceIndex == deviceOption.deviceIndex)
+					{
+						support = &candidate;
+						break;
+					}
+				if (!support || support->formats.empty() || support->presentModes.empty() || deviceOption.queueFamily >= support->queuePresentSupport.size() || !support->queuePresentSupport[deviceOption.queueFamily])
+				{
+					compatible = false;
+					break;
+				}
+
+				if (surfaceIndex == 0)
+				{
+					option.format = support->formats[0];
+					option.presentMode = preferredPresentMode(*support);
+				}
+				else if (!hasFormat(*support, option.format) || !hasPresentMode(*support, option.presentMode))
+				{
+					compatible = false;
+					break;
+				}
+			}
+			if (compatible)
+				options.push_back(option);
+		}
+		return options;
+	}
+
 } // namespace acm
