@@ -416,12 +416,12 @@ namespace acm::vulkan
 		return target.m_resource.forceInvalidate();
 	}
 
-	acm::SwapChain Device::createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
+	acm::SwapChain Device::createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config)
 	{
 		if (!surface.valid() || &surface.backend()->owner() != m_instance)
 			return acm::SwapChain(acm::Error("failed to create swapchain from invalid surface"));
-		auto inserted = emplaceResource(m_swapChains, [this, &surface, format, presentMode, desiredExtent, depth, samples]
-										{ return SwapChain(*this, surface, format, presentMode, desiredExtent, depth, samples); });
+		auto inserted = emplaceResource(m_swapChains, [this, &surface, format, presentMode, config]
+										{ return SwapChain(*this, surface, format, presentMode, config); });
 		if (!inserted.valid())
 			return acm::SwapChain(constructionError(std::move(inserted.error), "failed to create swapchain"));
 		return acm::SwapChain(std::move(inserted.resource));

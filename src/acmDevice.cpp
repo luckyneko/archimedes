@@ -65,7 +65,7 @@ namespace acm
 	// Factories
 	// -----------------------------------------------------------------------------
 
-	SwapChain Device::createSwapChain(const Surface& surface, const SurfaceOption& option, Extent2D desiredExtent, bool depth, SampleCount samples)
+	SwapChain Device::createSwapChain(const Surface& surface, const SurfaceOption& option, const SwapChainConfig& config)
 	{
 		if (!m || option.device.deviceIndex != deviceInfo().index)
 			return SwapChain{};
@@ -103,12 +103,12 @@ namespace acm
 		if (!presentModeSupported)
 			return SwapChain{};
 
-		return createSwapChain(surface, option.format, option.presentMode, desiredExtent, depth, samples);
+		return createSwapChain(surface, option.format, option.presentMode, config);
 	}
 
-	SwapChain Device::createSwapChain(const Surface& surface, SurfaceFormat format, PresentMode presentMode, Extent2D desiredExtent, bool depth, SampleCount samples)
+	SwapChain Device::createSwapChain(const Surface& surface, SurfaceFormat format, PresentMode presentMode, const SwapChainConfig& config)
 	{
-		return m ? m->createSwapChain(surface, format, presentMode, desiredExtent, depth, samples) : SwapChain{};
+		return m ? m->createSwapChain(surface, format, presentMode, config) : SwapChain{};
 	}
 
 	RenderTarget Device::createRenderTarget(const Texture& texture, RenderTargetFinish finish, bool depth, SampleCount samples)

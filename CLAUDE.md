@@ -150,7 +150,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
    │
    └── createDevice(DeviceOption) ───────────────────────> Device    // logical device + queue family
           │
-          ├── createSwapChain(Surface, SurfaceOption[, extent, depth, samples]) ─> SwapChain
+          ├── createSwapChain(Surface, SurfaceOption[, SwapChainConfig]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
           ├────────┴── vulkan::SwapChain builds each target from the borrowed image
           │                                             // view + dynamic-rendering metadata (+ per-image depth / MSAA color buffers)
@@ -323,8 +323,9 @@ the result is usable with no manual barrier — `Sampled` →
 `SHADER_READ_ONLY` (read it in a later pass), `CopySrc` → `TRANSFER_SRC` (copy via
 `CommandBuffer::copyTextureToBuffer`).
 
-**Depth buffering** is opt-in via a `depth` flag on render-target / swapchain creation
-(`createRenderTarget(texture, finish, depth)`, `createSwapChain(..., depth)`). When
+**Depth buffering** is opt-in via a `depth` flag on render-target creation or
+`SwapChainConfig` (`createRenderTarget(texture, finish, depth)`,
+`config.depth = true`). When
 set, the `RenderTarget` owns a depth `Texture` (`D32_Sfloat`, attachment 1) and its
 dynamic rendering scope gains a depth attachment (cleared each pass, not stored); the
 swapchain gives **each** per-image target its own depth buffer. The matching pipeline
@@ -336,8 +337,9 @@ depth-bearing pass and vice versa. `test_depth.cpp` proves it: a near triangle d
 first, a far one drawn second, far depth-rejected so the center stays the near color,
 and a `CompareOp::Never` pipeline rejects all fragments.
 
-**MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on the same factories
-(`createRenderTarget(..., depth, samples)`, `createSwapChain(..., depth, samples)`). A
+**MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on render-target creation or
+`SwapChainConfig` (`createRenderTarget(..., depth, samples)`,
+`config.samples = SampleCount::Four`). A
 request is clamped to `Device::maxSampleCount()`, and `PipelineConfig::target` supplies
 that exact resolved sample count to the pipeline, so callers cannot configure a mismatch.
 When samples > 1 the `RenderTarget`

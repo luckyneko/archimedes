@@ -175,6 +175,13 @@ namespace acm
 		CopySrc,
 	};
 
+	struct SwapChainConfig
+	{
+		Extent2D extent;
+		bool depth{false};
+		SampleCount samples{SampleCount::One};
+	};
+
 	// How input vertices/indices assemble into primitives.
 	enum class Topology
 	{

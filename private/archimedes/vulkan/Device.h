@@ -79,7 +79,7 @@ namespace acm::vulkan
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples);
 		bool invalidateRenderTarget(acm::RenderTarget& target);
-		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
+		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config);
 		acm::CommandPool createCommandPool();
 		acm::CommandBuffer allocateCommandBuffer(const acm::CommandPool& pool);
 		acm::Error submitCommandBufferSync(const acm::CommandBuffer& commandBuffer);

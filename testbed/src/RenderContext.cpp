@@ -10,7 +10,11 @@
 
 bool RenderContext::init(acm::Device& device, const acm::Surface& surface, const acm::SurfaceOption& option, bool depth, acm::SampleCount samples, acm::Extent2D extent)
 {
-	m_swapChain = device.createSwapChain(surface, option, extent, depth, samples);
+	acm::SwapChainConfig config;
+	config.extent = extent;
+	config.depth = depth;
+	config.samples = samples;
+	m_swapChain = device.createSwapChain(surface, option, config);
 	if (!m_swapChain.valid())
 		return false;
 	m_renderer = device.createRenderer(m_swapChain);

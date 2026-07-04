@@ -30,7 +30,7 @@ namespace acm::vulkan
 	public:
 		// Lifetime
 		SwapChain() = default;
-		SwapChain(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples);
+		SwapChain(acm::vulkan::Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config);
 		~SwapChain();
 		SwapChain(const SwapChain&) = delete;
 		SwapChain& operator=(const SwapChain&) = delete;
@@ -61,9 +61,7 @@ namespace acm::vulkan
 		acm::Surface m_surface;
 		acm::SurfaceFormat m_format;
 		acm::PresentMode m_presentMode{acm::PresentMode::Fifo};
-		acm::Extent2D m_desiredExtent;
-		bool m_depth{false};
-		acm::SampleCount m_samples{acm::SampleCount::One};
+		acm::SwapChainConfig m_config;
 		VkSwapchainKHR m_swapChain{VK_NULL_HANDLE};
 		acm::Extent2D m_extent;
 		std::vector<acm::RenderTarget> m_renderTargets;

@@ -26,7 +26,7 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	SwapChain::SwapChain(Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent, bool depth, acm::SampleCount samples)
+	SwapChain::SwapChain(Device& owner, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config)
 	{
 		if (!surface.valid() || !surface.backend() || &surface.backend()->owner() != &owner.instance())
 		{
@@ -37,9 +37,7 @@ namespace acm::vulkan
 		m_surface = surface;
 		m_format = format;
 		m_presentMode = presentMode;
-		m_desiredExtent = desiredExtent;
-		m_depth = depth;
-		m_samples = samples;
+		m_config = config;
 		if (!rebuild(owner))
 			m_error = acm::Error("failed to create swapchain");
 	}
@@ -63,9 +61,7 @@ namespace acm::vulkan
 		m_surface = std::move(other.m_surface);
 		m_format = std::exchange(other.m_format, {});
 		m_presentMode = std::exchange(other.m_presentMode, acm::PresentMode::Fifo);
-		m_desiredExtent = std::exchange(other.m_desiredExtent, {});
-		m_depth = std::exchange(other.m_depth, false);
-		m_samples = std::exchange(other.m_samples, acm::SampleCount::One);
+		m_config = std::exchange(other.m_config, {});
 		m_swapChain = std::exchange(other.m_swapChain, VK_NULL_HANDLE);
 		m_extent = std::exchange(other.m_extent, {});
 		m_renderTargets = std::move(other.m_renderTargets);
@@ -154,8 +150,8 @@ namespace acm::vulkan
 			extent = capabilities.currentExtent;
 		else
 		{
-			extent.width = std::clamp(m_desiredExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-			extent.height = std::clamp(m_desiredExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+			extent.width = std::clamp(m_config.extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+			extent.height = std::clamp(m_config.extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 		}
 		if (extent.width == 0 || extent.height == 0)
 			return false;
@@ -190,7 +186,7 @@ namespace acm::vulkan
 		targets.reserve(images.size());
 		for (VkImage image : images)
 		{
-			acm::RenderTarget target = owner.createRenderTarget(image, m_format.format, {extent.width, extent.height}, m_depth, m_samples);
+			acm::RenderTarget target = owner.createRenderTarget(image, m_format.format, {extent.width, extent.height}, m_config.depth, m_config.samples);
 			if (!target.valid())
 			{
 				for (acm::RenderTarget& created : targets)
