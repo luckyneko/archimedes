@@ -13,10 +13,23 @@
 
 namespace acm
 {
+	// -----------------------------------------------------------------------------
+	// Geometry
+	// -----------------------------------------------------------------------------
+
 	struct Extent2D
 	{
 		uint32_t width{0};
 		uint32_t height{0};
+	};
+
+	// -----------------------------------------------------------------------------
+	// Formats And Surfaces
+	// -----------------------------------------------------------------------------
+
+	enum class ColorSpace
+	{
+		SrgbNonlinear,
 	};
 
 	// Backend-neutral image / vertex-attribute formats. This deliberately curated
@@ -39,11 +52,6 @@ namespace acm
 		R32G32B32A32_Sfloat,
 	};
 
-	enum class ColorSpace
-	{
-		SrgbNonlinear,
-	};
-
 	enum class PresentMode
 	{
 		Immediate,
@@ -52,15 +60,26 @@ namespace acm
 		FifoRelaxed,
 	};
 
-	// What an offscreen RenderTarget leaves its texture ready for once the render
-	// rendering ends — drives the color attachment's final layout, so no manual barrier
-	// is needed. Sampled => SHADER_READ_ONLY (read it in a later draw); CopySrc =>
-	// TRANSFER_SRC (copy it to a buffer / another image).
-	enum class RenderTargetFinish
+	// Backend-neutral surface capabilities. Swapchain creation requeries the
+	// complete native capabilities through the private backend.
+	struct SurfaceCapabilities
 	{
-		Sampled,
-		CopySrc,
+		uint32_t minImageCount{0};
+		uint32_t maxImageCount{0};
+		Extent2D currentExtent;
+		Extent2D minImageExtent;
+		Extent2D maxImageExtent;
 	};
+
+	struct SurfaceFormat
+	{
+		Format format{Format::Undefined};
+		ColorSpace colorSpace{ColorSpace::SrgbNonlinear};
+	};
+
+	// -----------------------------------------------------------------------------
+	// Device
+	// -----------------------------------------------------------------------------
 
 	enum class PhysicalDeviceType
 	{
@@ -71,49 +90,29 @@ namespace acm
 		Cpu,
 	};
 
+	// Multisample anti-aliasing sample count. A request is clamped to what the device
+	// supports (so `Eight` may resolve to fewer). `One` is plain, single-sampled.
+	enum class SampleCount
+	{
+		One,
+		Two,
+		Four,
+		Eight,
+	};
+
+	// -----------------------------------------------------------------------------
+	// Pipeline State
+	// -----------------------------------------------------------------------------
+
 	// Fixed-function pipeline state knobs (see acm::PipelineConfig). Defaults preserve
 	// the original smoke-test behavior: triangle list, no culling, clockwise front
 	// face, opaque (no blend).
-
-	// How input vertices/indices assemble into primitives.
-	enum class Topology
-	{
-		TriangleList,
-		TriangleStrip,
-		LineList,
-		LineStrip,
-		PointList,
-	};
-
-	// Which face (if any) the rasterizer discards. `Back` with the right `FrontFace` is
-	// the usual 3D default; `None` draws both sides (geometry can't hide via winding).
-	enum class CullMode
-	{
-		None,
-		Back,
-		Front,
-	};
-
-	// Which winding (in framebuffer space) counts as the front face.
-	enum class FrontFace
-	{
-		Clockwise,
-		CounterClockwise,
-	};
 
 	// Color blending. `Opaque` overwrites; `AlphaBlend` is standard src-alpha "over".
 	enum class BlendMode
 	{
 		Opaque,
 		AlphaBlend,
-	};
-
-	// How polygons are rasterized. `Line` (wireframe) needs the device's
-	// `fillModeNonSolid` feature — a pipeline falls back to `Fill` without it.
-	enum class PolygonMode
-	{
-		Fill,
-		Line,
 	};
 
 	// Depth comparison used by DepthState::Test / TestWrite.
@@ -129,6 +128,15 @@ namespace acm
 		Always,
 	};
 
+	// Which face (if any) the rasterizer discards. `Back` with the right `FrontFace` is
+	// the usual 3D default; `None` draws both sides (geometry can't hide via winding).
+	enum class CullMode
+	{
+		None,
+		Back,
+		Front,
+	};
+
 	// Depth testing/writing state. Use the named constructors below so call sites
 	// carry intent instead of adjacent bools. Depth write without depth test is invalid.
 	struct DepthState
@@ -142,15 +150,63 @@ namespace acm
 		acm::CompareOp compare{acm::CompareOp::Less};
 	};
 
-	// Multisample anti-aliasing sample count. A request is clamped to what the device
-	// supports (so `Eight` may resolve to fewer). `One` is plain, single-sampled.
-	enum class SampleCount
+	// Which winding (in framebuffer space) counts as the front face.
+	enum class FrontFace
 	{
-		One,
-		Two,
-		Four,
-		Eight,
+		Clockwise,
+		CounterClockwise,
 	};
+
+	// How polygons are rasterized. `Line` (wireframe) needs the device's
+	// `fillModeNonSolid` feature — a pipeline falls back to `Fill` without it.
+	enum class PolygonMode
+	{
+		Fill,
+		Line,
+	};
+
+	// What an offscreen RenderTarget leaves its texture ready for once the render
+	// rendering ends — drives the color attachment's final layout, so no manual barrier
+	// is needed. Sampled => SHADER_READ_ONLY (read it in a later draw); CopySrc =>
+	// TRANSFER_SRC (copy it to a buffer / another image).
+	enum class RenderTargetFinish
+	{
+		Sampled,
+		CopySrc,
+	};
+
+	// How input vertices/indices assemble into primitives.
+	enum class Topology
+	{
+		TriangleList,
+		TriangleStrip,
+		LineList,
+		LineStrip,
+		PointList,
+	};
+
+	// One vertex attribute: which shader `location` it feeds, its `format` (e.g.
+	// R32G32_Sfloat for a vec2), and its byte `offset` within the vertex struct.
+	struct VertexAttribute
+	{
+		uint32_t location{0};
+		Format format{Format::Undefined};
+		uint32_t offset{0};
+	};
+
+	// Describes the per-vertex data a pipeline reads from a single vertex buffer
+	// (binding 0): the `stride` (size of one vertex) and its attributes. An empty
+	// layout (stride 0 / no attributes) means no vertex input — geometry comes from
+	// the shader (e.g. gl_VertexIndex).
+	struct VertexLayout
+	{
+		uint32_t stride{0};
+		std::vector<VertexAttribute> attributes;
+	};
+
+	// -----------------------------------------------------------------------------
+	// Resources And Descriptors
+	// -----------------------------------------------------------------------------
 
 	// What a Buffer is for. Also decides its memory heap: Vertex/Index are device-local
 	// (filled via staging), Uniform/TransferDst/Staging are host-visible (CPU-mapped).
@@ -217,41 +273,5 @@ namespace acm
 		DescriptorType type{DescriptorType::UniformBuffer};
 		ShaderStage stage{ShaderStage::Vertex};
 		uint32_t count{1};
-	};
-
-	struct SurfaceFormat
-	{
-		Format format{Format::Undefined};
-		ColorSpace colorSpace{ColorSpace::SrgbNonlinear};
-	};
-
-	// Backend-neutral surface capabilities. Swapchain creation requeries the
-	// complete native capabilities through the private backend.
-	struct SurfaceCapabilities
-	{
-		uint32_t minImageCount{0};
-		uint32_t maxImageCount{0};
-		Extent2D currentExtent;
-		Extent2D minImageExtent;
-		Extent2D maxImageExtent;
-	};
-
-	// One vertex attribute: which shader `location` it feeds, its `format` (e.g.
-	// R32G32_Sfloat for a vec2), and its byte `offset` within the vertex struct.
-	struct VertexAttribute
-	{
-		uint32_t location{0};
-		Format format{Format::Undefined};
-		uint32_t offset{0};
-	};
-
-	// Describes the per-vertex data a pipeline reads from a single vertex buffer
-	// (binding 0): the `stride` (size of one vertex) and its attributes. An empty
-	// layout (stride 0 / no attributes) means no vertex input — geometry comes from
-	// the shader (e.g. gl_VertexIndex).
-	struct VertexLayout
-	{
-		uint32_t stride{0};
-		std::vector<VertexAttribute> attributes;
 	};
 } // namespace acm
