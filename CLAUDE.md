@@ -305,11 +305,13 @@ the result is usable with no manual barrier — `Sampled` →
 set, the `RenderTarget` owns a depth `Texture` (`D32_Sfloat`, attachment 1) and its
 dynamic rendering scope gains a depth attachment (cleared each pass, not stored); the
 swapchain gives **each** per-image target its own depth buffer. The matching pipeline
-must set `PipelineConfig::depthTest = true` (test + write,
-compare `LESS`); `CommandBuffer::beginRendering` supplies the depth clear (1.0) when
+must set `PipelineConfig::depth` with `DepthState::Test(...)` or
+`DepthState::TestWrite(...)` (the usual depth test is `DepthState::TestWrite()`);
+`CommandBuffer::beginRendering` supplies the depth clear (1.0) when
 `RenderTarget::hasDepth()`. Keep the two in sync — a depth-testing pipeline needs a
 depth-bearing pass and vice versa. `test_depth.cpp` proves it: a near triangle drawn
-first, a far one drawn second, far depth-rejected so the center stays the near color.
+first, a far one drawn second, far depth-rejected so the center stays the near color,
+and a `CompareOp::Never` pipeline rejects all fragments.
 
 **MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on the same factories
 (`createRenderTarget(..., depth, samples)`, `createSwapChain(..., depth, samples)`). A
@@ -396,7 +398,7 @@ both a storage image and a per-frame time uniform.
 
 **`PipelineConfig`** ([acmPipeline.h](include/archimedes/acmPipeline.h)) bundles the
 pipeline's inputs — `vertex`/`fragment` shaders, a `target`, optional `vertexLayout`,
-optional `descriptorLayout`, `depthTest`, and the fixed-function knobs `topology`,
+optional `descriptorLayout`, `depth` (`DepthState::None` / `Test` / `TestWrite`), and the fixed-function knobs `topology`,
 `cullMode`, `frontFace`, `blend`, `polygonMode`, `lineWidth`,
 `minSampleShading` — so independent optional knobs don't become a combinatorial pile of
 `createPipeline` overloads. The knobs default to the original smoke-test state
@@ -413,7 +415,13 @@ Backend `RenderTarget` records dynamic rendering metadata: color/depth formats f
 pipeline creation, image views for `vkCmdBeginRendering`, explicit synchronization2
 layout transitions, and the target's final color layout. Pipeline creation takes a
 `RenderTarget`, keeping Vulkan formats/views/layouts out of public target/pipeline
-headers. On swapchain recreation or destruction, the backend erases every target
+headers. The backend `Pipeline` retains that target signature (color format, depth
+format, sample count), and `CommandBuffer::bindPipeline` checks it against the active
+render target before recording a graphics bind/draw, so an incompatible target/pipeline
+pair is stopped before Vulkan validation sees it. The graphics recording calls that depend
+on this state (`beginRendering`, `bindPipeline`, `draw`, `drawIndexed`) return
+`acm::Error` for invalid state, and `Renderer::render` propagates errors produced by its
+draw callback. On swapchain recreation or destruction, the backend erases every target
 generation before retiring the shared objects, so copied target wrappers become invalid
 rather than referring to a dead swapchain image. Teardown order (via the device's
 deferred queue): each target's view + owned depth/MSAA images, then the swapchain.
@@ -755,11 +763,8 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - Pipeline state is configurable for topology / cull mode / front face / blend /
   polygon mode / samples, but the *defaults* are still the smoke-test set (no cull,
   clockwise, opaque, fill, 1 sample) rather than a considered 3D default (back-face
-  cull), and some fixed-function state stays baked in: depth state is the fixed `LESS`
-  test+write (see below). `BlendMode` is a two-way preset (opaque / src-alpha-over),
-  not arbitrary factors. The `samples` on a pipeline must be kept in lockstep with its
-  render target by hand (both clamp the same `SampleCount`, but a mismatched request is
-  a validation error, not a caught one).
+  cull). `BlendMode` is a two-way preset (opaque / src-alpha-over), not arbitrary
+  factors.
 - Device features are a curated, all-or-nothing set (`fillModeNonSolid`, `wideLines`,
   `samplerAnisotropy`, `sampleRateShading`): enabled automatically when the GPU supports
   them, with no way to request others, and consumers silently degrade (warn) rather than
@@ -801,9 +806,8 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   host-visible). Index buffers are 32-bit only (`bindIndexBuffer` hardcodes
   `VK_INDEX_TYPE_UINT32`).
 - Depth is shallow: the format is hardcoded `D32_Sfloat` (no stencil, no capability
-  query / fallback), depth state is fixed (test + write, compare `LESS` — no
-  configurable compare op, depth-only-no-write, or depth bias), the depth buffer is
+  query / fallback), `DepthState` covers only test/write/compare (no depth bias), the depth buffer is
   cleared-and-discarded (storeOp `DONT_CARE`, so it can't be sampled/read back), and
-  `depthTest` on the pipeline must be kept in sync with the render target. A
+  `PipelineConfig::depth` must be kept in sync with the render target. A
   depth-testing pipeline against a non-depth target is rejected, but a non-depth-testing
   pipeline can still render into a depth target.

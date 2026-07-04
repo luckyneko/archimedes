@@ -53,4 +53,5 @@ namespace acm::vulkan
 	VkCullModeFlags toVk(acm::CullMode cull);
 	VkFrontFace toVk(acm::FrontFace front);
 	VkPolygonMode toVk(acm::PolygonMode mode);
+	VkCompareOp toVk(acm::CompareOp op);
 } // namespace acm::vulkan

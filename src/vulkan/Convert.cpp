@@ -353,4 +353,29 @@ namespace acm::vulkan
 		assert(false && "acm::vulkan::toVk: invalid acm::PolygonMode");
 		return VK_POLYGON_MODE_FILL;
 	}
+
+	VkCompareOp toVk(acm::CompareOp op)
+	{
+		switch (op)
+		{
+			case acm::CompareOp::Never:
+				return VK_COMPARE_OP_NEVER;
+			case acm::CompareOp::Less:
+				return VK_COMPARE_OP_LESS;
+			case acm::CompareOp::Equal:
+				return VK_COMPARE_OP_EQUAL;
+			case acm::CompareOp::LessOrEqual:
+				return VK_COMPARE_OP_LESS_OR_EQUAL;
+			case acm::CompareOp::Greater:
+				return VK_COMPARE_OP_GREATER;
+			case acm::CompareOp::NotEqual:
+				return VK_COMPARE_OP_NOT_EQUAL;
+			case acm::CompareOp::GreaterOrEqual:
+				return VK_COMPARE_OP_GREATER_OR_EQUAL;
+			case acm::CompareOp::Always:
+				return VK_COMPARE_OP_ALWAYS;
+		}
+		assert(false && "acm::vulkan::toVk: invalid acm::CompareOp");
+		return VK_COMPARE_OP_LESS;
+	}
 } // namespace acm::vulkan

@@ -53,8 +53,18 @@ TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 	incompatible.vertex = vert;
 	incompatible.fragment = frag;
 	incompatible.target = s.swapChain.renderTarget(0);
-	incompatible.depthTest = true;
+	incompatible.depth = acm::DepthState::TestWrite();
 	REQUIRE_FALSE(s.device.createPipeline(incompatible).valid());
+
+	acm::Texture texture = s.device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{32, 32});
+	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc, true);
+	REQUIRE(depthTarget.valid());
+	acm::PipelineConfig writeOnlyDepth;
+	writeOnlyDepth.vertex = vert;
+	writeOnlyDepth.fragment = frag;
+	writeOnlyDepth.target = depthTarget;
+	writeOnlyDepth.depth.write = true;
+	REQUIRE_FALSE(s.device.createPipeline(writeOnlyDepth).valid());
 
 	acm::Pipeline retained = pipeline;
 	pipeline.reset();

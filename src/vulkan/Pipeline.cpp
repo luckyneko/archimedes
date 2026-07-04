@@ -43,9 +43,15 @@ namespace acm::vulkan
 			m_error = acm::Error("failed to create pipeline from descriptor layout owned by another device");
 			return;
 		}
-		if (config.depthTest && !config.target.hasDepth())
+		const bool usesDepth = config.depth.test || config.depth.write;
+		if (config.depth.write && !config.depth.test)
 		{
-			m_error = acm::Error("failed to create depth-test pipeline for target without depth");
+			m_error = acm::Error("failed to create depth-write pipeline without depth test");
+			return;
+		}
+		if (usesDepth && !config.target.hasDepth())
+		{
+			m_error = acm::Error("failed to create depth pipeline for target without depth");
 			return;
 		}
 		m_owner = &owner;
@@ -138,9 +144,9 @@ namespace acm::vulkan
 		colorBlending.pAttachments = &colorBlendAttachment;
 		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencil.depthTestEnable = VK_TRUE;
-		depthStencil.depthWriteEnable = VK_TRUE;
-		depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		depthStencil.depthTestEnable = config.depth.test ? VK_TRUE : VK_FALSE;
+		depthStencil.depthWriteEnable = config.depth.write ? VK_TRUE : VK_FALSE;
+		depthStencil.depthCompareOp = toVk(config.depth.compare);
 		const VkFormat colorFormat = config.target.backend()->colorFormat();
 		if (colorFormat == VK_FORMAT_UNDEFINED)
 		{
@@ -181,7 +187,7 @@ namespace acm::vulkan
 		pipelineInfo.pRasterizationState = &rasterizer;
 		pipelineInfo.pMultisampleState = &multisampling;
 		pipelineInfo.pColorBlendState = &colorBlending;
-		pipelineInfo.pDepthStencilState = config.depthTest ? &depthStencil : nullptr;
+		pipelineInfo.pDepthStencilState = usesDepth ? &depthStencil : nullptr;
 		pipelineInfo.pDynamicState = &dynamicState;
 		pipelineInfo.layout = m_layout;
 		if (vkCreateGraphicsPipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)

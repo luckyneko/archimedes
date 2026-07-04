@@ -116,6 +116,32 @@ namespace acm
 		Line,
 	};
 
+	// Depth comparison used by DepthState::Test / TestWrite.
+	enum class CompareOp
+	{
+		Never,
+		Less,
+		Equal,
+		LessOrEqual,
+		Greater,
+		NotEqual,
+		GreaterOrEqual,
+		Always,
+	};
+
+	// Depth testing/writing state. Use the named constructors below so call sites
+	// carry intent instead of adjacent bools. Depth write without depth test is invalid.
+	struct DepthState
+	{
+		static DepthState None() { return {}; }
+		static DepthState Test(acm::CompareOp compare = acm::CompareOp::Less) { return {true, false, compare}; }
+		static DepthState TestWrite(acm::CompareOp compare = acm::CompareOp::Less) { return {true, true, compare}; }
+
+		bool test{false};
+		bool write{false};
+		acm::CompareOp compare{acm::CompareOp::Less};
+	};
+
 	// Multisample anti-aliasing sample count. A request is clamped to what the device
 	// supports (so `Eight` may resolve to fewer). `One` is plain, single-sampled.
 	enum class SampleCount

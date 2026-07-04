@@ -77,7 +77,7 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 		config.fragment = device.createShader(acmtest::uniformColorFragSpirv());
 		config.target = target;
 		config.descriptorLayout = layout;
-		config.depthTest = true;
+		config.depth = acm::DepthState::TestWrite();
 		acm::Pipeline pipeline = device.createPipeline(config);
 		REQUIRE(pipeline.valid());
 
@@ -138,4 +138,61 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 	runScene(acm::SampleCount::One);
 	if (static_cast<int>(device.maxSampleCount()) >= static_cast<int>(acm::SampleCount::Four))
 		runScene(acm::SampleCount::Four); // depth + MSAA together
+}
+
+TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	if (!instance.valid())
+		SKIP("no Vulkan driver available");
+
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	if (!gpu)
+		SKIP("no graphics-capable queue family");
+
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	constexpr uint32_t kSize = 64;
+	const acm::Extent2D extent{kSize, kSize};
+
+	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc, true);
+	REQUIRE(target.valid());
+	REQUIRE(target.hasDepth());
+
+	acm::PipelineConfig config;
+	config.vertex = device.createShader(acmtest::triangleVertSpirv());
+	config.fragment = device.createShader(acmtest::triangleFragSpirv());
+	config.target = target;
+	config.depth = acm::DepthState::Test(acm::CompareOp::Never);
+	acm::Pipeline pipeline = device.createPipeline(config);
+	REQUIRE(pipeline.valid());
+
+	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
+	REQUIRE(readback.valid());
+
+	acm::CommandPool pool = device.createCommandPool();
+	acm::CommandBuffer cmd = pool.allocate();
+	REQUIRE(cmd.valid());
+
+	REQUIRE_FALSE(cmd.begin());
+	REQUIRE_FALSE(cmd.beginRendering(target)); // clears color to black, depth to 1
+	cmd.setViewportAndScissor(extent);
+	REQUIRE_FALSE(cmd.bindPipeline(pipeline));
+	REQUIRE_FALSE(cmd.draw(3));
+	cmd.endRendering();
+	cmd.copyTextureToBuffer(color, readback);
+	REQUIRE_FALSE(cmd.end());
+
+	REQUIRE_FALSE(device.submitSync(cmd));
+
+	const auto* pixels = static_cast<const uint8_t*>(readback.map());
+	REQUIRE(pixels != nullptr);
+	const size_t center = (size_t(kSize / 2) * kSize + kSize / 2) * 4;
+	REQUIRE(pixels[center + 2] < 60);
+	REQUIRE(pixels[center + 1] < 60);
+	REQUIRE(pixels[center + 0] < 60);
+	readback.unmap();
 }

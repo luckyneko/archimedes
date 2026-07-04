@@ -30,9 +30,9 @@ namespace acm
 		acm::RenderTarget target;
 		acm::VertexLayout vertexLayout;
 		acm::DescriptorSetLayout descriptorLayout;
-		// Enable depth test + write (compare LESS). Must match the target: set it only
-		// for a target that has a depth attachment.
-		bool depthTest{false};
+		// Must match the target: enable depth test/write only for a target that has a
+		// depth attachment.
+		acm::DepthState depth;
 		acm::Topology topology{acm::Topology::TriangleList};
 		acm::CullMode cullMode{acm::CullMode::None};
 		acm::FrontFace frontFace{acm::FrontFace::Clockwise};

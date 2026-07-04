@@ -95,7 +95,7 @@ bool InstancedCubesExample::onInit(acm::Device& device, const std::vector<Render
 	config.fragment = fragment;
 	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
-	config.depthTest = true;
+	config.depth = acm::DepthState::TestWrite();
 	config.cullMode = acm::CullMode::None;
 	config.vertexLayout.stride = sizeof(tb::CubeVertex);
 	config.vertexLayout.attributes = {

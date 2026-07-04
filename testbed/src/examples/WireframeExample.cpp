@@ -65,7 +65,7 @@ bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderConte
 	config.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
 	config.target = m_views[0]->renderTarget();
 	config.descriptorLayout = m_layout;
-	config.depthTest = true;
+	config.depth = acm::DepthState::TestWrite();
 	config.cullMode = acm::CullMode::None;		 // see all edges
 	config.polygonMode = acm::PolygonMode::Line; // wireframe (feature-gated)
 	config.lineWidth = 2.0f;					 // wide lines (feature-gated)

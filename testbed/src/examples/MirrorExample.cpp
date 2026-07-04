@@ -74,7 +74,7 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 	cubeCfg.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
 	cubeCfg.target = m_offscreenTarget;
 	cubeCfg.descriptorLayout = m_cubeLayout;
-	cubeCfg.depthTest = true;
+	cubeCfg.depth = acm::DepthState::TestWrite();
 	cubeCfg.cullMode = acm::CullMode::None;
 	cubeCfg.vertexLayout.stride = sizeof(tb::CubeVertex);
 	cubeCfg.vertexLayout.attributes = {

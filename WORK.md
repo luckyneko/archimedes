@@ -26,10 +26,10 @@ the number of required checks.
 
 ### 2. Pipeline config polish
 
-Pipeline defaults are still smoke-test flavored, depth state is fixed, blend is
-preset-only, and sample-count mismatch is left to Vulkan validation. Make
-pipeline/render-target compatibility fail as an Archimedes error before trying to
-create the Vulkan pipeline.
+Pipeline defaults are still smoke-test flavored and blend is preset-only. Pipeline/render-target
+format and sample mismatches are guarded during command recording and surfaced through
+`acm::Error`; depth now has explicit test/write/compare state, but there is still no
+depth bias/stencil and no considered default-state preset.
 
 ### 3. Feature negotiation API
 
