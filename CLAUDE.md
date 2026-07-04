@@ -162,7 +162,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
           │        // owns a CommandPool + MaxFramesInFlight command buffers and
           │        // semaphores/fences; runs acquire -> record(cmd, frameIndex) ->
           │        // submit -> present
-          ├── createTexture(format, extent[, mipmapped, storage]) ─> Texture // owned VkImage + memory + view; .upload(pixels) for color (+ mip chain); storage => compute-writable
+          ├── createTexture(format, extent[, TextureConfig]) ─> Texture // owned VkImage + memory + view; .upload(pixels) for color (+ mip chain); storage => compute-writable
           ├── createBuffer(size, usage) ────────────> Buffer      // owned VkBuffer; heap by usage (device-local vertex/index, host-visible uniform/readback)
           ├── createRenderTarget(Texture, finish[, depth, samples]) ─> RenderTarget // offscreen: records dynamic rendering (+ depth / MSAA buffers)
           ├── createSampler([maxAnisotropy]) ───────> Sampler     // owned VkSampler (+ optional anisotropic filtering)
@@ -285,7 +285,7 @@ a depth format (`D32_Sfloat` / `D24_Unorm_S8_Uint`) gives `DEPTH_STENCIL_ATTACHM
 buffer. `Texture::upload(pixels, size)` fills a color texture from CPU memory — stage
 the pixels, then one synchronous submit transitions `UNDEFINED → TRANSFER_DST`, copies
 the buffer into the image, and transitions `→ SHADER_READ_ONLY`, leaving it sampleable.
-A **mipmapped** texture (`createTexture(..., mipmapped=true)`, color only) gets a full
+A **mipmapped** texture (`TextureConfig::mipmapped`, color only) gets a full
 mip chain (`floor(log2 max(w,h)) + 1` levels); `upload` then generates the rest by
 **blitting** each level down from the one above (linear filter) in the same submit. Its
 view spans all levels, so a mipmapped texture is a *sampling* resource, not a

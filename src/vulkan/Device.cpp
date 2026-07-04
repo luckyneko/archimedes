@@ -322,10 +322,10 @@ namespace acm::vulkan
 		return acm::Buffer(std::move(inserted.resource));
 	}
 
-	acm::Texture Device::createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage)
+	acm::Texture Device::createTexture(acm::Format format, acm::Extent2D extent, const acm::TextureConfig& config)
 	{
-		auto inserted = emplaceResource(m_textures, [this, format, extent, mipmapped, storage]
-										{ return Texture(*this, format, extent, mipmapped, storage); });
+		auto inserted = emplaceResource(m_textures, [this, format, extent, config]
+										{ return Texture(*this, format, extent, config.mipmapped, config.storage); });
 		if (!inserted.valid())
 			return acm::Texture(constructionError(std::move(inserted.error), "failed to create texture"));
 		return acm::Texture(std::move(inserted.resource));

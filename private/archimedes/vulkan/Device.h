@@ -69,7 +69,7 @@ namespace acm::vulkan
 
 		// Factories
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
-		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped, bool storage);
+		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, const acm::TextureConfig& config);
 		acm::Sampler createSampler(float maxAnisotropy);
 		acm::Shader createShader(const std::vector<char>& spirv);
 		acm::DescriptorSetLayout createDescriptorSetLayout(const std::vector<acm::DescriptorBinding>& bindings);

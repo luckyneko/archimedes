@@ -84,7 +84,7 @@ bool Scene::init(acm::Device& device, acm::Shader computeShader)
 
 	// Shared mipmapped checkerboard, sampled anisotropically.
 	const std::vector<uint8_t> pixels = checkerboard(256, 8);
-	m_texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{256, 256}, /*mipmapped*/ true);
+	m_texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{256, 256}, acm::TextureConfig{true});
 	if (!m_texture.valid())
 		return false;
 	m_texture.upload(pixels.data(), pixels.size());

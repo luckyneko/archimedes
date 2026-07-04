@@ -150,9 +150,9 @@ namespace acm
 		return m ? m->createRenderer(swapChain) : Renderer{};
 	}
 
-	Texture Device::createTexture(Format format, Extent2D extent, bool mipmapped, bool storage)
+	Texture Device::createTexture(Format format, Extent2D extent, const TextureConfig& config)
 	{
-		return m ? m->createTexture(format, extent, mipmapped, storage) : Texture{};
+		return m ? m->createTexture(format, extent, config) : Texture{};
 	}
 
 	Buffer Device::createBuffer(size_t size, BufferUsage usage)

@@ -24,7 +24,7 @@ bool ComputeTextureExample::onInit(acm::Device& device, const std::vector<Render
 	m_views = views;
 
 	// The storage image the compute writes and the draw samples.
-	m_image = device.createTexture(acm::Format::R8G8B8A8_Unorm, acm::Extent2D{kImageSize, kImageSize}, /*mipmapped*/ false, /*storage*/ true);
+	m_image = device.createTexture(acm::Format::R8G8B8A8_Unorm, acm::Extent2D{kImageSize, kImageSize}, acm::TextureConfig{false, true});
 	m_sampler = device.createSampler();
 	if (!m_image.valid() || !m_sampler.valid())
 		return false;

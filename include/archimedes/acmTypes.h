@@ -189,6 +189,12 @@ namespace acm
 		SampleCount samples{SampleCount::One};
 	};
 
+	struct TextureConfig
+	{
+		bool mipmapped{false};
+		bool storage{false};
+	};
+
 	// How input vertices/indices assemble into primitives.
 	enum class Topology
 	{

@@ -91,8 +91,8 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 		return readback;
 	};
 
-	acm::Texture mipped = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent, /*mipmapped*/ true);
-	acm::Texture flat = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent, /*mipmapped*/ false);
+	acm::Texture mipped = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent, acm::TextureConfig{true});
+	acm::Texture flat = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	REQUIRE(mipped.mipLevels() > 1);
 	REQUIRE(flat.mipLevels() == 1);
 	REQUIRE_FALSE(device.createRenderTarget(mipped, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc}).valid());

@@ -35,7 +35,7 @@ TEST_CASE("a compute shader writes a storage image", "[acm][gpu]")
 	const acm::Extent2D extent{kSize, kSize};
 
 	// R8G8B8A8_Unorm is a mandated storage-image format. Created with `storage` usage.
-	acm::Texture image = device.createTexture(acm::Format::R8G8B8A8_Unorm, extent, /*mipmapped*/ false, /*storage*/ true);
+	acm::Texture image = device.createTexture(acm::Format::R8G8B8A8_Unorm, extent, acm::TextureConfig{false, true});
 	REQUIRE(image.valid());
 
 	acm::DescriptorSetLayout layout = device.createDescriptorSetLayout({

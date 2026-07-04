@@ -57,11 +57,11 @@ namespace acm
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		acm::CommandPool createCommandPool();
 		acm::Renderer createRenderer(const acm::SwapChain& swapChain);
-		// `mipmapped` (color only) gives the texture a full mip chain that Texture::upload
+		// TextureConfig::mipmapped (color only) gives the texture a full mip chain that Texture::upload
 		// generates; the result is a sampling resource, not a RenderTarget attachment.
-		// `storage` (color only) adds STORAGE usage so a compute shader can write it via a
+		// TextureConfig::storage (color only) adds STORAGE usage so a compute shader can write it via a
 		// StorageImage descriptor.
-		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, bool mipmapped = false, bool storage = false);
+		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, const acm::TextureConfig& config = {});
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
 		// maxAnisotropy > 1 enables anisotropic filtering (needs the samplerAnisotropy
 		// feature; clamped to the device limit, disabled with a warning if unsupported).

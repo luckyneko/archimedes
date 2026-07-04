@@ -272,7 +272,7 @@ namespace acm::vulkan
 			}
 			else
 			{
-				acm::Texture depthTexture = owner.createTexture(acm::Format::D32_Sfloat, m_extent, false, false);
+				acm::Texture depthTexture = owner.createTexture(acm::Format::D32_Sfloat, m_extent, acm::TextureConfig{});
 				if (!depthTexture.valid())
 					return false;
 				m_depthTexture = depthTexture;
