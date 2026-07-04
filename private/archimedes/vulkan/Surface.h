@@ -10,6 +10,7 @@
 
 #include "archimedes/acmError.h"
 #include "archimedes/acmGPU.h"
+#include "archimedes/vulkan/PlatformSurface.h"
 
 #include <vulkan/vulkan.h>
 
@@ -25,7 +26,10 @@ namespace acm::vulkan
 	public:
 		// Lifetime
 		Surface() = default;
-		Surface(acm::vulkan::Instance& owner, VkSurfaceKHR surface);
+		// `window` is the optional off-screen window backing a headless surface (from
+		// createHeadlessSurface); the Surface destroys it after the VkSurfaceKHR. Empty
+		// for surfaces created from a caller-owned window.
+		Surface(acm::vulkan::Instance& owner, VkSurfaceKHR surface, PlatformWindow window = {});
 		~Surface();
 		Surface(const Surface&) = delete;
 		Surface& operator=(const Surface&) = delete;
@@ -47,6 +51,7 @@ namespace acm::vulkan
 
 		acm::vulkan::Instance* m_owner{nullptr};
 		VkSurfaceKHR m_surface{VK_NULL_HANDLE};
+		PlatformWindow m_window;
 		std::vector<acm::GPUSurfaceSupport> m_gpuSupport;
 		acm::Error m_error;
 	};

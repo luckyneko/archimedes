@@ -29,11 +29,10 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	if (!gpu)
 		SKIP("no graphics-capable queue family");
 
-	VkSurfaceKHR vkSurface = acmtest::createHeadlessSurface(instance);
-	if (vkSurface == VK_NULL_HANDLE)
+	acm::Surface surface = instance.createHeadlessSurface(acm::Extent2D{800, 600});
+	if (!surface.valid())
 		SKIP("headless surface unavailable");
 
-	acm::Surface surface = instance.createVulkanSurface(vkSurface);
 	const acm::GPUSurfaceSupport& support = surface.getGPUSupport()[gpu->index];
 	if (support.supportedFormats.empty() || support.supportedPresentModes.empty())
 		SKIP("headless surface exposes no formats/present modes");
@@ -63,7 +62,12 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	acm::SwapChain retained = swapChain;
 	swapChain.reset();
 	REQUIRE(retained.valid());
-	REQUIRE(target.valid());
+	REQUIRE(target.valid()); // the shared swapchain still holds the images alive
 	retained.reset();
+	// Releasing the last swapchain reference marks its slot dead but defers the
+	// backend destruction (and thus the render-target invalidation) to garbage
+	// collection. waitIdle() drives that collection, after which copied target
+	// wrappers are stale rather than referring to a freed swapchain image.
+	device.waitIdle();
 	REQUIRE_FALSE(target.valid());
 }

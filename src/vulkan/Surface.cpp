@@ -20,15 +20,17 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Surface::Surface(Instance& owner, VkSurfaceKHR surface)
+	Surface::Surface(Instance& owner, VkSurfaceKHR surface, PlatformWindow window)
 	{
 		if (!surface)
 		{
+			// `window` (if any) is destroyed by its own destructor as it goes out of scope.
 			m_error = acm::Error("failed to create surface from null handle");
 			return;
 		}
 		m_owner = &owner;
 		m_surface = surface;
+		m_window = std::move(window);
 		const auto& gpus = owner.gpus();
 		m_gpuSupport.resize(gpus.size());
 		for (size_t gpuIndex = 0; gpuIndex < gpus.size(); ++gpuIndex)
@@ -96,6 +98,7 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_surface = std::exchange(other.m_surface, VK_NULL_HANDLE);
+		m_window = std::move(other.m_window);
 		m_gpuSupport = std::move(other.m_gpuSupport);
 		m_error = std::move(other.m_error);
 		return *this;
@@ -126,6 +129,9 @@ namespace acm::vulkan
 		m_gpuSupport.clear();
 		if (owner && surface)
 			vkDestroySurfaceKHR(owner->vulkanInstance(), surface, nullptr);
+		// The backing window (if any) must outlive its surface: destroy it only after
+		// the VkSurfaceKHR is gone.
+		m_window.reset();
 	}
 
 } // namespace acm::vulkan

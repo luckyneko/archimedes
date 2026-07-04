@@ -54,6 +54,14 @@ namespace acm
 
 		// Factories
 		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
+		// Creates a surface for offscreen ("headless") rendering without a visible
+		// window, so the full swapchain/present path can run windowless. Uses
+		// VK_EXT_headless_surface where available (e.g. MoltenVK) and otherwise an
+		// off-screen platform window (Windows desktop ICDs lack that extension);
+		// returns an invalid Surface where no mechanism exists. `extent` sizes the
+		// backing window on platforms that need one and is otherwise unused — pass
+		// the intended render size for consistent behaviour across platforms.
+		acm::Surface createHeadlessSurface(acm::Extent2D extent = {1, 1});
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 		// Enumeration

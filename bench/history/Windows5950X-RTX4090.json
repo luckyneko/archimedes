@@ -1,0 +1,124 @@
+{
+  "runs": [
+    {
+      "args": [],
+      "benchmarks": [
+        {
+          "mean_ns": 27120.0,
+          "section": "100 draws",
+          "stddev_ns": 4327.49,
+          "variant": "acm(draw-sequence)",
+          "workload": "command_recording"
+        },
+        {
+          "mean_ns": 243977.0,
+          "section": "1000 draws",
+          "stddev_ns": 4649.71,
+          "variant": "acm(draw-sequence)",
+          "workload": "command_recording"
+        },
+        {
+          "mean_ns": 2458870.0,
+          "section": "10000 draws",
+          "stddev_ns": 21448.4,
+          "variant": "acm(draw-sequence)",
+          "workload": "command_recording"
+        },
+        {
+          "mean_ns": 63.5465,
+          "section": null,
+          "stddev_ns": 1.26054,
+          "variant": "acm(combined-image-sampler)",
+          "workload": "descriptor_updates"
+        },
+        {
+          "mean_ns": 45.3069,
+          "section": null,
+          "stddev_ns": 1.23591,
+          "variant": "acm(dynamic-uniform-buffer)",
+          "workload": "descriptor_updates"
+        },
+        {
+          "mean_ns": 63.2593,
+          "section": null,
+          "stddev_ns": 1.46515,
+          "variant": "acm(uniform-buffer)",
+          "workload": "descriptor_updates"
+        },
+        {
+          "mean_ns": 5724630.0,
+          "section": null,
+          "stddev_ns": 5994580.0,
+          "variant": "acm(empty-frame)",
+          "workload": "renderer_frame"
+        },
+        {
+          "mean_ns": 5716140.0,
+          "section": null,
+          "stddev_ns": 5979630.0,
+          "variant": "acm(simple-draw-frame)",
+          "workload": "renderer_frame"
+        },
+        {
+          "mean_ns": 31399.0,
+          "section": null,
+          "stddev_ns": 4473.11,
+          "variant": "acm(buffer-uniform-4k-x64)",
+          "workload": "resource_creation"
+        },
+        {
+          "mean_ns": 119591.0,
+          "section": null,
+          "stddev_ns": 12614.4,
+          "variant": "acm(pipeline-triangle-x4)",
+          "workload": "resource_creation"
+        },
+        {
+          "mean_ns": 24006.0,
+          "section": null,
+          "stddev_ns": 2401.91,
+          "variant": "acm(render-target-bgra8-64-x16)",
+          "workload": "resource_creation"
+        },
+        {
+          "mean_ns": 28441.0,
+          "section": null,
+          "stddev_ns": 5049.18,
+          "variant": "acm(shader-triangle-vert-x16)",
+          "workload": "resource_creation"
+        },
+        {
+          "mean_ns": 34737.0,
+          "section": null,
+          "stddev_ns": 7057.39,
+          "variant": "acm(texture-bgra8-64-x16)",
+          "workload": "resource_creation"
+        },
+        {
+          "mean_ns": 35.3131,
+          "section": null,
+          "stddev_ns": 1.89104,
+          "variant": "acm(pool-emplace)",
+          "workload": "resource_pool"
+        },
+        {
+          "mean_ns": 218738.0,
+          "section": null,
+          "stddev_ns": 2287.33,
+          "variant": "acm(ref-copy-access-10k)",
+          "workload": "resource_pool"
+        }
+      ],
+      "executable": "./build/bench-archimedes.exe",
+      "generated_at": "2026-07-04T01:10:23.314313Z",
+      "git": {
+        "branch": "develop",
+        "commit": "bfc3af81e2e7e6fa83b28b6e653ee40765764e3b",
+        "dirty": true,
+        "short_commit": "bfc3af8"
+      },
+      "schema_version": 1
+    }
+  ],
+  "schema_version": 1
+}

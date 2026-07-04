@@ -71,6 +71,7 @@ set(SOURCE_FILES
     src/vulkan/Instance.cpp
     src/vulkan/Memory.cpp
     src/vulkan/Pipeline.cpp
+    src/vulkan/PlatformSurface.cpp
     src/vulkan/Renderer.cpp
     src/vulkan/RenderTarget.cpp
     src/vulkan/RuntimeEnv.cpp

@@ -42,12 +42,20 @@ target_include_directories(test-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/pr
 target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2)
 acm_stage_vulkan_runtime(test-${PROJECT_NAME})
 
+# The tests link the vendored Vulkan loader, which on Windows is a DLL (vulkan-1.dll)
+# built into its own directory rather than next to the test executable. On a machine
+# with no system Vulkan runtime (e.g. a clean CI image) that DLL is otherwise
+# unreachable, so the exe fails to even start (STATUS_DLL_NOT_FOUND / 0xc0000135) —
+# breaking both Catch2's build-time test discovery and the ctest runs. DL_PATHS
+# prepends the loader's directory to the DLL search path (PATH / LD_LIBRARY_PATH /
+# DYLD_LIBRARY_PATH) for both. Locally it is harmless (the system loader is found first).
+set(_acm_test_props TEST_PREFIX "(${PROJECT_NAME}) " DL_PATHS "$<TARGET_FILE_DIR:Vulkan::Loader>")
+
 # Point the loader at the vendored MoltenVK ICD so [gpu] tests find a driver
 # under ctest (no system install). Only set this when we actually vendor an ICD
 # (Apple/MoltenVK) — elsewhere an empty VK_ICD_FILENAMES would tell the loader to
 # enumerate *zero* ICDs, hiding any system-installed driver and forcing every
 # [gpu] test to SKIP. Off-Apple we leave it unset so the system loader is used.
-set(_acm_test_props TEST_PREFIX "(${PROJECT_NAME}) ")
 if(ACM_MOLTENVK_ICD)
     list(APPEND _acm_test_props PROPERTIES ENVIRONMENT "VK_ICD_FILENAMES=${ACM_MOLTENVK_ICD}")
 endif()

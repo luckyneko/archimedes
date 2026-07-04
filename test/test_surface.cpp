@@ -12,10 +12,10 @@
 
 #include <catch2/catch_all.hpp>
 
-// Integration: exercises acm::Surface without a window by creating a headless
-// VkSurfaceKHR (VK_EXT_headless_surface, enabled by the instance's VK_*_surface
-// extension match and supported by MoltenVK). SKIPs without a live driver or
-// the extension. acm::Surface takes ownership of the VkSurfaceKHR.
+// Integration: exercises acm::Surface without a window via the first-class
+// acm::Instance::createHeadlessSurface() (VK_EXT_headless_surface where available,
+// e.g. MoltenVK, else an off-screen platform window). SKIPs without a live driver
+// or any headless mechanism.
 
 TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 {
@@ -23,12 +23,9 @@ TEST_CASE("Surface (headless) reports per-GPU support", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	VkSurfaceKHR vkSurface = acmtest::createHeadlessSurface(instance);
-	if (vkSurface == VK_NULL_HANDLE)
+	acm::Surface surface = instance.createHeadlessSurface();
+	if (!surface.valid())
 		SKIP("headless surface unavailable");
-
-	acm::Surface surface = instance.createVulkanSurface(vkSurface); // takes ownership of vkSurface
-	REQUIRE(surface.valid());
 
 	// One support entry per enumerated GPU, mirroring its queue families.
 	const auto& gpus = instance.getAvailableGPUs();
@@ -47,11 +44,10 @@ TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	VkSurfaceKHR vkSurface = acmtest::createHeadlessSurface(instance);
-	if (vkSurface == VK_NULL_HANDLE)
+	acm::Surface a = instance.createHeadlessSurface();
+	if (!a.valid())
 		SKIP("headless surface unavailable");
 
-	acm::Surface a = instance.createVulkanSurface(vkSurface);
 	acm::Surface b = a; // shares the one underlying VkSurfaceKHR
 	a.reset();
 

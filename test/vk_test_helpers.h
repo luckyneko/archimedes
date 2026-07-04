@@ -9,33 +9,16 @@
 #pragma once
 
 #include <archimedes/archimedes.h>
-#include <vulkan/vulkan.h>
 
 #include <catch2/catch_all.hpp>
 
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so
-// each test translation unit can include it without an extra link target.
+// each test translation unit can include it without an extra link target. The
+// windowless surface (and its Windows off-screen-window fallback) is a first-class
+// acm::Instance::createHeadlessSurface() capability, so this stays backend-neutral
+// — no raw Vulkan or platform headers.
 namespace acmtest
 {
-	// Creates a windowless VkSurfaceKHR via VK_EXT_headless_surface (enabled by
-	// the instance's VK_*_surface match), or VK_NULL_HANDLE if the driver lacks
-	// it. The caller owns it — typically by handing it to acm::Surface.
-	inline VkSurfaceKHR createHeadlessSurface(acm::Instance& instance)
-	{
-		auto fn = reinterpret_cast<PFN_vkCreateHeadlessSurfaceEXT>(
-			vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateHeadlessSurfaceEXT"));
-		if (!fn)
-			return VK_NULL_HANDLE;
-
-		VkHeadlessSurfaceCreateInfoEXT info = {};
-		info.sType = VK_STRUCTURE_TYPE_HEADLESS_SURFACE_CREATE_INFO_EXT;
-
-		VkSurfaceKHR surface = VK_NULL_HANDLE;
-		if (fn(instance.vulkanInstance(), &info, nullptr, &surface) != VK_SUCCESS)
-			return VK_NULL_HANDLE;
-		return surface;
-	}
-
 	// First graphics-capable GPU and its queue family index; nullptr if none.
 	// The pointer is valid for the lifetime of the instance.
 	inline const acm::GPU* selectGraphicsGPU(const acm::Instance& instance, uint32_t& queueIndex)
@@ -79,13 +62,12 @@ namespace acmtest
 			return false;
 		}
 
-		VkSurfaceKHR vkSurface = createHeadlessSurface(out.instance);
-		if (vkSurface == VK_NULL_HANDLE)
+		out.surface = out.instance.createHeadlessSurface(acm::Extent2D{800, 600});
+		if (!out.surface.valid())
 		{
 			SKIP("headless surface unavailable");
 			return false;
 		}
-		out.surface = out.instance.createVulkanSurface(vkSurface);
 
 		const acm::GPUSurfaceSupport& support = out.surface.getGPUSupport()[gpu->index];
 		if (support.supportedFormats.empty() || support.supportedPresentModes.empty())

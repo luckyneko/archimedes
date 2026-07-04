@@ -41,6 +41,7 @@ namespace acm::vulkan
 
 		// Factories
 		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
+		acm::Surface createHeadlessSurface(acm::Extent2D extent);
 		acm::Device createDevice(const acm::GPU& gpu, uint32_t queueIndex);
 
 	private:
