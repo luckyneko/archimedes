@@ -39,7 +39,7 @@ TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 	REQUIRE(device.valid());
 
 	const acm::Extent2D desired{800, 600};
-	acm::SwapChain swapChain = device.createSwapChain(surface, option.format, option.presentMode, desired);
+	acm::SwapChain swapChain = device.createSwapChain(surface, option, desired);
 	if (!swapChain.valid())
 		SKIP("driver does not support a headless swapchain");
 

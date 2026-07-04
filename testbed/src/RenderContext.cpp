@@ -8,9 +8,9 @@
 
 #include "RenderContext.h"
 
-bool RenderContext::init(acm::Device& device, const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, bool depth, acm::SampleCount samples, acm::Extent2D extent)
+bool RenderContext::init(acm::Device& device, const acm::Surface& surface, const acm::SurfaceOption& option, bool depth, acm::SampleCount samples, acm::Extent2D extent)
 {
-	m_swapChain = device.createSwapChain(surface, format, presentMode, extent, depth, samples);
+	m_swapChain = device.createSwapChain(surface, option, extent, depth, samples);
 	if (!m_swapChain.valid())
 		return false;
 	m_renderer = device.createRenderer(m_swapChain);

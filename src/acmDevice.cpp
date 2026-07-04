@@ -65,6 +65,11 @@ namespace acm
 	// Factories
 	// -----------------------------------------------------------------------------
 
+	SwapChain Device::createSwapChain(const Surface& surface, const SurfaceOption& option, Extent2D desiredExtent, bool depth, SampleCount samples)
+	{
+		return createSwapChain(surface, option.format, option.presentMode, desiredExtent, depth, samples);
+	}
+
 	SwapChain Device::createSwapChain(const Surface& surface, SurfaceFormat format, PresentMode presentMode, Extent2D desiredExtent, bool depth, SampleCount samples)
 	{
 		return m ? m->createSwapChain(surface, format, presentMode, desiredExtent, depth, samples) : SwapChain{};

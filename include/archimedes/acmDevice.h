@@ -42,6 +42,7 @@ namespace acm
 
 		// Factories
 		// The only public way to build Device children.
+		acm::SwapChain createSwapChain(const acm::Surface& surface, const acm::SurfaceOption& option, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, acm::Extent2D desiredExtent = {}, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish = acm::RenderTargetFinish::Sampled, bool depth = false, acm::SampleCount samples = acm::SampleCount::One);
 		// spirv is compiled SPIR-V bytecode; loading it from disk is the caller's job.

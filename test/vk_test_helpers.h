@@ -72,7 +72,7 @@ namespace acmtest
 		out.device = out.instance.createDevice(option.device);
 		REQUIRE(out.device.valid());
 
-		out.swapChain = out.device.createSwapChain(out.surface, option.format, option.presentMode, acm::Extent2D{800, 600});
+		out.swapChain = out.device.createSwapChain(out.surface, option, acm::Extent2D{800, 600});
 		if (!out.swapChain.valid())
 		{
 			SKIP("driver does not support a headless swapchain");

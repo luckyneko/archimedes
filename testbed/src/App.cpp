@@ -127,7 +127,7 @@ int App::run(Example& example)
 	{
 		int fbW = 0, fbH = 0;
 		glfwGetFramebufferSize(windows[i], &fbW, &fbH);
-		if (!contexts[i].init(device, surfaces[i], surfaceOption.format, surfaceOption.presentMode, cfg.depth, cfg.samples, acm::Extent2D{uint32_t(fbW), uint32_t(fbH)}))
+		if (!contexts[i].init(device, surfaces[i], surfaceOption, cfg.depth, cfg.samples, acm::Extent2D{uint32_t(fbW), uint32_t(fbH)}))
 		{
 			fprintf(stderr, "RenderContext init: FAIL\n");
 			return 1;

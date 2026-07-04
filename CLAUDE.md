@@ -150,7 +150,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
    │
    └── createDevice(DeviceOption) ───────────────────────> Device    // logical device + queue family
           │
-          ├── createSwapChain(Surface, format, presentMode[, extent, depth, samples]) ─> SwapChain
+          ├── createSwapChain(Surface, SurfaceOption[, extent, depth, samples]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
           ├────────┴── vulkan::SwapChain builds each target from the borrowed image
           │                                             // view + dynamic-rendering metadata (+ per-image depth / MSAA color buffers)
@@ -254,7 +254,7 @@ reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), 
 `Instance::createDevice(option)` is the preferred creation path when the caller does not
 need custom selection logic. `Instance::surfaceOptions(surface[s])` filters those device
 options to graphics queues that can present to one or more surfaces and supplies the
-surface format / present mode to use for swapchain creation.
+surface format / present mode used by `Device::createSwapChain(surface, option, ...)`.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`
