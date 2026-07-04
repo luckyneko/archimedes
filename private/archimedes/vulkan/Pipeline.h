@@ -18,6 +18,7 @@ namespace acm::vulkan
 {
 	class Device;
 	class DescriptorSetLayout;
+	class RenderTarget;
 
 	// Move-only graphics pipeline and layout. Retains shaders/target/descriptor layout
 	// through public wrappers supplied by PipelineConfig.
@@ -39,6 +40,10 @@ namespace acm::vulkan
 		acm::Error error() const { return m_error; }
 		VkPipeline vkPipeline() const;
 		VkPipelineLayout vkLayout() const;
+		VkFormat colorFormat() const { return m_colorFormat; }
+		VkFormat depthFormat() const { return m_depthFormat; }
+		VkSampleCountFlagBits sampleCount() const { return m_sampleCount; }
+		bool compatibleWith(const acm::vulkan::RenderTarget& target) const;
 
 	private:
 		// Internals
@@ -46,6 +51,9 @@ namespace acm::vulkan
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::DescriptorSetLayout m_descriptorLayout;
+		VkFormat m_colorFormat{VK_FORMAT_UNDEFINED};
+		VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
+		VkSampleCountFlagBits m_sampleCount{VK_SAMPLE_COUNT_1_BIT};
 		VkPipelineLayout m_layout{VK_NULL_HANDLE};
 		VkPipeline m_pipeline{VK_NULL_HANDLE};
 		acm::Error m_error;

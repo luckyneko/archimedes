@@ -72,6 +72,10 @@ namespace acm::vulkan
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_pool = std::move(other.m_pool);
 		m_renderTarget = std::move(other.m_renderTarget);
+		m_graphicsPipelineBound = std::exchange(other.m_graphicsPipelineBound, false);
+		m_graphicsPipelineColorFormat = std::exchange(other.m_graphicsPipelineColorFormat, VK_FORMAT_UNDEFINED);
+		m_graphicsPipelineDepthFormat = std::exchange(other.m_graphicsPipelineDepthFormat, VK_FORMAT_UNDEFINED);
+		m_graphicsPipelineSampleCount = std::exchange(other.m_graphicsPipelineSampleCount, VK_SAMPLE_COUNT_1_BIT);
 		m_commandBuffer = std::exchange(other.m_commandBuffer, VK_NULL_HANDLE);
 		m_error = std::move(other.m_error);
 		return *this;
@@ -110,13 +114,18 @@ namespace acm::vulkan
 	// Rendering
 	// -----------------------------------------------------------------------------
 
-	void CommandBuffer::beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a)
+	acm::Error CommandBuffer::beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a)
 	{
-		if (m_renderTarget.valid() || !target.valid() || !target.backend() || &owner() != &target.backend()->owner())
-			return;
+		if (m_renderTarget.valid())
+			return acm::Error("rendering scope already active");
+		if (!target.valid() || !target.backend() || &owner() != &target.backend()->owner())
+			return acm::Error("failed to begin rendering from invalid render target");
+		if (m_graphicsPipelineBound && !graphicsPipelineCompatibleWith(*target.backend()))
+			return acm::Error("bound graphics pipeline is incompatible with render target");
 		if (!target.backend()->beginRendering(m_commandBuffer, r, g, b, a))
-			return;
+			return acm::Error("failed to begin rendering");
 		m_renderTarget = target;
+		return {};
 	}
 
 	void CommandBuffer::endRendering()
@@ -141,13 +150,24 @@ namespace acm::vulkan
 		vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
 	}
 
-	void CommandBuffer::bindPipeline(const Pipeline& pipeline)
+	acm::Error CommandBuffer::bindPipeline(const Pipeline& pipeline)
 	{
 		if (&owner() != &pipeline.owner())
-			return;
+			return acm::Error("failed to bind graphics pipeline owned by another device");
+		if (m_renderTarget.valid() && (!m_renderTarget.backend() || !pipeline.compatibleWith(*m_renderTarget.backend())))
+		{
+			forgetGraphicsPipeline();
+			return acm::Error("graphics pipeline is incompatible with active render target");
+		}
 		const VkPipeline vkPipeline = pipeline.vkPipeline();
 		if (vkPipeline)
+		{
 			vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline);
+			rememberGraphicsPipeline(pipeline);
+			return {};
+		}
+		forgetGraphicsPipeline();
+		return acm::Error("invalid graphics pipeline");
 	}
 
 	void CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set, const uint32_t* dynamicOffset)
@@ -162,9 +182,12 @@ namespace acm::vulkan
 		vkCmdBindDescriptorSets(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &descriptorSet, dynamicOffsetCount, dynamicOffset);
 	}
 
-	void CommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
+	acm::Error CommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 	{
+		if (!m_renderTarget.valid() || !m_graphicsPipelineBound)
+			return acm::Error("draw requires an active render target and a compatible graphics pipeline");
 		vkCmdDraw(m_commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
+		return {};
 	}
 
 	void CommandBuffer::bindVertexBuffer(const Buffer& buffer)
@@ -187,9 +210,12 @@ namespace acm::vulkan
 			vkCmdBindIndexBuffer(m_commandBuffer, vkBuffer, 0, VK_INDEX_TYPE_UINT32);
 	}
 
-	void CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
+	acm::Error CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 	{
+		if (!m_renderTarget.valid() || !m_graphicsPipelineBound)
+			return acm::Error("indexed draw requires an active render target and a compatible graphics pipeline");
 		vkCmdDrawIndexed(m_commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+		return {};
 	}
 
 	void CommandBuffer::copyTextureToBuffer(const Texture& texture, const Buffer& buffer)
@@ -266,9 +292,31 @@ namespace acm::vulkan
 	// Internals
 	// -----------------------------------------------------------------------------
 
+	bool CommandBuffer::graphicsPipelineCompatibleWith(const RenderTarget& target) const
+	{
+		return m_graphicsPipelineColorFormat == target.colorFormat() && m_graphicsPipelineDepthFormat == target.depthFormat() && m_graphicsPipelineSampleCount == target.sampleCount();
+	}
+
+	void CommandBuffer::rememberGraphicsPipeline(const Pipeline& pipeline)
+	{
+		m_graphicsPipelineBound = true;
+		m_graphicsPipelineColorFormat = pipeline.colorFormat();
+		m_graphicsPipelineDepthFormat = pipeline.depthFormat();
+		m_graphicsPipelineSampleCount = pipeline.sampleCount();
+	}
+
+	void CommandBuffer::forgetGraphicsPipeline()
+	{
+		m_graphicsPipelineBound = false;
+		m_graphicsPipelineColorFormat = VK_FORMAT_UNDEFINED;
+		m_graphicsPipelineDepthFormat = VK_FORMAT_UNDEFINED;
+		m_graphicsPipelineSampleCount = VK_SAMPLE_COUNT_1_BIT;
+	}
+
 	void CommandBuffer::release()
 	{
 		m_renderTarget.reset();
+		forgetGraphicsPipeline();
 		const VkCommandBuffer commandBuffer = std::exchange(m_commandBuffer, VK_NULL_HANDLE);
 		const VkCommandPool commandPool = m_pool.valid() ? m_pool.backend()->vkCommandPool() : VK_NULL_HANDLE;
 		Device* owner = std::exchange(m_owner, nullptr);

@@ -147,11 +147,14 @@ namespace acm::vulkan
 			m_error = acm::Error("failed to create pipeline from invalid render target format");
 			return;
 		}
+		m_colorFormat = colorFormat;
+		m_depthFormat = config.target.backend()->depthFormat();
+		m_sampleCount = config.target.backend()->sampleCount();
 		VkPipelineRenderingCreateInfo renderingInfo = {};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachmentFormats = &colorFormat;
-		renderingInfo.depthAttachmentFormat = config.target.backend()->depthFormat();
+		renderingInfo.depthAttachmentFormat = m_depthFormat;
 
 		const VkDescriptorSetLayout setLayout = config.descriptorLayout.valid() ? config.descriptorLayout.backend()->vkLayout() : VK_NULL_HANDLE;
 		VkPipelineLayoutCreateInfo layoutInfo = {};
@@ -207,6 +210,9 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_descriptorLayout = std::move(other.m_descriptorLayout);
+		m_colorFormat = std::exchange(other.m_colorFormat, VK_FORMAT_UNDEFINED);
+		m_depthFormat = std::exchange(other.m_depthFormat, VK_FORMAT_UNDEFINED);
+		m_sampleCount = std::exchange(other.m_sampleCount, VK_SAMPLE_COUNT_1_BIT);
 		m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
 		m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
 		m_error = std::move(other.m_error);
@@ -227,6 +233,11 @@ namespace acm::vulkan
 		return m_layout;
 	}
 
+	bool Pipeline::compatibleWith(const RenderTarget& target) const
+	{
+		return valid() && target.valid() && m_colorFormat == target.colorFormat() && m_depthFormat == target.depthFormat() && m_sampleCount == target.sampleCount();
+	}
+
 	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
@@ -241,6 +252,9 @@ namespace acm::vulkan
 		if (owner && layout)
 			vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 		m_descriptorLayout.reset();
+		m_colorFormat = VK_FORMAT_UNDEFINED;
+		m_depthFormat = VK_FORMAT_UNDEFINED;
+		m_sampleCount = VK_SAMPLE_COUNT_1_BIT;
 	}
 
 } // namespace acm::vulkan

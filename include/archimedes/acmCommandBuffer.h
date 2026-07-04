@@ -47,18 +47,21 @@ namespace acm
 		// Begins dynamic rendering over target and clears color/depth attachments. Only
 		// one rendering scope may be open at a time; Renderer::render opens the swapchain
 		// target for the draw callback, while pre-pass callbacks run outside that scope.
-		void beginRendering(const acm::RenderTarget& target, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f);
+		// Graphics recording methods return an error when the active render target and
+		// bound pipeline are incompatible; ignored errors are still visible through
+		// error() until the next begin() or reset().
+		acm::Error beginRendering(const acm::RenderTarget& target, float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f);
 		void endRendering();
 		void setViewportAndScissor(acm::Extent2D extent);
-		void bindPipeline(const acm::Pipeline& pipeline);
+		acm::Error bindPipeline(const acm::Pipeline& pipeline);
 		// Binds set 0 for a graphics pipeline. The dynamic-offset overload is for a
 		// UniformBufferDynamic binding; the offset must satisfy the Device alignment.
 		void bindDescriptorSet(const acm::Pipeline& pipeline, const acm::DescriptorSet& set);
 		void bindDescriptorSet(const acm::Pipeline& pipeline, const acm::DescriptorSet& set, uint32_t dynamicOffset);
-		void draw(uint32_t vertexCount, uint32_t instanceCount = 1, uint32_t firstVertex = 0, uint32_t firstInstance = 0);
+		acm::Error draw(uint32_t vertexCount, uint32_t instanceCount = 1, uint32_t firstVertex = 0, uint32_t firstInstance = 0);
 		void bindVertexBuffer(const acm::Buffer& buffer);
 		void bindIndexBuffer(const acm::Buffer& buffer);
-		void drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t firstIndex = 0, int32_t vertexOffset = 0, uint32_t firstInstance = 0);
+		acm::Error drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t firstIndex = 0, int32_t vertexOffset = 0, uint32_t firstInstance = 0);
 
 		// Transfer
 		// Records a copy from a texture currently in TransferSrc layout to a readback or

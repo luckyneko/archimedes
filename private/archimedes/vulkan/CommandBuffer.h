@@ -51,15 +51,15 @@ namespace acm::vulkan
 		acm::Error end();
 
 		// Rendering
-		void beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a);
+		acm::Error beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a);
 		void endRendering();
 		void setViewportAndScissor(acm::Extent2D extent);
-		void bindPipeline(const acm::vulkan::Pipeline& pipeline);
+		acm::Error bindPipeline(const acm::vulkan::Pipeline& pipeline);
 		void bindDescriptorSet(const acm::vulkan::Pipeline& pipeline, const acm::vulkan::DescriptorSet& set, const uint32_t* dynamicOffset);
-		void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+		acm::Error draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 		void bindVertexBuffer(const acm::vulkan::Buffer& buffer);
 		void bindIndexBuffer(const acm::vulkan::Buffer& buffer);
-		void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+		acm::Error drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
 		void copyTextureToBuffer(const acm::vulkan::Texture& texture, const acm::vulkan::Buffer& buffer);
 
 		// Compute
@@ -73,11 +73,18 @@ namespace acm::vulkan
 
 	private:
 		// Internals
+		bool graphicsPipelineCompatibleWith(const acm::vulkan::RenderTarget& target) const;
+		void rememberGraphicsPipeline(const acm::vulkan::Pipeline& pipeline);
+		void forgetGraphicsPipeline();
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::CommandPool m_pool;
 		acm::RenderTarget m_renderTarget;
+		bool m_graphicsPipelineBound{false};
+		VkFormat m_graphicsPipelineColorFormat{VK_FORMAT_UNDEFINED};
+		VkFormat m_graphicsPipelineDepthFormat{VK_FORMAT_UNDEFINED};
+		VkSampleCountFlagBits m_graphicsPipelineSampleCount{VK_SAMPLE_COUNT_1_BIT};
 		VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
 		acm::Error m_error;
 	};

@@ -12,6 +12,7 @@
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
+#include <cstdint>
 #include <utility>
 
 // Integration: builds an acm::Shader + acm::Pipeline against a headless
@@ -82,4 +83,67 @@ TEST_CASE("Pipeline is invalid when a shader is", "[acm][gpu]")
 	// A null vertex shader can't build a pipeline.
 	acm::Pipeline pipeline = s.device.createPipeline(acm::Shader(), frag, s.swapChain.renderTarget(0));
 	REQUIRE_FALSE(pipeline.valid());
+}
+
+TEST_CASE("Command buffer refuses a pipeline incompatible with the active render target", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	if (!instance.valid())
+		SKIP("no Vulkan driver available");
+
+	uint32_t queueIndex = 0;
+	const acm::GPU* gpu = acmtest::selectGraphicsGPU(instance, queueIndex);
+	if (!gpu)
+		SKIP("no graphics-capable queue family");
+
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	constexpr uint32_t kSize = 64;
+	const acm::Extent2D extent{kSize, kSize};
+
+	acm::Texture noDepthTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget noDepthTarget = device.createRenderTarget(noDepthTexture, acm::RenderTargetFinish::CopySrc);
+	REQUIRE(noDepthTarget.valid());
+
+	acm::Shader vert = device.createShader(acmtest::triangleVertSpirv());
+	acm::Shader frag = device.createShader(acmtest::triangleFragSpirv());
+	REQUIRE(vert.valid());
+	REQUIRE(frag.valid());
+
+	acm::PipelineConfig config;
+	config.vertex = vert;
+	config.fragment = frag;
+	config.target = noDepthTarget;
+	acm::Pipeline noDepthPipeline = device.createPipeline(config);
+	REQUIRE(noDepthPipeline.valid());
+
+	acm::Texture depthTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget depthTarget = device.createRenderTarget(depthTexture, acm::RenderTargetFinish::CopySrc, true);
+	REQUIRE(depthTarget.valid());
+
+	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
+	REQUIRE(readback.valid());
+
+	acm::CommandPool pool = device.createCommandPool();
+	acm::CommandBuffer cmd = pool.allocate();
+	REQUIRE(cmd.valid());
+	REQUIRE_FALSE(cmd.begin());
+	cmd.beginRendering(depthTarget); // clears to black
+	cmd.setViewportAndScissor(extent);
+	REQUIRE(cmd.bindPipeline(noDepthPipeline));
+	REQUIRE(cmd.draw(3));
+	REQUIRE(cmd.error());
+	cmd.endRendering();
+	cmd.copyTextureToBuffer(depthTexture, readback);
+	REQUIRE_FALSE(cmd.end());
+
+	REQUIRE_FALSE(device.submitSync(cmd));
+
+	const size_t center = (size_t(kSize / 2) * kSize + kSize / 2) * 4;
+	const uint8_t* pixel = static_cast<const uint8_t*>(readback.map()) + center;
+	REQUIRE(pixel[2] < 60);
+	REQUIRE(pixel[1] < 60);
+	REQUIRE(pixel[0] < 60);
+	readback.unmap();
 }

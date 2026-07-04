@@ -133,13 +133,19 @@ namespace acm::vulkan
 			return error;
 		if (prePass)
 			prePass(commandBuffer, uint32_t(m_currentFrame));
-		commandBuffer.beginRendering(target);
+		if (acm::Error error = commandBuffer.error())
+			return error;
+		if (acm::Error error = commandBuffer.beginRendering(target))
+			return error;
 		commandBuffer.setViewportAndScissor(target.extent());
 		if (record)
 			record(commandBuffer, uint32_t(m_currentFrame));
+		const acm::Error recordingError = commandBuffer.error();
 		commandBuffer.endRendering();
 		if (acm::Error error = commandBuffer.end())
 			return error;
+		if (recordingError)
+			return recordingError;
 
 		const VkCommandBuffer vkCommand = commandBuffer.backend()->vkCommandBuffer();
 		const VkSwapchainKHR vkSwapChain = m_swapChain.backend()->vkSwapChain();

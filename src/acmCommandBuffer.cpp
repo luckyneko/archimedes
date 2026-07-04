@@ -53,7 +53,11 @@ namespace acm
 
 	Error CommandBuffer::error() const
 	{
-		return m_error;
+		if (m_error)
+			return m_error;
+		if (auto* resource = m_resource.access())
+			return resource->error();
+		return {};
 	}
 
 	backend::CommandBuffer* CommandBuffer::backend() const
@@ -67,26 +71,52 @@ namespace acm
 
 	Error CommandBuffer::begin()
 	{
+		m_error = {};
 		if (auto* resource = m_resource.access())
-			return resource->begin();
-		return Error("invalid command buffer");
+		{
+			if (acm::Error error = resource->begin())
+			{
+				m_error = error;
+				return error;
+			}
+			return {};
+		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	Error CommandBuffer::end()
 	{
 		if (auto* resource = m_resource.access())
-			return resource->end();
-		return Error("invalid command buffer");
+		{
+			if (acm::Error error = resource->end())
+			{
+				m_error = error;
+				return error;
+			}
+			return {};
+		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	// -----------------------------------------------------------------------------
 	// Rendering
 	// -----------------------------------------------------------------------------
 
-	void CommandBuffer::beginRendering(const RenderTarget& target, float r, float g, float b, float a)
+	Error CommandBuffer::beginRendering(const RenderTarget& target, float r, float g, float b, float a)
 	{
 		if (auto* resource = m_resource.access())
-			resource->beginRendering(target, r, g, b, a);
+		{
+			if (acm::Error error = resource->beginRendering(target, r, g, b, a))
+			{
+				m_error = error;
+				return error;
+			}
+			return {};
+		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	void CommandBuffer::endRendering()
@@ -101,13 +131,24 @@ namespace acm
 			resource->setViewportAndScissor(extent);
 	}
 
-	void CommandBuffer::bindPipeline(const Pipeline& pipeline)
+	Error CommandBuffer::bindPipeline(const Pipeline& pipeline)
 	{
 		if (auto* resource = m_resource.access())
 		{
 			if (pipeline.backend())
-				resource->bindPipeline(*pipeline.backend());
+			{
+				if (acm::Error error = resource->bindPipeline(*pipeline.backend()))
+				{
+					m_error = error;
+					return error;
+				}
+				return {};
+			}
+			m_error = Error("invalid graphics pipeline");
+			return m_error;
 		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	void CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set)
@@ -128,10 +169,19 @@ namespace acm
 		}
 	}
 
-	void CommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
+	Error CommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 	{
 		if (auto* resource = m_resource.access())
-			resource->draw(vertexCount, instanceCount, firstVertex, firstInstance);
+		{
+			if (acm::Error error = resource->draw(vertexCount, instanceCount, firstVertex, firstInstance))
+			{
+				m_error = error;
+				return error;
+			}
+			return {};
+		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	void CommandBuffer::bindVertexBuffer(const Buffer& buffer)
@@ -152,10 +202,19 @@ namespace acm
 		}
 	}
 
-	void CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
+	Error CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 	{
 		if (auto* resource = m_resource.access())
-			resource->drawIndexed(indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+		{
+			if (acm::Error error = resource->drawIndexed(indexCount, instanceCount, firstIndex, vertexOffset, firstInstance))
+			{
+				m_error = error;
+				return error;
+			}
+			return {};
+		}
+		m_error = Error("invalid command buffer");
+		return m_error;
 	}
 
 	// -----------------------------------------------------------------------------

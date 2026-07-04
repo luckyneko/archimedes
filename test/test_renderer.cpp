@@ -87,6 +87,34 @@ TEST_CASE("Renderer drives frames and records draws", "[acm][gpu]")
 	REQUIRE(recorded == 5);
 }
 
+TEST_CASE("Renderer returns command recording errors from draw callbacks", "[acm][gpu]")
+{
+	acmtest::HeadlessStack s;
+	if (!acmtest::buildHeadlessStack(s))
+		return;
+
+	const acm::Extent2D extent{64, 64};
+	acm::Texture texture = s.device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc, true);
+	REQUIRE(depthTarget.valid());
+
+	acm::PipelineConfig config;
+	config.vertex = s.device.createShader(acmtest::triangleVertSpirv());
+	config.fragment = s.device.createShader(acmtest::triangleFragSpirv());
+	config.target = depthTarget;
+	acm::Pipeline pipeline = s.device.createPipeline(config);
+	REQUIRE(pipeline.valid());
+
+	acm::Renderer renderer = s.device.createRenderer(s.swapChain);
+	REQUIRE(renderer.valid());
+
+	acm::Error error = renderer.render([&](acm::CommandBuffer& cmd, uint32_t)
+									   {
+		cmd.bindPipeline(pipeline);
+		cmd.draw(3); });
+	REQUIRE(error);
+}
+
 TEST_CASE("Renderer runs a compute pre-pass before the draw", "[acm][gpu]")
 {
 	acmtest::HeadlessStack s;
