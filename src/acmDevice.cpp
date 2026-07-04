@@ -111,9 +111,9 @@ namespace acm
 		return m ? m->createSwapChain(surface, format, presentMode, config) : SwapChain{};
 	}
 
-	RenderTarget Device::createRenderTarget(const Texture& texture, RenderTargetFinish finish, bool depth, SampleCount samples)
+	RenderTarget Device::createRenderTarget(const Texture& texture, const RenderTargetConfig& config)
 	{
-		return m ? m->createRenderTarget(texture, finish, depth, samples) : RenderTarget{};
+		return m ? m->createRenderTarget(texture, config) : RenderTarget{};
 	}
 
 	Shader Device::createShader(const std::vector<char>& spirv)

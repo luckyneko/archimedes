@@ -62,7 +62,7 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 	auto runScene = [&](acm::SampleCount samples)
 	{
 		acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-		acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc, /*depth*/ true, samples);
+		acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true, samples});
 		REQUIRE(target.valid());
 		REQUIRE(target.hasDepth());
 
@@ -158,7 +158,7 @@ TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 	const acm::Extent2D extent{kSize, kSize};
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc, true);
+	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(target.valid());
 	REQUIRE(target.hasDepth());
 

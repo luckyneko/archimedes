@@ -316,15 +316,15 @@ owned attachments use it through their backend owner. `memoryBlockCount()` is th
 backend-neutral public diagnostic used by tests. Memory-type selection is private to the
 allocator.
 
-**Render-to-texture:** `device.createRenderTarget(texture, finish)` builds an
+**Render-to-texture:** `device.createRenderTarget(texture, config)` builds an
 *offscreen* `RenderTarget` that records Vulkan dynamic rendering over the texture's
-view. `finish` (`acm::RenderTargetFinish`) sets the color attachment's final layout so
+view. `RenderTargetConfig::finish` sets the color attachment's final layout so
 the result is usable with no manual barrier — `Sampled` →
 `SHADER_READ_ONLY` (read it in a later pass), `CopySrc` → `TRANSFER_SRC` (copy via
 `CommandBuffer::copyTextureToBuffer`).
 
 **Depth buffering** is opt-in via a `depth` flag on render-target creation or
-`SwapChainConfig` (`createRenderTarget(texture, finish, depth)`,
+`SwapChainConfig` (`RenderTargetConfig::depth`,
 `config.depth = true`). When
 set, the `RenderTarget` owns a depth `Texture` (`D32_Sfloat`, attachment 1) and its
 dynamic rendering scope gains a depth attachment (cleared each pass, not stored); the
@@ -338,7 +338,7 @@ first, a far one drawn second, far depth-rejected so the center stays the near c
 and a `CompareOp::Never` pipeline rejects all fragments.
 
 **MSAA** is opt-in via a `samples` (`acm::SampleCount`) arg on render-target creation or
-`SwapChainConfig` (`createRenderTarget(..., depth, samples)`,
+`SwapChainConfig` (`RenderTargetConfig::samples`,
 `config.samples = SampleCount::Four`). A
 request is clamped to `Device::maxSampleCount()`, and `PipelineConfig::target` supplies
 that exact resolved sample count to the pipeline, so callers cannot configure a mismatch.

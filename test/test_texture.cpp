@@ -50,7 +50,7 @@ TEST_CASE("render to texture produces a red triangle", "[acm][gpu]")
 	REQUIRE(retained.valid());
 	texture = std::move(retained);
 
-	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(target.valid());
 	acm::RenderTarget retainedTarget = target;
 	target.reset();

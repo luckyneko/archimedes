@@ -40,7 +40,7 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 
 	// Pass 1: red triangle into A, left ready to sample.
 	acm::Texture texA = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget targetA = device.createRenderTarget(texA, acm::RenderTargetFinish::Sampled);
+	acm::RenderTarget targetA = device.createRenderTarget(texA, acm::RenderTargetConfig{acm::RenderTargetFinish::Sampled});
 	acm::Pipeline pipeA = device.createPipeline(device.createShader(acmtest::triangleVertSpirv()),
 												device.createShader(acmtest::triangleFragSpirv()),
 												targetA);
@@ -49,7 +49,7 @@ TEST_CASE("sampling a rendered texture reproduces its color", "[acm][gpu]")
 
 	// Pass 2: fullscreen triangle samples A into B (left ready to copy out).
 	acm::Texture texB = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 
 	acm::Sampler sampler = device.createSampler();
 	REQUIRE(sampler.valid());

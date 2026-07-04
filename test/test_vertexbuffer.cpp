@@ -46,7 +46,7 @@ TEST_CASE("indexed draw from vertex + index buffers", "[acm][gpu]")
 	const acm::Extent2D extent{kSize, kSize};
 
 	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(target.valid());
 
 	// Geometry in buffers: a red triangle covering the center, drawn by index.

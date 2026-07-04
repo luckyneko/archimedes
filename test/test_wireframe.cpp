@@ -41,8 +41,8 @@ TEST_CASE("wireframe polygon mode draws only edges", "[acm][gpu]")
 
 	acm::Texture texFill = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
 	acm::Texture texWire = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget targetFill = device.createRenderTarget(texFill, acm::RenderTargetFinish::CopySrc);
-	acm::RenderTarget targetWire = device.createRenderTarget(texWire, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget targetFill = device.createRenderTarget(texFill, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::RenderTarget targetWire = device.createRenderTarget(texWire, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(targetFill.valid());
 	REQUIRE(targetWire.valid());
 

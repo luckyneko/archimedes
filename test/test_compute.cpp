@@ -110,7 +110,7 @@ TEST_CASE("a barrier feeds compute output into a graphics read in one command bu
 	REQUIRE(compute.valid());
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::storageReadFragSpirv());

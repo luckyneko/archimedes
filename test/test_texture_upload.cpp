@@ -53,7 +53,7 @@ TEST_CASE("uploaded texture pixels can be sampled", "[acm][gpu]")
 
 	// Sample texA into texB, then read texB back.
 	acm::Texture texB = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(targetB.valid());
 
 	acm::Sampler sampler = device.createSampler();

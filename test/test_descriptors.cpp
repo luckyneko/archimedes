@@ -79,7 +79,7 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	descriptors.setBuffer(0, storage);
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::storageWriteFragSpirv());
@@ -135,7 +135,7 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 	descriptors.setBuffer(0, uniform);
 
 	acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::multiStageVertSpirv());
 	config.fragment = device.createShader(acmtest::multiStageFragSpirv());
@@ -201,7 +201,7 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	descriptors.setTexture(0, texGreen, sampler, 1); // element 1 = green
 
 	acm::Texture out = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::PipelineConfig config;
 	config.vertex = device.createShader(acmtest::fullscreenVertSpirv());
 	config.fragment = device.createShader(acmtest::samplerArrayFragSpirv());

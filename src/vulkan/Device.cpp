@@ -400,12 +400,12 @@ namespace acm::vulkan
 		return acm::RenderTarget(std::move(inserted.resource));
 	}
 
-	acm::RenderTarget Device::createRenderTarget(const acm::Texture& texture, acm::RenderTargetFinish finish, bool depth, acm::SampleCount samples)
+	acm::RenderTarget Device::createRenderTarget(const acm::Texture& texture, const acm::RenderTargetConfig& config)
 	{
 		if (!texture.valid() || &texture.backend()->owner() != this)
 			return acm::RenderTarget(acm::Error("failed to create render target from invalid texture"));
-		auto inserted = emplaceResource(m_renderTargets, [this, &texture, finish, depth, samples]
-										{ return RenderTarget(*this, texture, finish, depth, samples); });
+		auto inserted = emplaceResource(m_renderTargets, [this, &texture, config]
+										{ return RenderTarget(*this, texture, config.finish, config.depth, config.samples); });
 		if (!inserted.valid())
 			return acm::RenderTarget(constructionError(std::move(inserted.error), "failed to create render target"));
 		return acm::RenderTarget(std::move(inserted.resource));

@@ -55,7 +55,7 @@ TEST_CASE("an anisotropic sampler samples correctly", "[acm][gpu]")
 	texA.upload(pixels.data(), pixels.size());
 
 	acm::Texture texB = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget targetB = device.createRenderTarget(texB, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(targetB.valid());
 
 	// The point of the test: a 16x anisotropic sampler (clamped to the device limit).

@@ -95,7 +95,7 @@ TEST_CASE("Renderer returns command recording errors from draw callbacks", "[acm
 
 	const acm::Extent2D extent{64, 64};
 	acm::Texture texture = s.device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc, true);
+	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(depthTarget.valid());
 
 	acm::PipelineConfig config;

@@ -59,7 +59,7 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 	auto renderTriangle = [&](acm::SampleCount samples, acm::Buffer& readback)
 	{
 		acm::Texture tex = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-		acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetFinish::CopySrc, /*depth*/ false, samples);
+		acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, false, samples});
 		REQUIRE(target.valid());
 
 		acm::PipelineConfig config;
@@ -128,7 +128,7 @@ TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 	const acm::Extent2D extent{kSize, kSize};
 
 	acm::Texture tex = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetFinish::CopySrc, /*depth*/ false, acm::SampleCount::Four);
+	acm::RenderTarget target = device.createRenderTarget(tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, false, acm::SampleCount::Four});
 	REQUIRE(target.valid());
 
 	acm::PipelineConfig config;

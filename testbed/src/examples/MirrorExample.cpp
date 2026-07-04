@@ -42,7 +42,7 @@ bool MirrorExample::onInit(acm::Device& device, const std::vector<RenderContext*
 
 	// Offscreen color texture + its depth-bearing render target.
 	m_offscreenColor = device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{kRttSize, kRttSize});
-	m_offscreenTarget = device.createRenderTarget(m_offscreenColor, acm::RenderTargetFinish::Sampled, /*depth*/ true);
+	m_offscreenTarget = device.createRenderTarget(m_offscreenColor, acm::RenderTargetConfig{acm::RenderTargetFinish::Sampled, true});
 	if (!m_offscreenColor.valid() || !m_offscreenTarget.valid())
 		return false;
 

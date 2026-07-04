@@ -19,7 +19,7 @@ TEST_CASE("command_recording", "[bench][fast][gpu]")
 
 	const acm::Extent2D extent{64, 64};
 	acm::Texture texture = stack.device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = stack.device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = stack.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::Shader vertex = stack.device.createShader(acmtest::triangleVertSpirv());
 	acm::Shader fragment = stack.device.createShader(acmtest::triangleFragSpirv());
 	acm::Pipeline pipeline = stack.device.createPipeline(vertex, fragment, target);

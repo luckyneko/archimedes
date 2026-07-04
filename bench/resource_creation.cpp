@@ -67,7 +67,7 @@ TEST_CASE("resource_creation", "[bench][fast][gpu]")
 		std::vector<acm::RenderTarget> targets;
 		targets.reserve(16);
 		for (uint32_t i = 0; i < 16; ++i)
-			targets.push_back(stack.device.createRenderTarget(targetTexture, acm::RenderTargetFinish::CopySrc));
+			targets.push_back(stack.device.createRenderTarget(targetTexture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc}));
 
 		bool valid = true;
 		for (const acm::RenderTarget& target : targets)
@@ -94,7 +94,7 @@ TEST_CASE("resource_creation", "[bench][fast][gpu]")
 		return valid;
 	};
 
-	acm::RenderTarget target = stack.device.createRenderTarget(targetTexture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = stack.device.createRenderTarget(targetTexture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	acm::Shader vertex = stack.device.createShader(vertexSpirv);
 	acm::Shader fragment = stack.device.createShader(fragmentSpirv);
 	REQUIRE(target.valid());

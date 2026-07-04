@@ -73,7 +73,7 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 	for (auto& v : variants)
 	{
 		v.tex = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-		v.target = device.createRenderTarget(v.tex, acm::RenderTargetFinish::CopySrc);
+		v.target = device.createRenderTarget(v.tex, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 		REQUIRE(v.target.valid());
 
 		acm::PipelineConfig config;

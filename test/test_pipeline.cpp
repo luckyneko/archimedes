@@ -57,7 +57,7 @@ TEST_CASE("Pipeline builds from shaders + render target", "[acm][gpu]")
 	REQUIRE_FALSE(s.device.createPipeline(incompatible).valid());
 
 	acm::Texture texture = s.device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{32, 32});
-	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc, true);
+	acm::RenderTarget depthTarget = s.device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(depthTarget.valid());
 	acm::PipelineConfig writeOnlyDepth;
 	writeOnlyDepth.vertex = vert;
@@ -113,7 +113,7 @@ TEST_CASE("Command buffer refuses a pipeline incompatible with the active render
 	const acm::Extent2D extent{kSize, kSize};
 
 	acm::Texture noDepthTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget noDepthTarget = device.createRenderTarget(noDepthTexture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget noDepthTarget = device.createRenderTarget(noDepthTexture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(noDepthTarget.valid());
 
 	acm::Shader vert = device.createShader(acmtest::triangleVertSpirv());
@@ -129,7 +129,7 @@ TEST_CASE("Command buffer refuses a pipeline incompatible with the active render
 	REQUIRE(noDepthPipeline.valid());
 
 	acm::Texture depthTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget depthTarget = device.createRenderTarget(depthTexture, acm::RenderTargetFinish::CopySrc, true);
+	acm::RenderTarget depthTarget = device.createRenderTarget(depthTexture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true});
 	REQUIRE(depthTarget.valid());
 
 	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);

@@ -175,6 +175,13 @@ namespace acm
 		CopySrc,
 	};
 
+	struct RenderTargetConfig
+	{
+		RenderTargetFinish finish{RenderTargetFinish::Sampled};
+		bool depth{false};
+		SampleCount samples{SampleCount::One};
+	};
+
 	struct SwapChainConfig
 	{
 		Extent2D extent;

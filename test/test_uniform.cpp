@@ -40,7 +40,7 @@ TEST_CASE("a uniform buffer drives shader output", "[acm][gpu]")
 	const acm::Extent2D extent{kSize, kSize};
 
 	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
-	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetFinish::CopySrc);
+	acm::RenderTarget target = device.createRenderTarget(texture, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
 	REQUIRE(target.valid());
 
 	// Two uniforms: a vertex-stage mat4 (identity) and a fragment-stage color (green).
