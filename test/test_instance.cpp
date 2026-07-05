@@ -44,7 +44,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	for (uint32_t i = 0; i < devices.size(); ++i)
 	{
 		const auto& device = devices[i];
-		REQUIRE(device.index == i);		 // index mirrors enumeration order
+		REQUIRE(device.index == i);			// index mirrors enumeration order
 		REQUIRE_FALSE(device.name.empty()); // neutral device info populated
 		REQUIRE((device.apiVersion.major > 1 || (device.apiVersion.major == 1 && device.apiVersion.minor >= 3)));
 		REQUIRE_FALSE(device.queues.empty());

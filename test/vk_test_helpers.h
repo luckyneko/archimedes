@@ -11,7 +11,6 @@
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
-
 #include <vector>
 
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so

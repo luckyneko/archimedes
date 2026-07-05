@@ -101,7 +101,7 @@ int App::run(Example& example)
 		{
 			fprintf(stderr, "CreateACMSurface: FAIL\n");
 			return 1;
-	}
+		}
 
 	// One shared device for every window.
 	const std::vector<acm::SurfaceOption> surfaceOptions = instance.surfaceOptions(surfaces);

@@ -9,9 +9,9 @@
 #pragma once
 
 #include "archimedes/acmBackend.h"
+#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
-#include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmVersion.h"
 
 #include <memory>
