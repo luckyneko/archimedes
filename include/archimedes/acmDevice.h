@@ -39,6 +39,10 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
+		// Opaque backend handle for the Vulkan-interop seam (acmVulkanInterop.h). Not a
+		// public native-handle API on its own — the raw VkPhysicalDevice/VkDevice/VkQueue
+		// accessors live in acm::interop.
+		acm::backend::Device* backend() const;
 
 		// Factories
 		// The only public way to build Device children.

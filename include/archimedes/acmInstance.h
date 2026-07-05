@@ -50,10 +50,12 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
-		VkInstance vulkanInstance() const;
+		// Opaque backend handle for the Vulkan-interop seam (acmVulkanInterop.h). Not a
+		// public native-handle API on its own — the raw VkInstance and VkSurfaceKHR
+		// adoption live in acm::interop.
+		acm::backend::Instance* backend() const;
 
 		// Factories
-		acm::Surface createVulkanSurface(VkSurfaceKHR surface);
 		// Creates a surface for offscreen ("headless") rendering without a visible
 		// window, so the full swapchain/present path can run windowless. Uses
 		// VK_EXT_headless_surface where available (e.g. MoltenVK) and otherwise an

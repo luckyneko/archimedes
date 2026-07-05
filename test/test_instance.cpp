@@ -6,6 +6,7 @@
  *  (See accompanying file LICENSE)
  */
 
+#include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
 #include <vulkan/vulkan.h>
 
@@ -31,10 +32,10 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	if (!instance.valid())
 		SKIP("no Vulkan driver available");
 
-	REQUIRE(instance.vulkanInstance() != VK_NULL_HANDLE);
+	REQUIRE(acm::interop::instance(instance) != VK_NULL_HANDLE);
 #if defined(__APPLE__)
-	REQUIRE(vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateMetalSurfaceEXT") != nullptr);
-	REQUIRE(vkGetInstanceProcAddr(instance.vulkanInstance(), "vkCreateMacOSSurfaceMVK") == nullptr);
+	REQUIRE(vkGetInstanceProcAddr(acm::interop::instance(instance), "vkCreateMetalSurfaceEXT") != nullptr);
+	REQUIRE(vkGetInstanceProcAddr(acm::interop::instance(instance), "vkCreateMacOSSurfaceMVK") == nullptr);
 #endif
 
 	const auto& devices = instance.devices();
@@ -61,9 +62,9 @@ TEST_CASE("Instance transfers ownership on move", "[acm][gpu]")
 		SKIP("no Vulkan driver available");
 
 	acm::Instance b = std::move(a);
-	VkInstance raw = b.vulkanInstance();
+	VkInstance raw = acm::interop::instance(b);
 
 	REQUIRE_FALSE(a.valid());
 	REQUIRE(b.valid());
-	REQUIRE(b.vulkanInstance() == raw);
+	REQUIRE(acm::interop::instance(b) == raw);
 }

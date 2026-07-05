@@ -12,6 +12,7 @@
 #include "RenderContext.h"
 #include "RenderWorker.h"
 
+#include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
 #include <archimedes/vulkan/RuntimeEnv.h>
 #define GLFW_INCLUDE_VULKAN
@@ -41,14 +42,14 @@ namespace
 		glfwSetWindowPos(window, spec.posX, spec.posY);
 
 		VkSurfaceKHR vulkanSurface{};
-		if (glfwCreateWindowSurface(instance.vulkanInstance(), window, nullptr, &vulkanSurface) != VK_SUCCESS)
+		if (glfwCreateWindowSurface(acm::interop::instance(instance), window, nullptr, &vulkanSurface) != VK_SUCCESS)
 		{
 			fprintf(stderr, "glfwCreateWindowSurface failed\n");
 			glfwDestroyWindow(window);
 			return {};
 		}
 		outWindow = window;
-		return instance.createVulkanSurface(vulkanSurface);
+		return acm::interop::createSurface(instance, vulkanSurface);
 	}
 
 	bool anyWindowClosing(const std::vector<GLFWwindow*>& windows)

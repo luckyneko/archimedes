@@ -60,19 +60,14 @@ namespace acm
 		return m_error;
 	}
 
-	VkInstance Instance::vulkanInstance() const
+	backend::Instance* Instance::backend() const
 	{
-		return m ? m->vulkanInstance() : VK_NULL_HANDLE;
+		return m.get();
 	}
 
 	// -----------------------------------------------------------------------------
 	// Factories
 	// -----------------------------------------------------------------------------
-
-	Surface Instance::createVulkanSurface(VkSurfaceKHR surface)
-	{
-		return m ? m->createVulkanSurface(surface) : Surface{};
-	}
 
 	Surface Instance::createHeadlessSurface(Extent2D extent)
 	{

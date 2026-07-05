@@ -60,6 +60,7 @@ namespace acm::vulkan
 		// Native access
 		VkDevice vkDevice() const { return m_device; }
 		VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
+		VkQueue vkQueue() const { return m_queue; }
 		acm::vulkan::MemoryAllocator& allocator() const { return *m_allocator; }
 
 		// Submission

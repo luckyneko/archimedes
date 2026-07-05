@@ -8,10 +8,9 @@
 
 #pragma once
 
-// Forward declarations for Vulkan handle types used by the public Vulkan-specific
-// entry points. The complete Vulkan headers may repeat these typedefs safely.
-typedef struct VkInstance_T* VkInstance;
-typedef struct VkSurfaceKHR_T* VkSurfaceKHR;
+// Backend-selection aliases. This header names NO Vulkan handle types: the mainline
+// public API is Vk-free, and every raw Vulkan type is confined to the opt-in interop
+// header (acmVulkanInterop.h), which includes the real Vulkan headers.
 
 namespace acm::vulkan
 {
