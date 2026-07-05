@@ -1,12 +1,12 @@
 /*
- *  Created by LuckyNeko on 02/07/2026.
+ *  Created by LuckyNeko on 05/07/2026.
  *  Copyright 2026 LuckyNeko
  *
  *  Distributed under the MIT Software License
  *  (See accompanying file LICENSE)
  */
 
-#include "archimedes/vulkan/RuntimeEnv.h"
+#include "archimedes/acmRuntime.h"
 
 #ifndef ACM_MOLTENVK_LOG_LEVEL
 #	define ACM_MOLTENVK_LOG_LEVEL "1"
@@ -19,14 +19,9 @@
 #	include <string>
 #endif
 
-namespace acm::vulkan
+namespace acm
 {
-
-	// -----------------------------------------------------------------------------
-	// Environment
-	// -----------------------------------------------------------------------------
-
-	void useStagedVulkanICD()
+	void useStagedVulkanRuntime()
 	{
 #if defined(__APPLE__)
 		setenv("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL, 0); // 0: do not overwrite
@@ -50,5 +45,4 @@ namespace acm::vulkan
 		}
 #endif
 	}
-
-} // namespace acm::vulkan
+} // namespace acm

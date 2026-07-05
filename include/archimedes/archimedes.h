@@ -20,6 +20,7 @@
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderer.h"
 #include "archimedes/acmRenderTarget.h"
+#include "archimedes/acmRuntime.h"
 #include "archimedes/acmSampler.h"
 #include "archimedes/acmShader.h"
 #include "archimedes/acmSurface.h"

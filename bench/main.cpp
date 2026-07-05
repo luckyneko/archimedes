@@ -6,12 +6,12 @@
  *  (See accompanying file LICENSE)
  */
 
-#include "archimedes/vulkan/RuntimeEnv.h"
+#include "archimedes/acmRuntime.h"
 
 #include <catch2/catch_all.hpp>
 
 int main(int argc, char* argv[])
 {
-	acm::vulkan::useStagedVulkanICD();
+	acm::useStagedVulkanRuntime();
 	return Catch::Session().run(argc, argv);
 }

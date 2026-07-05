@@ -14,7 +14,6 @@
 
 #include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
-#include <archimedes/vulkan/RuntimeEnv.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -63,7 +62,7 @@ namespace
 
 int App::run(Example& example)
 {
-	acm::vulkan::useStagedVulkanICD();
+	acm::useStagedVulkanRuntime();
 
 	acm::InstanceConfig instanceConfig;
 	instanceConfig.validation = true;

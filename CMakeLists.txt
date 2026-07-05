@@ -54,6 +54,7 @@ set(SOURCE_FILES
     src/acmPipeline.cpp
     src/acmRenderer.cpp
     src/acmRenderTarget.cpp
+    src/acmRuntime.cpp
     src/acmSampler.cpp
     src/acmShader.cpp
     src/acmSurface.cpp
@@ -75,7 +76,6 @@ set(SOURCE_FILES
     src/vulkan/PlatformSurface.cpp
     src/vulkan/Renderer.cpp
     src/vulkan/RenderTarget.cpp
-    src/vulkan/RuntimeEnv.cpp
     src/vulkan/Sampler.cpp
     src/vulkan/Shader.cpp
     src/vulkan/Surface.cpp
