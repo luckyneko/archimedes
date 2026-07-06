@@ -132,6 +132,12 @@ namespace acm::vulkan
 	{
 		acm::RenderTarget target = std::move(m_renderTarget);
 		m_renderTarget.reset();
+		// A pipeline binding is scoped to its rendering pass: forget it here so a pipeline
+		// bound for this target isn't judged against the next beginRendering's target (a
+		// different one, e.g. an offscreen pre-pass followed by the swapchain pass, would
+		// otherwise fail the compatibility check even though the caller rebinds in the next
+		// scope). A draw without a rebind still trips the m_graphicsPipelineBound guard.
+		forgetGraphicsPipeline();
 		if (!target.valid() || !target.backend())
 			return;
 		target.backend()->endRendering(m_commandBuffer);

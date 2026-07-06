@@ -35,6 +35,7 @@ add_executable(test-${PROJECT_NAME}
     test_compute.cpp
     test_dynamic_uniform.cpp
     test_storage_image.cpp
+    test_multipass.cpp
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
