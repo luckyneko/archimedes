@@ -256,8 +256,15 @@ need custom selection logic. `Instance::surfaceOptions(surface[s])` filters thos
 options to graphics queues that can present to one or more surfaces and supplies the
 surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
 Pass `SurfacePreferences` to rank the compatible format and present-mode combinations;
-the default preferences put common SRGB surface formats first and prefer FIFO presentation
-as the portable vsynced default.
+the default preferences put **non-encoding (UNORM) surface formats first** (BGRA then RGBA,
+colorspace `SrgbNonlinear`) and prefer FIFO presentation as the portable vsynced default.
+A non-encoding surface is the safe default: the driver stores what a shader writes without
+applying the linear→sRGB transfer function, so **each producer writes display-ready sRGB
+bytes** — a GUI overlay emits its already-sRGB colours as-is (no double-encode washout), and
+linear-lit rendering must **encode in-shader** before write (see `mesh.frag`). Only UNORM
+formats are listed, so a surface exposing none fails loudly rather than degrading to
+washout; a consumer that wants hardware sRGB auto-encode passes its own `SurfacePreferences`
+with an SRGB format.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
 device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`
