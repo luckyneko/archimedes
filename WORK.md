@@ -11,12 +11,12 @@ inside the render frame) are **done** — see the bottom of this file.
 
 ## Current suggested next work
 
-### 1. Pipeline config polish
+### 1. Pipeline state completeness
 
-Pipeline defaults are still smoke-test flavored and blend is preset-only. Pipeline/render-target
-format and sample mismatches are guarded during command recording and surfaced through
-`acm::Error`; depth now has explicit test/write/compare state, but there is still no
-depth bias/stencil and no considered default-state preset.
+Pipeline/render-target format and sample mismatches are guarded during command recording
+and surfaced through `acm::Error`; default-state presets exist now, and depth has explicit
+test/write/compare state. Remaining polish is arbitrary blend factors plus depth
+bias/stencil if a real example needs them.
 
 ### 2. Upload/staging performance
 
@@ -124,6 +124,10 @@ real memory pressure this renderer doesn't generate. **Don't build speculatively
   optional curated device features. The default still enables every supported known
   feature; unavailable required features make `createDevice` return an invalid `Device`
   with an `acm::Error`. Proved by `test_device.cpp`.
+- **Pipeline config presets** — `PipelineConfig::Default()` names the unchanged
+  smoke-test defaults, while `Mesh3D()`, `Sprite2D()`, and `Wireframe(width)` provide
+  opt-in starting points without silently changing existing pipeline behavior. Proved
+  by `test_pipeline_state.cpp`; `Sprite2D` and `Wireframe` are used by testbed examples.
 - **Testbed example framework** — the testbed is a runner (`App`) + swappable `Example`
   plugins selected by name (`testbed <name>` / `--list`), generalised to 1..N windows.
   Six examples give live-driver coverage: `ripple-mesh` (multi-window + threads + compute

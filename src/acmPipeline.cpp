@@ -15,6 +15,41 @@
 namespace acm
 {
 	// -----------------------------------------------------------------------------
+	// PipelineConfig
+	// -----------------------------------------------------------------------------
+
+	PipelineConfig PipelineConfig::Default()
+	{
+		return {};
+	}
+
+	PipelineConfig PipelineConfig::Mesh3D()
+	{
+		PipelineConfig config;
+		config.cullMode = acm::CullMode::Back;
+		config.frontFace = acm::FrontFace::Clockwise;
+		return config;
+	}
+
+	PipelineConfig PipelineConfig::Sprite2D()
+	{
+		PipelineConfig config;
+		config.topology = acm::Topology::TriangleStrip;
+		config.cullMode = acm::CullMode::None;
+		config.blend = acm::BlendMode::AlphaBlend;
+		return config;
+	}
+
+	PipelineConfig PipelineConfig::Wireframe(float lineWidth)
+	{
+		PipelineConfig config;
+		config.cullMode = acm::CullMode::None;
+		config.polygonMode = acm::PolygonMode::Line;
+		config.lineWidth = lineWidth;
+		return config;
+	}
+
+	// -----------------------------------------------------------------------------
 	// Lifetime
 	// -----------------------------------------------------------------------------
 

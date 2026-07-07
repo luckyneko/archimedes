@@ -63,12 +63,9 @@ bool WireframeExample::onInit(acm::Device& device, const std::vector<RenderConte
 	acm::PipelineShaders shaders;
 	shaders.vertex = tb::loadShader(device, "cube_instanced.vert.spv");
 	shaders.fragment = tb::loadShader(device, "cube_instanced.frag.spv");
-	acm::PipelineConfig config;
+	acm::PipelineConfig config = acm::PipelineConfig::Wireframe(2.0f);
 	config.descriptorLayout = m_layout;
 	config.depth = acm::DepthState::TestWrite();
-	config.cullMode = acm::CullMode::None;		 // see all edges
-	config.polygonMode = acm::PolygonMode::Line; // wireframe (feature-gated)
-	config.lineWidth = 2.0f;					 // wide lines (feature-gated)
 	config.vertexLayout.stride = sizeof(tb::CubeVertex);
 	config.vertexLayout.attributes = {
 		{0, acm::Format::R32G32B32_Sfloat, offsetof(tb::CubeVertex, pos)},

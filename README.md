@@ -92,6 +92,7 @@ tests skip when the driver or capability they need is unavailable.
   MSAA, wireframe/wide-line state, and configurable pipeline state.
 - Compute pipelines and a renderer pre-pass for compute/barriers/transitions before the
   draw pass.
+- Named pipeline-state presets for default, 3D mesh, 2D sprite, and wireframe setups.
 - Pooling Vulkan memory sub-allocator and deferred destruction keyed to completed queue
   submissions.
 - Testbed examples that drive the API against live windows and real driver behavior.

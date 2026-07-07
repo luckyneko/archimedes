@@ -133,10 +133,8 @@ bool SpriteAtlasExample::onInit(acm::Device& device, const std::vector<RenderCon
 	acm::PipelineShaders shaders;
 	shaders.vertex = tb::loadShader(device, "sprite.vert.spv");
 	shaders.fragment = tb::loadShader(device, "sprite.frag.spv");
-	acm::PipelineConfig config;
+	acm::PipelineConfig config = acm::PipelineConfig::Sprite2D();
 	config.descriptorLayout = m_layout;
-	config.topology = acm::Topology::TriangleStrip;
-	config.blend = acm::BlendMode::AlphaBlend;
 	m_pipeline = device.createPipeline(shaders, m_views[0]->renderTarget(), config);
 	return m_pipeline.valid();
 }

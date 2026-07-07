@@ -32,6 +32,13 @@ namespace acm
 	// sample count.
 	struct PipelineConfig
 	{
+		// Presets. Default() is exactly the default-constructed state; the others are
+		// opt-in starting points that callers can still customize field-by-field.
+		static PipelineConfig Default();
+		static PipelineConfig Mesh3D();
+		static PipelineConfig Sprite2D();
+		static PipelineConfig Wireframe(float lineWidth = 1.0f);
+
 		acm::VertexLayout vertexLayout;
 		acm::DescriptorSetLayout descriptorLayout;
 		// Must match the target: enable depth test/write only for a target that has a

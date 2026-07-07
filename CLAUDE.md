@@ -465,7 +465,10 @@ fixed-function knobs `topology`, `cullMode`, `frontFace`, `blend`, `polygonMode`
 combinatorial pile of `createPipeline` overloads. The knobs default to the original
 smoke-test state
 (`TriangleList`, `CullMode::None`, `FrontFace::Clockwise`, `BlendMode::Opaque`,
-`PolygonMode::Fill`, width 1, no sample shading); the target supplies the sample count.
+`PolygonMode::Fill`, width 1, no sample shading); `PipelineConfig::Default()` names that
+same state explicitly without changing `PipelineConfig{}`. Presets
+`PipelineConfig::Mesh3D()`, `Sprite2D()`, and `Wireframe(width)` are opt-in starting
+points that callers can customize field-by-field. The target supplies the sample count.
 The neutral enums live in [acmTypes.h](include/archimedes/acmTypes.h) and
 convert in [Convert.cpp](src/vulkan/Convert.cpp). `polygonMode`/`lineWidth`/
 `minSampleShading` are gated on the device's enabled features (see above) and fall back
@@ -823,10 +826,9 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 ## Known rough edges (pre-existing, not yet addressed)
 
 - Pipeline state is configurable for topology / cull mode / front face / blend /
-  polygon mode / samples, but the *defaults* are still the smoke-test set (no cull,
-  clockwise, opaque, fill, 1 sample) rather than a considered 3D default (back-face
-  cull). `BlendMode` is a two-way preset (opaque / src-alpha-over), not arbitrary
-  factors.
+  polygon mode / samples, with named presets for the smoke-test default, 3D meshes,
+  2D sprites, and wireframe. `BlendMode` is still a two-way preset (opaque /
+  src-alpha-over), not arbitrary factors, and there is no depth bias or stencil state.
 - Device features are still a curated bool set (`fillModeNonSolid`, `wideLines`,
   `samplerAnisotropy`, `sampleRateShading`). `DeviceConfig` can require or optionally
   enable those known features, but future feature growth may want an enum/request model

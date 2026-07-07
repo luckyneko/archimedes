@@ -32,6 +32,36 @@ namespace
 	}
 } // namespace
 
+TEST_CASE("PipelineConfig presets expose named default states", "[acm]")
+{
+	const acm::PipelineConfig defaults = acm::PipelineConfig::Default();
+	REQUIRE(defaults.topology == acm::Topology::TriangleList);
+	REQUIRE(defaults.cullMode == acm::CullMode::None);
+	REQUIRE(defaults.frontFace == acm::FrontFace::Clockwise);
+	REQUIRE(defaults.blend == acm::BlendMode::Opaque);
+	REQUIRE(defaults.polygonMode == acm::PolygonMode::Fill);
+	REQUIRE(defaults.lineWidth == 1.0f);
+	REQUIRE(defaults.minSampleShading == 0.0f);
+	REQUIRE_FALSE(defaults.depth.test);
+	REQUIRE_FALSE(defaults.depth.write);
+
+	const acm::PipelineConfig mesh = acm::PipelineConfig::Mesh3D();
+	REQUIRE(mesh.topology == acm::Topology::TriangleList);
+	REQUIRE(mesh.cullMode == acm::CullMode::Back);
+	REQUIRE(mesh.frontFace == acm::FrontFace::Clockwise);
+	REQUIRE(mesh.blend == acm::BlendMode::Opaque);
+
+	const acm::PipelineConfig sprite = acm::PipelineConfig::Sprite2D();
+	REQUIRE(sprite.topology == acm::Topology::TriangleStrip);
+	REQUIRE(sprite.cullMode == acm::CullMode::None);
+	REQUIRE(sprite.blend == acm::BlendMode::AlphaBlend);
+
+	const acm::PipelineConfig wire = acm::PipelineConfig::Wireframe(2.0f);
+	REQUIRE(wire.cullMode == acm::CullMode::None);
+	REQUIRE(wire.polygonMode == acm::PolygonMode::Line);
+	REQUIRE(wire.lineWidth == 2.0f);
+}
+
 TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
@@ -79,9 +109,13 @@ TEST_CASE("pipeline cull mode / front face take effect", "[acm][gpu]")
 		acm::PipelineShaders shaders;
 		shaders.vertex = device.createShader(acmtest::triangleVertSpirv());
 		shaders.fragment = device.createShader(acmtest::triangleFragSpirv());
-		acm::PipelineConfig config;
-		config.cullMode = v.cull;
-		config.frontFace = v.front;
+		const bool mesh3D = v.cull == acm::CullMode::Back && v.front == acm::FrontFace::Clockwise;
+		acm::PipelineConfig config = mesh3D ? acm::PipelineConfig::Mesh3D() : acm::PipelineConfig::Default();
+		if (!mesh3D)
+		{
+			config.cullMode = v.cull;
+			config.frontFace = v.front;
+		}
 		v.pipeline = device.createPipeline(shaders, v.target, config);
 		REQUIRE(v.pipeline.valid());
 
