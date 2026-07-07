@@ -250,6 +250,14 @@ in `prePass` feeds the draws through a barrier with no extra submit (proved by
 
 `DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
 ([acmDeviceInfo.h](include/archimedes/acmDeviceInfo.h)) are plain data structs, not handles.
+Creation `*Config` structs carry optional knobs with production-safe defaults; required
+identity stays explicit in the factory call, or in a non-config value type when several
+required fields belong together. For example, `createTexture(format, extent, config)`
+keeps the texture identity in the call and `TextureConfig` only adds optional storage /
+mipmap behavior; `createPipeline(PipelineShaders, target, config)` groups the required
+shader identity separately from optional `PipelineConfig` state. Do not put required
+construction inputs into `*Config`, and do not add a `*Config` for a single required
+choice just to make a signature look uniform.
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
 `dynamicRendering` features;
@@ -263,8 +271,13 @@ need custom selection logic. `Instance::surfaceOptions(surface[s])` filters thos
 options to graphics queues that can present to one or more surfaces and supplies the
 surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
 Pass `SurfacePreferences` to rank the compatible format and present-mode combinations;
-the default preferences put **non-encoding (UNORM) surface formats first** (BGRA then RGBA,
-colorspace `SrgbNonlinear`) and prefer FIFO presentation as the portable vsynced default.
+an empty `SurfacePreferences{}` means no explicit ranking and preserves backend order for
+any unspecified axis. Calling `surfaceOptions(surface[s])` with no preferences uses
+`SurfacePreferences::Default()`, which puts **non-encoding (UNORM) surface formats first**
+(BGRA then RGBA, colorspace `SrgbNonlinear`) and prefers FIFO presentation as the portable
+vsynced default. The named presets are `SurfacePreferences::Default()`,
+`SurfacePreferences::HardwareSrgb()` (SRGB formats first, FIFO pacing), and
+`SurfacePreferences::LowLatency()` (UNORM formats with Mailbox / Immediate ahead of FIFO).
 A non-encoding surface is the safe default: the driver stores what a shader writes without
 applying the linear→sRGB transfer function, so **each producer writes display-ready sRGB
 bytes** — a GUI overlay emits its already-sRGB colours as-is (no double-encode washout), and

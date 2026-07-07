@@ -19,6 +19,34 @@
 // e.g. MoltenVK, else an off-screen platform window). SKIPs without a live driver
 // or any headless mechanism.
 
+TEST_CASE("SurfacePreferences presets expose color and pacing policy", "[acm][unit]")
+{
+	const acm::SurfacePreferences empty;
+	REQUIRE(empty.formats.empty());
+	REQUIRE(empty.presentModes.empty());
+
+	const acm::SurfacePreferences defaults = acm::SurfacePreferences::Default();
+	REQUIRE(defaults.formats.size() == 2);
+	REQUIRE(defaults.formats[0].format == acm::Format::B8G8R8A8_Unorm);
+	REQUIRE(defaults.formats[1].format == acm::Format::R8G8B8A8_Unorm);
+	REQUIRE(defaults.presentModes.size() == 4);
+	REQUIRE(defaults.presentModes[0] == acm::PresentMode::Fifo);
+
+	const acm::SurfacePreferences hardwareSrgb = acm::SurfacePreferences::HardwareSrgb();
+	REQUIRE(hardwareSrgb.formats.size() == 2);
+	REQUIRE(hardwareSrgb.formats[0].format == acm::Format::B8G8R8A8_Srgb);
+	REQUIRE(hardwareSrgb.formats[1].format == acm::Format::R8G8B8A8_Srgb);
+	REQUIRE(hardwareSrgb.presentModes[0] == acm::PresentMode::Fifo);
+
+	const acm::SurfacePreferences lowLatency = acm::SurfacePreferences::LowLatency();
+	REQUIRE(lowLatency.formats[0].format == acm::Format::B8G8R8A8_Unorm);
+	REQUIRE(lowLatency.presentModes.size() == 4);
+	REQUIRE(lowLatency.presentModes[0] == acm::PresentMode::Mailbox);
+	REQUIRE(lowLatency.presentModes[1] == acm::PresentMode::Immediate);
+	REQUIRE(lowLatency.presentModes[2] == acm::PresentMode::FifoRelaxed);
+	REQUIRE(lowLatency.presentModes[3] == acm::PresentMode::Fifo);
+}
+
 TEST_CASE("Surface (headless) produces compatible surface options", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});

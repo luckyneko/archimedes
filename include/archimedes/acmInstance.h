@@ -70,8 +70,10 @@ namespace acm
 		// Enumeration
 		const std::vector<acm::DeviceInfo>& devices() const;
 		std::vector<acm::DeviceOption> graphicsOptions() const;
-		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface, const acm::SurfacePreferences& preferences = {}) const;
-		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces, const acm::SurfacePreferences& preferences = {}) const;
+		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface) const;
+		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface, const acm::SurfacePreferences& preferences) const;
+		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces) const;
+		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces, const acm::SurfacePreferences& preferences) const;
 
 	private:
 		std::unique_ptr<acm::backend::Instance> m;

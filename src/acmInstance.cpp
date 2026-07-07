@@ -107,9 +107,19 @@ namespace acm
 		return options;
 	}
 
+	std::vector<SurfaceOption> Instance::surfaceOptions(const Surface& surface) const
+	{
+		return surfaceOptions(surface, SurfacePreferences::Default());
+	}
+
 	std::vector<SurfaceOption> Instance::surfaceOptions(const Surface& surface, const SurfacePreferences& preferences) const
 	{
 		return surfaceOptions(std::vector<Surface>{surface}, preferences);
+	}
+
+	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces) const
+	{
+		return surfaceOptions(surfaces, SurfacePreferences::Default());
 	}
 
 	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces, const SurfacePreferences& preferences) const

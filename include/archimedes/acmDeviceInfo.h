@@ -54,28 +54,54 @@ namespace acm
 
 	struct SurfacePreferences
 	{
-		// Non-encoding (UNORM) surface formats first: the driver stores what a shader
-		// writes without applying the linear->sRGB transfer function, so producers own
-		// their encoding — a producer writes display-ready sRGB bytes (a GUI its native
-		// colours as-is; linear-lit rendering encodes in-shader before write). The
-		// colorspace stays SrgbNonlinear, so the compositor still reads those bytes as
-		// sRGB. This is the safe default: it avoids the subtle double-encode washout an
-		// auto-encoding (SRGB-format) surface inflicts on already-sRGB content (e.g. an
-		// ImGui overlay). BGRA first — the native drawable format on Metal and on NVIDIA
-		// Windows/Linux; channel order is a memory-layout detail the render/sample path
-		// maps for you, transparent to logical-RGBA shader code. Only UNORM is listed, so
-		// a surface exposing no UNORM format fails loudly rather than degrading to washout;
-		// a consumer that wants hardware sRGB auto-encode passes its own preferences.
-		std::vector<acm::SurfaceFormat> formats{
-			{acm::Format::B8G8R8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
-			{acm::Format::R8G8B8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
-		};
-		std::vector<acm::PresentMode> presentModes{
-			acm::PresentMode::Fifo,
-			acm::PresentMode::Mailbox,
-			acm::PresentMode::FifoRelaxed,
-			acm::PresentMode::Immediate,
-		};
+		// Empty means "no ranking preference"; surfaceOptions(surface) uses Default()
+		// explicitly. Provide only the axes you want to rank.
+		std::vector<acm::SurfaceFormat> formats;
+		std::vector<acm::PresentMode> presentModes;
+
+		// Safe general-purpose choice for mixed GUI and shader-rendered content.
+		static SurfacePreferences Default()
+		{
+			// Non-encoding (UNORM) surface formats first: the driver stores what a shader
+			// writes without applying the linear->sRGB transfer function, so producers own
+			// their encoding. FIFO is the portable vsynced present mode.
+			SurfacePreferences preferences;
+			preferences.formats = {
+				{acm::Format::B8G8R8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
+				{acm::Format::R8G8B8A8_Unorm, acm::ColorSpace::SrgbNonlinear},
+			};
+			preferences.presentModes = {
+				acm::PresentMode::Fifo,
+				acm::PresentMode::Mailbox,
+				acm::PresentMode::FifoRelaxed,
+				acm::PresentMode::Immediate,
+			};
+			return preferences;
+		}
+
+		// Prefer hardware sRGB attachment encoding for linear-color renderers.
+		static SurfacePreferences HardwareSrgb()
+		{
+			SurfacePreferences preferences = Default();
+			preferences.formats = {
+				{acm::Format::B8G8R8A8_Srgb, acm::ColorSpace::SrgbNonlinear},
+				{acm::Format::R8G8B8A8_Srgb, acm::ColorSpace::SrgbNonlinear},
+			};
+			return preferences;
+		}
+
+		// Prefer lower input latency over guaranteed vsync pacing.
+		static SurfacePreferences LowLatency()
+		{
+			SurfacePreferences preferences = Default();
+			preferences.presentModes = {
+				acm::PresentMode::Mailbox,
+				acm::PresentMode::Immediate,
+				acm::PresentMode::FifoRelaxed,
+				acm::PresentMode::Fifo,
+			};
+			return preferences;
+		}
 	};
 
 	struct SurfaceOption
