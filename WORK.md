@@ -18,25 +18,19 @@ format and sample mismatches are guarded during command recording and surfaced t
 `acm::Error`; depth now has explicit test/write/compare state, but there is still no
 depth bias/stencil and no considered default-state preset.
 
-### 2. Feature negotiation API
-
-Device features are curated and silently degrade today. Add a small request/result
-model so examples and callers can tell whether features such as wide lines,
-anisotropy, sample shading, or future extensions are required or optional.
-
-### 3. Upload/staging performance
+### 2. Upload/staging performance
 
 `Buffer::write` and `Texture::upload` are correct but load-time oriented: staging +
 one-shot command + wait. Start with persistent upload command resources or an upload
 ring if streaming assets or per-frame uploads become real requirements.
 
-### 4. Memory allocator refinement
+### 3. Memory allocator refinement
 
 Best-fit allocation is small and contained in `src/vulkan/Memory.cpp`. Block
 reclamation is useful later. Full defragmentation should wait until real memory
 pressure appears.
 
-### 5. Texture API completeness
+### 4. Texture API completeness
 
 Missing pieces include explicit mip regeneration, partial/level uploads, renderable
 mipmapped textures, and better mip filtering. This is a natural feature area once
@@ -126,6 +120,10 @@ real memory pressure this renderer doesn't generate. **Don't build speculatively
   integration commands, CI-tested platforms, feature summary, testbed examples,
   first-draw/texture/compute API sketches, tests, and benchmarks. Deeper architecture
   remains in `CLAUDE.md`.
+- **Feature negotiation API** — `DeviceConfig` lets callers distinguish required and
+  optional curated device features. The default still enables every supported known
+  feature; unavailable required features make `createDevice` return an invalid `Device`
+  with an `acm::Error`. Proved by `test_device.cpp`.
 - **Testbed example framework** — the testbed is a runner (`App`) + swappable `Example`
   plugins selected by name (`testbed <name>` / `--list`), generalised to 1..N windows.
   Six examples give live-driver coverage: `ripple-mesh` (multi-window + threads + compute

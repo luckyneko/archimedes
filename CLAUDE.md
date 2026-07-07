@@ -149,7 +149,7 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
    ├── interop::adoptSurface(VkSurfaceKHR) ──> Surface   // adopted platform window surface + per-device support query
    ├── createHeadlessSurface([extent]) ──────> Surface   // windowless offscreen surface (headless ext, or an owned off-screen window)
    │
-   └── createDevice(DeviceOption) ───────────────────────> Device    // logical device + queue family
+   └── createDevice(DeviceOption[, DeviceConfig]) ───────> Device    // logical device + queue family + feature policy
           │
           ├── createSwapChain(Surface, SurfaceOption[, SwapChainConfig]) ─> SwapChain
           │        │   builds a RenderTarget per swapchain image via the Device's stable target pool:
@@ -248,7 +248,7 @@ barriers, image transitions) into the same command buffer as the draws — so a 
 in `prePass` feeds the draws through a barrier with no extra submit (proved by
 `test_renderer.cpp`).
 
-`DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceOption`, `SurfaceDeviceSupport`, and `DeviceFeatures`
+`DeviceInfo`, `QueueInfo`, `DeviceOption`, `SurfaceOption`, `SurfaceDeviceSupport`, `DeviceFeatures`, and `DeviceConfig`
 ([acmDeviceInfo.h](include/archimedes/acmDeviceInfo.h)) are plain data structs, not handles.
 Creation `*Config` structs carry optional knobs with production-safe defaults; required
 identity stays explicit in the factory call, or in a non-config value type when several
@@ -266,8 +266,8 @@ the reported version is available as `DeviceInfo::apiVersion`. Device creation e
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
 submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::graphicsOptions()`
 reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), and
-`Instance::createDevice(option)` is the preferred creation path when the caller does not
-need custom selection logic. `Instance::surfaceOptions(surface[s])` filters those device
+`Instance::createDevice(option[, config])` is the preferred creation path when the caller does not
+need custom selection logic beyond feature policy. `Instance::surfaceOptions(surface[s])` filters those device
 options to graphics queues that can present to one or more surfaces and supplies the
 surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
 Pass `SurfacePreferences` to rank the compatible format and present-mode combinations;
@@ -287,12 +287,16 @@ washout; a consumer that wants hardware sRGB auto-encode passes its own `Surface
 with an SRGB format.
 `DeviceFeatures` is the curated subset of optional device features the renderer can use
 (`fillModeNonSolid`, `wideLines`, `samplerAnisotropy`, `sampleRateShading`): enumeration queries each physical
-device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`, and `Device`
-creation enables the supported subset through the matching `VkDeviceCreateInfo::pNext`
-chain and reports it via `Device::enabledFeatures()`. Consumers that want a feature check it
-and degrade-with-a-warning when it's off rather than producing an invalid object — a
-`Pipeline` falls back to fill / width 1 for wireframe / wide lines, and a `Sampler`
-falls back to isotropic when `maxAnisotropy` > 1 but `samplerAnisotropy` is unavailable. `Version` ([acmVersion.h](include/archimedes/acmVersion.h))
+device's availability through `VkPhysicalDeviceFeatures2` into `DeviceInfo::features`.
+`DeviceConfig` carries `requiredFeatures` and `optionalFeatures` (default
+`DeviceFeatures::AllKnown()`, preserving the original "enable every supported curated feature"
+behavior). Device creation fails with `acm::Error` if a required feature is unavailable;
+otherwise it enables `supported & (required | optional)` through the matching
+`VkDeviceCreateInfo::pNext` chain and reports the result via `Device::enabledFeatures()`.
+Consumers that did not require a feature still check `enabledFeatures()` and degrade-with-a-warning
+when it's off rather than producing an invalid object — a `Pipeline` falls back to fill /
+width 1 for wireframe / wide lines, and a `Sampler` falls back to isotropic when
+`maxAnisotropy` > 1 but `samplerAnisotropy` is unavailable. `Version` ([acmVersion.h](include/archimedes/acmVersion.h))
 carries the engine version; `acm::VERSION` is the engine's own.
 Physical-device properties are queried through the Vulkan 1.3 `*2` APIs: `Device`
 caches its general properties for limits/sample-count decisions, `MemoryAllocator`
@@ -823,10 +827,10 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   clockwise, opaque, fill, 1 sample) rather than a considered 3D default (back-face
   cull). `BlendMode` is a two-way preset (opaque / src-alpha-over), not arbitrary
   factors.
-- Device features are a curated, all-or-nothing set (`fillModeNonSolid`, `wideLines`,
-  `samplerAnisotropy`, `sampleRateShading`): enabled automatically when the device supports
-  them, with no way to request others, and consumers silently degrade (warn) rather than
-  erroring when a wanted feature is off.
+- Device features are still a curated bool set (`fillModeNonSolid`, `wideLines`,
+  `samplerAnisotropy`, `sampleRateShading`). `DeviceConfig` can require or optionally
+  enable those known features, but future feature growth may want an enum/request model
+  once extension and limit-style capabilities become part of negotiation.
 - Mipmaps are generate-on-upload only: levels come from a linear blit-down chain (a box
   filter — no Kaiser/sRGB-correct downsample), the texture must be created `mipmapped`
   up front (no deferred / regenerate), it needs a linear-blittable format (else it

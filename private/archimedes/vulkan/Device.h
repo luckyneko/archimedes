@@ -34,7 +34,7 @@ namespace acm::vulkan
 	{
 	public:
 		// Lifetime
-		Device(acm::vulkan::Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily);
+		Device(acm::vulkan::Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily, const acm::DeviceConfig& config);
 		~Device();
 
 		// State
@@ -89,6 +89,8 @@ namespace acm::vulkan
 
 	private:
 		// Internals
+		static const char* missingRequiredFeature(const acm::DeviceFeatures& available, const acm::DeviceFeatures& required);
+		static acm::DeviceFeatures requestedFeatures(const acm::DeviceFeatures& available, const acm::DeviceConfig& config);
 		static acm::Error constructionError(acm::Error error, const char* fallback);
 		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial);
 		template <typename T, typename Constructor>

@@ -151,6 +151,14 @@ acm::SwapChain swapChain = device.createSwapChain(surface, options.front());
 acm::Renderer renderer = device.createRenderer(swapChain);
 ```
 
+Use `DeviceConfig` when a feature is mandatory rather than a soft fallback:
+
+```cpp
+acm::DeviceConfig config;
+config.requiredFeatures.samplerAnisotropy = true;
+acm::Device device = instance.createDevice(options.front().device, config);
+```
+
 A first draw is shaders plus a pipeline compatible with the render target. The renderer
 opens dynamic rendering, sets viewport/scissor, and passes a command buffer to your draw
 callback:

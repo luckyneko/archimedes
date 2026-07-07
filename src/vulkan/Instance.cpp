@@ -164,9 +164,9 @@ namespace acm::vulkan
 		return acm::Surface(std::move(inserted.resource));
 	}
 
-	acm::Device Instance::createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueFamily)
+	acm::Device Instance::createDevice(const acm::DeviceInfo& deviceInfo, uint32_t queueFamily, const acm::DeviceConfig& config)
 	{
-		auto device = std::make_unique<Device>(*this, deviceInfo, queueFamily);
+		auto device = std::make_unique<Device>(*this, deviceInfo, queueFamily, config);
 		return acm::Device(std::move(device));
 	}
 

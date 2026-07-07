@@ -30,10 +30,21 @@ namespace acm
 	// was actually turned on (the available subset). Extend as new features are wired.
 	struct DeviceFeatures
 	{
+		static DeviceFeatures AllKnown() { return {true, true, true, true}; }
+
 		bool fillModeNonSolid{false};  // POLYGON_MODE_LINE / POINT — wireframe
 		bool wideLines{false};		   // lineWidth > 1.0
 		bool samplerAnisotropy{false}; // anisotropic texture filtering
 		bool sampleRateShading{false}; // per-sample shading (MSAA inside primitives)
+	};
+
+	struct DeviceConfig
+	{
+		// Required features must be available or device creation fails with an Error.
+		acm::DeviceFeatures requiredFeatures;
+		// Optional features are enabled when available. The default preserves the
+		// original behavior: enable every curated feature the selected device supports.
+		acm::DeviceFeatures optionalFeatures{acm::DeviceFeatures::AllKnown()};
 	};
 
 	struct DeviceInfo

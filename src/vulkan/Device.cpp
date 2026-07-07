@@ -25,6 +25,7 @@
 #include "archimedes/vulkan/Instance.h"
 
 #include <cstring>
+#include <string>
 #include <utility>
 
 namespace acm::vulkan
@@ -34,7 +35,7 @@ namespace acm::vulkan
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
-	Device::Device(Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily)
+	Device::Device(Instance& instance, const acm::DeviceInfo& deviceInfo, uint32_t queueFamily, const acm::DeviceConfig& config)
 		: m_instance(&instance)
 	{
 		if (!m_instance || !m_instance->valid() || deviceInfo.index >= m_instance->devices().size())
@@ -51,6 +52,12 @@ namespace acm::vulkan
 		}
 		m_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 		vkGetPhysicalDeviceProperties2(m_physicalDevice, &m_properties);
+		if (const char* missing = missingRequiredFeature(m_deviceInfo.features, config.requiredFeatures))
+		{
+			m_error = acm::Error(std::string("failed to create device: required feature ") + missing + " is unavailable");
+			return;
+		}
+		m_enabledFeatures = requestedFeatures(m_deviceInfo.features, config);
 
 		float queuePriority = 1.0f;
 		VkDeviceQueueCreateInfo queueCreateInfo = {};
@@ -81,10 +88,10 @@ namespace acm::vulkan
 		VkPhysicalDeviceFeatures2 deviceFeatures = {};
 		deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		deviceFeatures.pNext = &vulkan13Features;
-		deviceFeatures.features.fillModeNonSolid = m_deviceInfo.features.fillModeNonSolid ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.wideLines = m_deviceInfo.features.wideLines ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.samplerAnisotropy = m_deviceInfo.features.samplerAnisotropy ? VK_TRUE : VK_FALSE;
-		deviceFeatures.features.sampleRateShading = m_deviceInfo.features.sampleRateShading ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.fillModeNonSolid = m_enabledFeatures.fillModeNonSolid ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.wideLines = m_enabledFeatures.wideLines ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.samplerAnisotropy = m_enabledFeatures.samplerAnisotropy ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.sampleRateShading = m_enabledFeatures.sampleRateShading ? VK_TRUE : VK_FALSE;
 
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -102,7 +109,6 @@ namespace acm::vulkan
 
 		vkGetDeviceQueue(m_device, queueFamily, 0, &m_queue);
 		m_queueFamily = queueFamily;
-		m_enabledFeatures = m_deviceInfo.features;
 		m_allocator = std::make_unique<MemoryAllocator>(m_device, m_physicalDevice);
 	}
 
@@ -139,6 +145,29 @@ namespace acm::vulkan
 	// -----------------------------------------------------------------------------
 	// Capabilities
 	// -----------------------------------------------------------------------------
+
+	const char* Device::missingRequiredFeature(const acm::DeviceFeatures& available, const acm::DeviceFeatures& required)
+	{
+		if (required.fillModeNonSolid && !available.fillModeNonSolid)
+			return "fillModeNonSolid";
+		if (required.wideLines && !available.wideLines)
+			return "wideLines";
+		if (required.samplerAnisotropy && !available.samplerAnisotropy)
+			return "samplerAnisotropy";
+		if (required.sampleRateShading && !available.sampleRateShading)
+			return "sampleRateShading";
+		return nullptr;
+	}
+
+	acm::DeviceFeatures Device::requestedFeatures(const acm::DeviceFeatures& available, const acm::DeviceConfig& config)
+	{
+		acm::DeviceFeatures features;
+		features.fillModeNonSolid = available.fillModeNonSolid && (config.requiredFeatures.fillModeNonSolid || config.optionalFeatures.fillModeNonSolid);
+		features.wideLines = available.wideLines && (config.requiredFeatures.wideLines || config.optionalFeatures.wideLines);
+		features.samplerAnisotropy = available.samplerAnisotropy && (config.requiredFeatures.samplerAnisotropy || config.optionalFeatures.samplerAnisotropy);
+		features.sampleRateShading = available.sampleRateShading && (config.requiredFeatures.sampleRateShading || config.optionalFeatures.sampleRateShading);
+		return features;
+	}
 
 	VkSampleCountFlagBits Device::sampleCount(acm::SampleCount requested) const
 	{
