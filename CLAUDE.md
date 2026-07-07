@@ -51,8 +51,9 @@ There are no per-resource pImpls. Public resource wrappers hold a stable typed b
 `ResourceRef<backend::T>`, which contains a stable resource slot pointer plus an
 index/generation `ResourceSlot<T>::ID`. The forward declarations and aliases in
 [acmBackend.h](include/archimedes/acmBackend.h) currently select `acm::vulkan` without
-including Vulkan headers. Platform integration uses explicit Vulkan entry points
-with forward-declared `VkInstance` and `VkSurfaceKHR` handles.
+including Vulkan headers. Mainline public headers stay free of raw Vulkan types; the
+opt-in [acmVulkanInterop.h](include/archimedes/acmVulkanInterop.h) seam is the only
+public header that includes Vulkan and exposes native handles for external integrations.
 
 ```cpp
 class Resource
@@ -145,7 +146,7 @@ is a lifetime hierarchy, not shared ownership.
 ```
 Instance ── enumerates ──> DeviceInfo[] (physical devices, queue families)
    │
-   ├── createVulkanSurface(VkSurfaceKHR) ────> Surface   // platform window surface + per-device support query
+   ├── interop::adoptSurface(VkSurfaceKHR) ──> Surface   // adopted platform window surface + per-device support query
    ├── createHeadlessSurface([extent]) ──────> Surface   // windowless offscreen surface (headless ext, or an owned off-screen window)
    │
    └── createDevice(DeviceOption) ───────────────────────> Device    // logical device + queue family
@@ -170,9 +171,11 @@ Instance ── enumerates ──> DeviceInfo[] (physical devices, queue familie
           └── createDescriptorSet(layout) ──────────> DescriptorSet // owns pool + set; .setTexture(...) / .setBuffer(...)
 ```
 
-**Surfaces.** `createVulkanSurface(VkSurfaceKHR)` wraps a caller-owned platform surface
-(the testbed builds one from GLFW). `createHeadlessSurface(extent)` is the windowless
-counterpart for offscreen rendering that still exercises the real swapchain/present path:
+**Surfaces.** `acm::interop::adoptSurface(instance, VkSurfaceKHR)` wraps a platform
+surface produced by external code (the testbed builds one from GLFW). Ownership of the
+`VkSurfaceKHR` moves to Archimedes and the caller remains responsible for keeping the
+native window alive until the `acm::Surface` is reset/destroyed. `createHeadlessSurface(extent)`
+is the windowless counterpart for offscreen rendering that still exercises the real swapchain/present path:
 it prefers `VK_EXT_headless_surface` (a true windowless surface, e.g. MoltenVK) and
 otherwise creates an **off-screen platform window** the surface owns and destroys after
 its `VkSurfaceKHR` (Windows desktop ICDs lack the headless extension). It returns an
@@ -198,6 +201,10 @@ uniform buffers — can be safely rewritten for this frame. Size any such ring t
 each over its own `SwapChain` (one per window) — and run `render(...)` on their own
 threads. The per-renderer work (fence wait, acquire, command recording) is independent
 and runs concurrently. A queue mutex serializes `vkQueueSubmit2`/`vkQueuePresentKHR`;
+raw external integrations that may call `vkQueueSubmit` / `vkQueueWaitIdle` on the
+borrowed `acm::interop::queue(device)` (for example ImGui's font/texture upload path)
+must run through `acm::interop::withQueue(device, callback)` so they share that mutex;
+plain init-struct handle passing may use the borrowed queue directly.
 the deferred destroy queue has a separate mutex and releases moved backend payloads after
 unlocking; the allocator and each resource pool synchronize independently. Distinct
 wrapper copies may be retained, released, and read concurrently. Mutation/reset of the
@@ -756,7 +763,7 @@ and use tags such as `[bench][fast][gpu]`. They must exercise production
 Archimedes API paths, not copied benchmark-only implementations. The generated
 launcher sets `VK_ICD_FILENAMES` to the staged MoltenVK ICD on macOS, matching
 the testbed path. Direct launches from an IDE also work: the test, benchmark,
-and testbed executables call the private `vulkan::useStagedVulkanICD()` helper
+and testbed executables call the public `acm::useStagedVulkanRuntime()` helper
 before creating an instance, and that helper points the loader at the staged ICD
 unless the caller already set `VK_ICD_FILENAMES`. The helper also defaults
 `MVK_CONFIG_LOG_LEVEL` to the CMake cache value `ARCHIMEDES_MOLTENVK_LOG_LEVEL`
@@ -787,8 +794,7 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 - **Naming:** public classes are `PascalCase` in namespace `acm` with files
   `acm<Name>.{h,cpp}`. Private Vulkan owners are in `acm::vulkan` with matching
   `private/archimedes/vulkan` and `src/vulkan` paths. Public platform integration uses
-  `vulkanInstance()` plus `VkInstance` / `VkSurfaceKHR`; raw
-  backend names stay inside the selected backend.
+  `acm::interop` from `acmVulkanInterop.h`; raw backend names stay inside the selected backend.
 - **Formatting:** [.clang-format](.clang-format) — Allman braces, tabs (width 4),
   no column limit, `All` namespace indentation, left pointer alignment. Run
   `cmake --build build --target format` on touched files, or

@@ -8,6 +8,7 @@
 
 #include "vk_test_helpers.h"
 
+#include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
@@ -38,4 +39,11 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	REQUIRE(device.enabledFeatures().wideLines == chosen.features.wideLines);
 	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen.features.samplerAnisotropy);
 	REQUIRE(device.enabledFeatures().sampleRateShading == chosen.features.sampleRateShading);
+
+	VkQueue queue = acm::interop::queue(device);
+	REQUIRE(queue != VK_NULL_HANDLE);
+	VkQueue lockedQueue = VK_NULL_HANDLE;
+	REQUIRE_FALSE(acm::interop::withQueue(device, [&](VkQueue queueUnderLock)
+										  { lockedQueue = queueUnderLock; }));
+	REQUIRE(lockedQueue == queue);
 }

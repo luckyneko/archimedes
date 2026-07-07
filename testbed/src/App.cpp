@@ -48,7 +48,7 @@ namespace
 			return {};
 		}
 		outWindow = window;
-		return acm::interop::createSurface(instance, vulkanSurface);
+		return acm::interop::adoptSurface(instance, vulkanSurface);
 	}
 
 	bool anyWindowClosing(const std::vector<GLFWwindow*>& windows)

@@ -463,6 +463,17 @@ namespace acm::vulkan
 		return {};
 	}
 
+	acm::Error Device::withQueue(const std::function<void(VkQueue)>& work)
+	{
+		if (!valid())
+			return acm::Error("withQueue: invalid device");
+		if (!work)
+			return acm::Error("withQueue: missing callback");
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		work(m_queue);
+		return {};
+	}
+
 	acm::Renderer Device::createRenderer(const acm::SwapChain& swapChain)
 	{
 		if (!swapChain.valid() || &swapChain.backend()->owner() != this)

@@ -43,7 +43,15 @@ namespace acm::interop
 		return b ? b->vkQueue() : VK_NULL_HANDLE;
 	}
 
-	acm::Surface createSurface(acm::Instance& inst, VkSurfaceKHR surface)
+	acm::Error withQueue(acm::Device& dev, const std::function<void(VkQueue)>& work)
+	{
+		acm::backend::Device* b = dev.backend();
+		if (!b)
+			return acm::Error("interop::withQueue: invalid device");
+		return b->withQueue(work);
+	}
+
+	acm::Surface adoptSurface(acm::Instance& inst, VkSurfaceKHR surface)
 	{
 		acm::backend::Instance* b = inst.backend();
 		return b ? b->createVulkanSurface(surface) : acm::Surface{};

@@ -62,6 +62,7 @@ namespace acm::vulkan
 		VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 		VkQueue vkQueue() const { return m_queue; }
 		acm::vulkan::MemoryAllocator& allocator() const { return *m_allocator; }
+		acm::Error withQueue(const std::function<void(VkQueue)>& work);
 
 		// Submission
 		acm::Error copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size);
