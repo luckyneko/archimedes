@@ -11,55 +11,36 @@ inside the render frame) are **done** — see the bottom of this file.
 
 ## Current suggested next work
 
-### 1. Add CI
-
-Add a GitHub Actions workflow that always runs the cheap, deterministic checks:
-`format-check`, library-only configure/build, full configure/build, and `ctest`.
-Cover Linux, macOS, and Windows: Archimedes should remain a cross-platform Vulkan
-library, even though MoltenVK is the current live-rendering path. Most GPU-backed
-tests are already SKIP-aware, so hosted runners can still prove the CPU-side/unit
-paths and catch compile/API regressions. Treat live Vulkan rendering as a separate
-lane for larger/self-hosted runners with real graphics hardware. Keep the first
-workflow compact by running library-only and full builds in the same OS job with
-separate build directories; this preserves the dependency signal without doubling
-the number of required checks.
-
-### 2. Pipeline config polish
+### 1. Pipeline config polish
 
 Pipeline defaults are still smoke-test flavored and blend is preset-only. Pipeline/render-target
 format and sample mismatches are guarded during command recording and surfaced through
 `acm::Error`; depth now has explicit test/write/compare state, but there is still no
 depth bias/stencil and no considered default-state preset.
 
-### 3. Feature negotiation API
+### 2. Feature negotiation API
 
 Device features are curated and silently degrade today. Add a small request/result
 model so examples and callers can tell whether features such as wide lines,
 anisotropy, sample shading, or future extensions are required or optional.
 
-### 4. Upload/staging performance
+### 3. Upload/staging performance
 
 `Buffer::write` and `Texture::upload` are correct but load-time oriented: staging +
 one-shot command + wait. Start with persistent upload command resources or an upload
 ring if streaming assets or per-frame uploads become real requirements.
 
-### 5. Memory allocator refinement
+### 4. Memory allocator refinement
 
 Best-fit allocation is small and contained in `src/vulkan/Memory.cpp`. Block
 reclamation is useful later. Full defragmentation should wait until real memory
 pressure appears.
 
-### 6. Texture API completeness
+### 5. Texture API completeness
 
 Missing pieces include explicit mip regeneration, partial/level uploads, renderable
 mipmapped textures, and better mip filtering. This is a natural feature area once
 texture-heavy examples demand it.
-
-### 7. Public examples/docs
-
-The testbed teaches the API implicitly. A short "first triangle / texture /
-compute" guide or examples folder would make the public API easier to judge from
-outside the codebase.
 
 ## Tier A — useful once something demands it
 
@@ -136,6 +117,15 @@ real memory pressure this renderer doesn't generate. **Don't build speculatively
 
 ## Done (for reference)
 
+- **CI** — `.github/workflows/ci.yml` runs the deterministic hosted checks:
+  clang-format, library-only configure/build, full configure/build, and `ctest` on
+  Linux, macOS, and Windows. It keeps live Vulkan rendering as a separate future lane
+  for self-hosted runners with real graphics hardware. There is also an
+  `add_subdirectory` smoke project under `.github/subproject-smoke`.
+- **Public README guide** — `README.md` now gives the public front door: build and
+  integration commands, CI-tested platforms, feature summary, testbed examples,
+  first-draw/texture/compute API sketches, tests, and benchmarks. Deeper architecture
+  remains in `CLAUDE.md`.
 - **Testbed example framework** — the testbed is a runner (`App`) + swappable `Example`
   plugins selected by name (`testbed <name>` / `--list`), generalised to 1..N windows.
   Six examples give live-driver coverage: `ripple-mesh` (multi-window + threads + compute
