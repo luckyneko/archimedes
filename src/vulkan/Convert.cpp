@@ -232,6 +232,8 @@ namespace acm::vulkan
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 			case acm::DescriptorType::StorageImage:
 				return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+			case acm::DescriptorType::SampledImage:
+				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::DescriptorType");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;

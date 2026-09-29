@@ -196,6 +196,27 @@ namespace acm::vulkan
 		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
 	}
 
+	void DescriptorSet::setSampledImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	{
+		if (&owner() != &texture.owner())
+			return;
+		const VkImageView imageView = texture.vkImageView();
+		if (!imageView)
+			return;
+		VkDescriptorImageInfo imageInfo = {};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = imageView;
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_set;
+		write.dstBinding = binding;
+		write.dstArrayElement = arrayElement;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		write.pImageInfo = &imageInfo;
+		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+	}
+
 	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
 
+#include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
@@ -17,7 +18,8 @@
 #include <vector>
 
 // Integration: the extended descriptor model — storage buffers, multi-stage bindings,
-// and descriptor arrays. Each is proved by rendered/read-back output. Surface-free.
+// descriptor arrays, and sampled images. Each is proved by rendered/read-back output.
+// Surface-free.
 
 namespace
 {
@@ -232,4 +234,83 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 	REQUIRE(g > 200);
 	REQUIRE(r < 60);
 	REQUIRE(b < 60);
+}
+
+TEST_CASE("a sampled image is read without a sampler", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	if (!instance.valid())
+		SKIP("no Vulkan driver available");
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+	if (!gpu)
+		SKIP("no graphics-capable queue family");
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	const acm::Extent2D extent{kSize, kSize};
+
+	// Left half red, right half green: the shader reads the texel at its own pixel, so the
+	// output reproduces the split only if the descriptor really points at this image.
+	std::vector<uint8_t> pixels = solid(kSize, 0, 0, 255);
+	for (uint32_t y = 0; y < kSize; ++y)
+	{
+		for (uint32_t x = kSize / 2; x < kSize; ++x)
+		{
+			const size_t at = (size_t(y) * kSize + x) * 4;
+			pixels[at + 1] = 255; // G
+			pixels[at + 2] = 0;	  // R
+		}
+	}
+	acm::Texture source = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	source.upload(pixels.data(), pixels.size()); // leaves it SHADER_READ_ONLY
+
+	acm::DescriptorSetLayout layout = device.createDescriptorSetLayout({
+		{0, acm::DescriptorType::SampledImage, acm::ShaderStage::Fragment},
+	});
+	REQUIRE(layout.valid());
+	acm::DescriptorSet descriptors = device.createDescriptorSet(layout);
+	REQUIRE(descriptors.valid());
+	descriptors.setSampledImage(0, source);
+
+	// The raw handle an external renderer binds (ImGui's ImTextureID is one); a stale or empty
+	// wrapper answers null rather than a dangling handle.
+	REQUIRE(acm::interop::descriptorSet(descriptors) != VK_NULL_HANDLE);
+	REQUIRE(acm::interop::descriptorSet(acm::DescriptorSet{}) == VK_NULL_HANDLE);
+
+	acm::Texture out = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::sampledImageFragSpirv());
+	acm::PipelineConfig config;
+	config.descriptorLayout = layout;
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
+	REQUIRE(pipeline.valid());
+
+	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
+	acm::CommandPool pool = device.createCommandPool();
+	acm::CommandBuffer cmd = pool.allocate();
+	cmd.begin();
+	cmd.beginRendering(target);
+	cmd.setViewportAndScissor(extent);
+	cmd.bindPipeline(pipeline);
+	cmd.bindDescriptorSet(pipeline, descriptors);
+	cmd.draw(3);
+	cmd.endRendering();
+	cmd.copyTextureToBuffer(out, readback);
+	cmd.end();
+	submitAndWait(device, cmd);
+
+	const auto* px = static_cast<const uint8_t*>(readback.map());
+	const size_t row = size_t(kSize / 2) * kSize;
+	const size_t left = (row + kSize / 4) * 4;
+	const size_t right = (row + 3 * kSize / 4) * 4;
+	const uint8_t leftR = px[left + 2], leftG = px[left + 1];
+	const uint8_t rightR = px[right + 2], rightG = px[right + 1];
+	readback.unmap();
+	REQUIRE(leftR == 255);
+	REQUIRE(leftG == 0);
+	REQUIRE(rightR == 0);
+	REQUIRE(rightG == 255);
 }

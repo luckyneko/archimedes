@@ -245,9 +245,11 @@ namespace acm
 
 	// The kinds of resource a descriptor binding can point at: a uniform buffer
 	// (per-draw constants — an MVP matrix, colors), a combined image sampler (a texture
-	// + how to sample it), a storage buffer (shader-writable bulk data), or a dynamic
+	// + how to sample it), a storage buffer (shader-writable bulk data), a dynamic
 	// uniform buffer (one buffer holding many objects' constants, indexed by a per-draw
-	// byte offset supplied at bind time — see DescriptorSet::setDynamicBuffer).
+	// byte offset supplied at bind time — see DescriptorSet::setDynamicBuffer), a storage
+	// image, or a sampled image (a texture with no sampler — the shader brings its own, or
+	// reads texels directly).
 	enum class DescriptorType
 	{
 		UniformBuffer,
@@ -255,6 +257,7 @@ namespace acm
 		StorageBuffer,
 		UniformBufferDynamic,
 		StorageImage, // a shader-writable image (no sampler) — e.g. a compute target
+		SampledImage, // a read-only image with no sampler (a separate sampler binding, or texelFetch)
 	};
 
 	// A texture layout for CommandBuffer::transitionImage. Covers the cases the renderer

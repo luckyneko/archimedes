@@ -61,6 +61,12 @@ namespace acm
 		// been created with `storage`; transition it to General before the shader writes it.
 		void setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
 
+		// Writes a sampled image at `binding` (layout type SampledImage) — a read-only image
+		// with no sampler, bound in SHADER_READ_ONLY layout, for a shader that takes its
+		// sampler from another binding (or reads texels with texelFetch). What an external
+		// renderer with a separate sampler set wants: ImGui's Vulkan backend is one.
+		void setSampledImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
+
 	private:
 		// Construction
 		friend acm::backend::Device;

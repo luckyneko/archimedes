@@ -9,6 +9,7 @@
 #include "archimedes/acmVulkanInterop.h"
 
 #include "archimedes/acmCommandBuffer.h"
+#include "archimedes/acmDescriptorSet.h"
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmSurface.h"
@@ -67,6 +68,12 @@ namespace acm::interop
 	{
 		acm::backend::Texture* b = tex.backend();
 		return b ? b->vkImageView() : VK_NULL_HANDLE;
+	}
+
+	VkDescriptorSet descriptorSet(const acm::DescriptorSet& set)
+	{
+		acm::backend::DescriptorSet* b = set.backend();
+		return b ? b->vkDescriptorSet() : VK_NULL_HANDLE;
 	}
 
 	VkFormat colorFormat(const acm::SwapChain& swapChain)

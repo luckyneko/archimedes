@@ -387,7 +387,7 @@ primitive (high-frequency shaders), beyond the edge AA that resolve already give
 **Descriptor sets** carry the per-draw resources a shader reads. A
 `DescriptorSetLayout` is a list of `acm::DescriptorBinding`s — each a binding index +
 `DescriptorType` (`UniformBuffer` / `UniformBufferDynamic` / `CombinedImageSampler` /
-`StorageBuffer` / `StorageImage`) + `ShaderStage` (a flag set — `Vertex`, `Fragment`,
+`StorageBuffer` / `StorageImage` / `SampledImage`) + `ShaderStage` (a flag set — `Vertex`, `Fragment`,
 `Compute`, or e.g. `Vertex | Fragment` for a binding several stages read) + `count` (> 1
 makes it a descriptor array). `createDescriptorSetLayout(n)` is a convenience that builds
 N fragment-stage samplers at bindings 0..n-1. A `DescriptorSet` owns its own one-set pool
@@ -395,8 +395,16 @@ N fragment-stage samplers at bindings 0..n-1. A `DescriptorSet` owns its own one
 `setTexture(binding, texture, sampler[, arrayElement])`,
 `setBuffer(binding, buffer[, arrayElement])` (a uniform or storage descriptor, matching
 the layout binding's type), `setDynamicBuffer(binding, buffer, elementSize)` (a dynamic
-uniform — see below), or `setStorageImage(binding, texture)` (a shader-writable image, no
-sampler, bound in `GENERAL` layout — the texture must be created `storage`). Build the
+uniform — see below), `setStorageImage(binding, texture)` (a shader-writable image, no
+sampler, bound in `GENERAL` layout — the texture must be created `storage`), or
+`setSampledImage(binding, texture)` (a read-only image with no sampler, in
+`SHADER_READ_ONLY` — for a shader that takes its sampler from elsewhere or reads texels with
+`texelFetch`). A sampled image is also how an external renderer with a separate sampler set
+gets a descriptor Archimedes owns: lain's GUI allocates one against a layout identical to
+ImGui's texture set and hands ImGui `acm::interop::descriptorSet(set)` as its texture id, so
+releasing it defers destruction past the frames that drew it, which ImGui's own
+`RemoveTexture` (an immediate free) does not. `test_descriptors.cpp` reads a split red/green
+image back through one. Build the
 `Pipeline` with the layout (`PipelineConfig::descriptorLayout`) so its pipeline layout is
 non-empty, then record `bindPipeline` → `bindDescriptorSet(pipeline, set)` → `draw`. (A
 `StorageBuffer` is a host-visible `BufferUsage::Storage` buffer — a shader can read/write

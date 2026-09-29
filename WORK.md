@@ -140,6 +140,11 @@ real memory pressure this renderer doesn't generate. **Don't build speculatively
   `DescriptorSet::setDynamicBuffer`, `CommandBuffer::bindDescriptorSet(.., dynamicOffset)`,
   `Device::minUniformBufferOffsetAlignment()`. One buffer holds many objects' constants;
   the per-draw offset picks one. Proved by `test_dynamic_uniform.cpp`.
+- **Sampled images** — `DescriptorType::SampledImage`, `DescriptorSet::setSampledImage`, and
+  `acm::interop::descriptorSet` (the raw handle, for an external renderer to bind). A read-only
+  image with no sampler of its own; lain's GUI uses it to give ImGui texture descriptors that
+  Archimedes owns, and so defers destroying. Proved by `test_descriptors.cpp` (a split
+  red/green image read back through `texelFetch`).
 - **Storage images** — `DescriptorType::StorageImage`, `Texture` `storage` usage,
   `DescriptorSet::setStorageImage`, and `CommandBuffer::transitionImage` (a wrapped image
   barrier over a neutral `acm::ImageLayout`). A compute shader writes an image; proved by

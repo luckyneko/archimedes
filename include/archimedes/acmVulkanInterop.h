@@ -50,6 +50,10 @@ namespace acm::interop
 	// Resource handles — valid while the resource is.
 	VkCommandBuffer commandBuffer(const acm::CommandBuffer& cmd);
 	VkImageView imageView(const acm::Texture& tex);
+	// A descriptor set for an external renderer to bind (ImGui's ImTextureID is one). It is
+	// still Archimedes' resource, so releasing the wrapper defers its destruction past every
+	// submission already made, like any other; the raw handle carries no ownership.
+	VkDescriptorSet descriptorSet(const acm::DescriptorSet& set);
 
 	// The swapchain's color format, for a dynamic-rendering pipeline's
 	// VkPipelineRenderingCreateInfo (archimedes renders without a VkRenderPass).

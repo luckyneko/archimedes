@@ -46,6 +46,7 @@ namespace acm::vulkan
 		void setBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, uint32_t arrayElement);
 		void setDynamicBuffer(uint32_t binding, const acm::vulkan::Buffer& buffer, size_t elementSize, uint32_t arrayElement);
 		void setStorageImage(uint32_t binding, const acm::vulkan::Texture& texture, uint32_t arrayElement);
+		void setSampledImage(uint32_t binding, const acm::vulkan::Texture& texture, uint32_t arrayElement);
 
 	private:
 		// Internals

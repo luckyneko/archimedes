@@ -98,6 +98,15 @@ namespace acm
 		}
 	}
 
+	void DescriptorSet::setSampledImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	{
+		if (auto* resource = m_resource.access())
+		{
+			if (texture.backend())
+				resource->setSampledImage(binding, *texture.backend(), arrayElement);
+		}
+	}
+
 	// -----------------------------------------------------------------------------
 	// Construction
 	// -----------------------------------------------------------------------------
