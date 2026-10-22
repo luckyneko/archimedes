@@ -12,6 +12,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <filesystem>
 #include <utility>
 
 namespace acm::vulkan
@@ -75,4 +76,8 @@ namespace acm::vulkan
 	// true windowless surface exists (there the swapchain's own desired extent drives the
 	// render size). A zero dimension is treated as 1.
 	HeadlessSurface createHeadlessSurface(VkInstance instance, [[maybe_unused]] acm::Extent2D extent);
+
+	// The directory holding the running executable (symlinks resolved), or empty when the
+	// platform cannot report it. Lives in this seam because Windows needs <windows.h>.
+	std::filesystem::path executableDirectory();
 } // namespace acm::vulkan

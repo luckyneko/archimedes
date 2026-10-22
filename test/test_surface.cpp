@@ -50,8 +50,7 @@ TEST_CASE("SurfacePreferences presets expose color and pacing policy", "[acm][un
 TEST_CASE("Surface (headless) produces compatible surface options", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	acm::Surface surface = instance.createHeadlessSurface();
 	if (!surface.valid())
@@ -111,8 +110,7 @@ TEST_CASE("Surface (headless) produces compatible surface options", "[acm][gpu]"
 TEST_CASE("Surface is a shared handle", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	acm::Surface a = instance.createHeadlessSurface();
 	if (!a.valid())

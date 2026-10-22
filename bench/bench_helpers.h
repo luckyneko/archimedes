@@ -22,24 +22,15 @@ namespace acmbench
 		acm::Device device;
 	};
 
+	// The top-ranked graphics device — the one an application would pick — so a run's
+	// numbers belong to one device kind (bench/report.py records which).
 	inline bool buildGraphicsDevice(DeviceStack& out, const char* name)
 	{
 		out.instance = acm::Instance(name, acm::Version{0, 1, 0});
-		if (!out.instance.valid())
-		{
-			SKIP("no Vulkan driver available");
-			return false;
-		}
+		acmtest::requireInstance(out.instance);
 
-		uint32_t queueIndex = 0;
-		const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(out.instance, queueIndex);
-		if (!gpu)
-		{
-			SKIP("no graphics-capable queue family");
-			return false;
-		}
-
-		out.device = out.instance.createDevice(*gpu, queueIndex);
+		const acm::DeviceOption option = acmtest::selectGraphicsOption(out.instance, acmtest::topRankedKind(out.instance));
+		out.device = out.instance.createDevice(option);
 		REQUIRE(out.device.valid());
 		return true;
 	}

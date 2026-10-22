@@ -8,41 +8,78 @@
 
 #include "archimedes/acmRuntime.h"
 
+#include "archimedes/vulkan/PlatformSurface.h"
+
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include <system_error>
+
 #ifndef ACM_MOLTENVK_LOG_LEVEL
 #	define ACM_MOLTENVK_LOG_LEVEL "1"
 #endif
 
-#if defined(__APPLE__)
-#	include <cstdlib>
-#	include <filesystem>
-#	include <mach-o/dyld.h>
-#	include <string>
+namespace
+{
+	// Sets an environment variable unless the caller already chose a value.
+	void setEnvDefault(const char* name, const std::string& value)
+	{
+		if (std::getenv(name))
+			return;
+#ifdef _WIN32
+		_putenv_s(name, value.c_str());
+#else
+		setenv(name, value.c_str(), 0); // 0: do not overwrite
 #endif
+	}
+
+#ifdef _WIN32
+	constexpr char PathListSeparator = ';';
+#else
+	constexpr char PathListSeparator = ':';
+#endif
+
+	// The ICD manifests acm_stage_vulkan_runtime can place in <bindir>/vulkan/.
+	constexpr const char* StagedManifests[] = {
+		"MoltenVK_icd.json",	   // macOS portability driver
+		"vk_swiftshader_icd.json", // CPU driver
+	};
+} // namespace
 
 namespace acm
 {
 	void useStagedVulkanRuntime()
 	{
 #if defined(__APPLE__)
-		setenv("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL, 0); // 0: do not overwrite
+		setEnvDefault("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL);
+#endif
 
-		if (!std::getenv("VK_ICD_FILENAMES"))
+		const std::filesystem::path executableDir = vulkan::executableDirectory();
+		if (executableDir.empty())
+			return;
+
+		std::string staged;
+		for (const char* manifest : StagedManifests)
 		{
-			uint32_t size = 0;
-			_NSGetExecutablePath(nullptr, &size); // first call reports required size
-			std::string pathBuffer(size, '\0');
-			if (_NSGetExecutablePath(pathBuffer.data(), &size) != 0)
-				return;
-
+			const std::filesystem::path path = executableDir / "vulkan" / manifest;
 			std::error_code ec;
-			std::filesystem::path executable = std::filesystem::canonical(pathBuffer.c_str(), ec);
-			if (ec)
-				return;
-
-			const std::filesystem::path icd = executable.parent_path() / "vulkan" / "MoltenVK_icd.json";
-			if (std::filesystem::exists(icd))
-				setenv("VK_ICD_FILENAMES", icd.string().c_str(), 0); // 0: do not overwrite
+			if (!std::filesystem::exists(path, ec))
+				continue;
+			if (!staged.empty())
+				staged += PathListSeparator;
+			staged += path.string();
 		}
+		if (staged.empty())
+			return;
+
+#if defined(__APPLE__)
+		// The staged drivers are the whole list, as MoltenVK's always was.
+		setEnvDefault("VK_ICD_FILENAMES", staged);
+#else
+		// Keep system GPU drivers visible and add the staged ones. The loader ignores the
+		// addition when the caller replaced the driver list, so leave that choice alone.
+		if (!std::getenv("VK_ICD_FILENAMES") && !std::getenv("VK_DRIVER_FILES"))
+			setEnvDefault("VK_ADD_DRIVER_FILES", staged);
 #endif
 	}
 } // namespace acm

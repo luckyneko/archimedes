@@ -6,9 +6,9 @@
  *  (See accompanying file LICENSE)
  */
 
-// Platform window/surface glue for headless rendering. This is the one translation
-// unit allowed to pull in <windows.h>, so the Win32 surface fallback stays isolated
-// from the backend-neutral surface code. The Vulkan platform define must precede the
+// Platform glue: the window behind a headless surface, and the running executable's
+// location (for finding staged drivers). This is the one translation unit allowed to
+// pull in <windows.h>, so the Win32 code stays isolated from the backend-neutral code. The Vulkan platform define must precede the
 // first <vulkan/vulkan.h> include to expose vkCreateWin32SurfaceKHR, so windows.h and
 // the define come first.
 #ifdef _WIN32
@@ -24,6 +24,14 @@
 
 // Pulls in <vulkan/vulkan.h> (with the Win32 platform surface, per the define above).
 #include "archimedes/vulkan/PlatformSurface.h"
+
+#if defined(__APPLE__)
+#	include <mach-o/dyld.h>
+#endif
+
+#include <cstdint>
+#include <string>
+#include <system_error>
 
 namespace acm::vulkan
 {
@@ -93,5 +101,46 @@ namespace acm::vulkan
 #endif
 
 		return result;
+	}
+
+	// -----------------------------------------------------------------------------
+	// Executable location
+	// -----------------------------------------------------------------------------
+
+	std::filesystem::path executableDirectory()
+	{
+		std::filesystem::path executable;
+#if defined(_WIN32)
+		std::wstring buffer(MAX_PATH, L'\0');
+		for (;;)
+		{
+			const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), DWORD(buffer.size()));
+			if (length == 0)
+				return {};
+			if (length < buffer.size())
+			{
+				buffer.resize(length);
+				break;
+			}
+			buffer.resize(buffer.size() * 2); // truncated: grow and retry
+		}
+		executable = buffer;
+#elif defined(__APPLE__)
+		uint32_t size = 0;
+		_NSGetExecutablePath(nullptr, &size); // first call reports the required size
+		std::string buffer(size, '\0');
+		if (_NSGetExecutablePath(buffer.data(), &size) != 0)
+			return {};
+		executable = buffer.c_str();
+#elif defined(__linux__)
+		executable = "/proc/self/exe";
+#else
+		return {};
+#endif
+		std::error_code ec;
+		executable = std::filesystem::canonical(executable, ec);
+		if (ec)
+			return {};
+		return executable.parent_path();
 	}
 } // namespace acm::vulkan

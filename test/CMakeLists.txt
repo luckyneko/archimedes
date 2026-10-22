@@ -1,9 +1,9 @@
 # Unit + integration tests (Catch2). Device-touching tests ([gpu]) need the
-# vendored Vulkan runtime (loader + MoltenVK ICD) and SKIP at runtime if no
-# driver is present. enable_testing() + addcatch2 are done at the project root.
+# vendored Vulkan runtime (loader + staged drivers) and run once per device kind
+# present (hardware, CPU); a missing kind SKIPs. enable_testing() + addcatch2 are done at the project root.
 
-# Brings in Vulkan::Loader (to resolve archimedes' vk* symbols) and, on macOS,
-# the ACM_MOLTENVK_ICD path used to point the loader at the vendored driver.
+# Brings in Vulkan::Loader (to resolve archimedes' vk* symbols) and the staged drivers
+# (MoltenVK on macOS, the CPU driver where available) the loader is pointed at.
 acm_require_vulkan_runtime()
 
 add_executable(test-${PROJECT_NAME}
@@ -36,6 +36,7 @@ add_executable(test-${PROJECT_NAME}
     test_dynamic_uniform.cpp
     test_storage_image.cpp
     test_multipass.cpp
+    test_cpu_device.cpp
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
@@ -52,12 +53,18 @@ acm_stage_vulkan_runtime(test-${PROJECT_NAME})
 # DYLD_LIBRARY_PATH) for both. Locally it is harmless (the system loader is found first).
 set(_acm_test_props TEST_PREFIX "(${PROJECT_NAME}) " DL_PATHS "$<TARGET_FILE_DIR:Vulkan::Loader>")
 
-# Point the loader at the vendored MoltenVK ICD so [gpu] tests find a driver
-# under ctest (no system install). Only set this when we actually vendor an ICD
-# (Apple/MoltenVK) — elsewhere an empty VK_ICD_FILENAMES would tell the loader to
-# enumerate *zero* ICDs, hiding any system-installed driver and forcing every
-# [gpu] test to SKIP. Off-Apple we leave it unset so the system loader is used.
-if(ACM_MOLTENVK_ICD)
-    list(APPEND _acm_test_props PROPERTIES ENVIRONMENT "VK_ICD_FILENAMES=${ACM_MOLTENVK_ICD}")
+# Point the loader at the staged drivers so [gpu] tests find them under ctest (no system
+# install): on macOS VK_ICD_FILENAMES lists MoltenVK + the CPU driver; elsewhere
+# VK_ADD_DRIVER_FILES adds the CPU driver while keeping system drivers visible. Nothing
+# is set when nothing is staged — an empty VK_ICD_FILENAMES would hide every driver.
+acm_vulkan_driver_environment(_acm_driver_env)
+if(_acm_driver_env)
+    list(APPEND _acm_test_props PROPERTIES ENVIRONMENT "${_acm_driver_env}")
+endif()
+
+# With the CPU driver staged a CPU device must enumerate, so its absence fails the
+# [gpu] tests (staging is broken) instead of letting them SKIP green.
+if(ACM_SWIFTSHADER_ICD)
+    target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_EXPECT_CPU_DEVICE)
 endif()
 catch_discover_tests(test-${PROJECT_NAME} ${_acm_test_props})

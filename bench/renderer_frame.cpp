@@ -14,7 +14,7 @@
 TEST_CASE("renderer_frame", "[bench][fast][gpu]")
 {
 	acmtest::HeadlessStack stack;
-	if (!acmtest::buildHeadlessStack(stack))
+	if (!acmtest::buildHeadlessStack(stack, acmtest::KindPolicy::TopRanked))
 		return;
 
 	acm::Shader vertex = stack.device.createShader(acmtest::triangleVertSpirv());

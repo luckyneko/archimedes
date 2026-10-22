@@ -99,11 +99,29 @@ namespace acm
 
 	std::vector<DeviceOption> Instance::graphicsOptions() const
 	{
+		return graphicsOptions(DevicePreferences::Default());
+	}
+
+	std::vector<DeviceOption> Instance::graphicsOptions(const DevicePreferences& preferences) const
+	{
 		std::vector<DeviceOption> options;
 		for (const DeviceInfo& deviceInfo : devices())
 			for (const QueueInfo& queue : deviceInfo.queues)
 				if (queue.graphics)
 					options.push_back({deviceInfo.index, queue.family});
+
+		const std::vector<DeviceInfo>& available = devices();
+		const auto typeRank = [&preferences, &available](const DeviceOption& option)
+		{
+			const PhysicalDeviceType type = available[option.deviceIndex].type;
+			for (size_t index = 0; index < preferences.types.size(); ++index)
+				if (preferences.types[index] == type)
+					return index;
+			return preferences.types.size();
+		};
+		std::stable_sort(options.begin(), options.end(),
+						 [&typeRank](const DeviceOption& a, const DeviceOption& b)
+						 { return typeRank(a) < typeRank(b); });
 		return options;
 	}
 
@@ -123,6 +141,11 @@ namespace acm
 	}
 
 	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces, const SurfacePreferences& preferences) const
+	{
+		return surfaceOptions(surfaces, preferences, DevicePreferences::Default());
+	}
+
+	std::vector<SurfaceOption> Instance::surfaceOptions(const std::vector<Surface>& surfaces, const SurfacePreferences& preferences, const DevicePreferences& devicePreferences) const
 	{
 		std::vector<SurfaceOption> options;
 		if (surfaces.empty())
@@ -161,7 +184,7 @@ namespace acm
 			return preferences.presentModes.size();
 		};
 
-		for (const DeviceOption& deviceOption : graphicsOptions())
+		for (const DeviceOption& deviceOption : graphicsOptions(devicePreferences))
 		{
 			bool compatible = true;
 			std::vector<const SurfaceDeviceSupport*> supports;

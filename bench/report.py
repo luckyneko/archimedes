@@ -103,6 +103,21 @@ def split_args(argv: List[str]) -> Tuple[str, Optional[str], Optional[str], Opti
     return exec_path, json_out, json_append, compare_path, rest
 
 
+def device_info(exec_path: str) -> Optional[Dict[str, str]]:
+    """The device the benchmarks run on, from `bench-archimedes --device-info`."""
+    result = subprocess.run([exec_path, "--device-info"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    fields = result.stdout.strip().split("\t")
+    if result.returncode != 0 or len(fields) != 2:
+        return None
+    return {"name": fields[0], "kind": fields[1]}
+
+
+def device_kind(run: Dict[str, Any]) -> str:
+    # Runs recorded before device kinds existed all ran on hardware devices.
+    device = run.get("device")
+    return str(device.get("kind", "hardware")) if isinstance(device, dict) else "hardware"
+
+
 def run_bench(exec_path: str, bench_args: List[str], xml_path: str) -> None:
     cmd = [exec_path] + bench_args + ["--reporter", f"xml::out={xml_path}"]
     result = subprocess.run(cmd)
@@ -328,7 +343,10 @@ def latest_by_key(runs: List[Dict[str, Any]]) -> Dict[BenchmarkKey, Dict[str, An
 
 
 def print_comparison(current_run: Dict[str, Any], history_path: str) -> None:
-    history = latest_by_key(load_json_runs(history_path))
+    # Compare only against runs on the same device kind: CPU-device numbers from CI or a
+    # sandbox say nothing about a GPU's history, and vice versa.
+    kind = device_kind(current_run)
+    history = latest_by_key([run for run in load_json_runs(history_path) if device_kind(run) == kind])
     current = current_run.get("benchmarks", [])
     rows: List[Tuple[str, Optional[str], str, float, Optional[float], Optional[float], Optional[float]]] = []
 
@@ -378,8 +396,8 @@ def print_comparison(current_run: Dict[str, Any], history_path: str) -> None:
         print(f"{color}{line}{RESET if color else ''}")
 
 
-def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row]) -> Dict[str, Any]:
-    return {
+def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row], device: Optional[Dict[str, str]]) -> Dict[str, Any]:
+    run: Dict[str, Any] = {
         "schema_version": 1,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
         "executable": exec_path,
@@ -387,6 +405,9 @@ def build_json_run(exec_path: str, bench_args: List[str], rows: List[Row]) -> Di
         "git": git_metadata(),
         "benchmarks": flatten_rows(rows),
     }
+    if device:
+        run["device"] = device
+    return run
 
 
 def write_json(path: str, payload: Dict[str, Any]) -> None:
@@ -427,11 +448,14 @@ def main() -> int:
         xml_path = tmp.name
 
     try:
+        device = device_info(resolved)
+        if device:
+            print(f"device: {device['name']} ({device['kind']})")
         run_bench(resolved, bench_args, xml_path)
         rows = sort_rows(parse_xml(xml_path))
         print_report(rows)
         if json_out or json_append or compare_path:
-            run = build_json_run(resolved, bench_args, rows)
+            run = build_json_run(resolved, bench_args, rows, device)
             if compare_path:
                 print_comparison(run, compare_path)
             if json_out:

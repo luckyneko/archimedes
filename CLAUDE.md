@@ -17,7 +17,10 @@ on a live driver — a two-window shared compute-deformed mesh on a thread per w
 image sampled in-frame (`compute-texture`), render-to-texture (`mirror`), a descriptor-array
 + alpha-blend sprite scene (`sprite-atlas`), and a wide-line wireframe (`wireframe`).
 Verified end-to-end on a live driver
-(MoltenVK on Apple Silicon; a system driver on Windows). Windows are resizable: the
+(MoltenVK on Apple Silicon; a system driver on Windows), and on the **CPU device**:
+SwiftShader, a CPU Vulkan 1.3 driver staged beside runnable targets, so rendering and compute
+run where no GPU driver works or on the CPU by choice ([ADR-0001](docs/adr/0001-cpu-device-via-staged-swiftshader.md);
+vocabulary in [CONTEXT.md](CONTEXT.md)). Windows are resizable: the
 `acm::Renderer` rebuilds the swapchain on out-of-date/resize and skips minimized frames.
 Several `acm::Renderer`s can drive their own swapchains from their own threads because
 the one `VkQueue` (submit/present) is serialized by the private Vulkan Device and
@@ -265,11 +268,20 @@ the reported version is available as `DeviceInfo::apiVersion`. Device creation e
 `synchronization2` and `dynamicRendering`, and command-buffer buffer/image barriers use
 `VkDependencyInfo` with the Vulkan 1.3 `*MemoryBarrier2` structures. All queue
 submissions use `VkSubmitInfo2` through the device-owned submission path. `Instance::graphicsOptions()`
-reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`), and
+reports graphics-capable `DeviceOption` values (`deviceIndex` + `queueFamily`) ranked by
+**`DevicePreferences`** — a ranked list of `PhysicalDeviceType`s mirroring `SurfacePreferences`.
+`DevicePreferences::Default()` (what the no-argument forms use) puts hardware devices first and
+the CPU device last, so taking the first option gets a GPU when one exists and the CPU device
+otherwise; `DevicePreferences::Cpu()` puts the CPU device first. The sort is stable, so devices
+of one kind keep loader order (which is not defined between drivers: the loader lists
+SwiftShader before MoltenVK). A CPU device and a hardware device can coexist in one process;
+resources never cross devices, so moving data between them is a host readback + upload. And
 `Instance::createDevice(option[, config])` is the preferred creation path when the caller does not
 need custom selection logic beyond feature policy. `Instance::surfaceOptions(surface[s])` filters those device
 options to graphics queues that can present to one or more surfaces and supplies the
 surface format / present mode / capabilities used by `Device::createSwapChain(surface, option, ...)`.
+The device kind is their primary ranking (`surfaceOptions(surfaces, surfacePreferences,
+devicePreferences)` takes explicit `DevicePreferences`).
 Pass `SurfacePreferences` to rank the compatible format and present-mode combinations;
 an empty `SurfacePreferences{}` means no explicit ranking and preserves backend order for
 any unspecified axis. Calling `surfaceOptions(surface[s])` with no preferences uses
@@ -336,9 +348,12 @@ shared by device-local `Buffer::write` and `Texture::upload`.
 allocations out of large (64 MB) `VkDeviceMemory` blocks via a per-block first-fit free
 list (coalesced on free), so thousands of resources share a handful of allocations
 (staying under `maxMemoryAllocationCount`, avoiding per-resource allocation cost). A
-request bigger than a block gets a dedicated, exactly-sized block. Host-visible blocks
-are **persistently mapped**, so `Buffer::map` just returns a precomputed pointer into
-the block (no per-resource `vkMapMemory`). Resources bind to `allocation.memory` +
+request bigger than a block gets a dedicated, exactly-sized block. Blocks of a host-visible
+memory **type** are **persistently mapped**, so `Buffer::map` just returns a precomputed pointer
+into the block (no per-resource `vkMapMemory`). Mapping follows the chosen type, not the
+request: on unified memory (the CPU device, some integrated GPUs) one type is both
+device-local and host-visible, and a block a device-local request created is later reused
+by host-visible ones. Resources bind to `allocation.memory` +
 `allocation.offset` and, on teardown, enqueue `allocator->free(...)` (which returns the
 range to the pool) onto the device's deferred queue; the allocator's blocks are
 `vkFreeMemory`d when the `Device` is destroyed, after that queue is flushed.
@@ -532,15 +547,26 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
     else vendors **Vulkan-Headers**; exposes `Vulkan::Headers`. All the **library**
     needs (it calls this itself).
   - `acm_require_vulkan_runtime()` — builds **Vulkan-Loader** from source against
-    the headers (→ `Vulkan::Loader`, cross-platform) and, on macOS, fetches a
-    prebuilt **MoltenVK** ICD. A runnable target that creates a `VkInstance` calls
-    this.
-  - `acm_stage_vulkan_runtime(<target>)` — stages the MoltenVK ICD next to a binary
-    (macOS; a no-op elsewhere).
+    the headers (→ `Vulkan::Loader`, cross-platform), on macOS fetches a
+    prebuilt **MoltenVK** ICD, and provides the **CPU driver** (below). A runnable
+    target that creates a `VkInstance` calls this.
+  - `acm_stage_vulkan_runtime(<target>)` — stages every staged driver (MoltenVK on
+    macOS, the CPU driver where provided) next to a binary; a no-op when there is none.
+  - `acm_vulkan_driver_environment(<out>)` — the one `NAME=VALUE` loader environment
+    entry exposing the staged drivers from where they were provisioned (ctest uses it).
 
   Each getter is idempotent (no-op if the target already exists, so a consumer can
   supply its own Vulkan) and version-locked to a single `ARCHIMEDES_VULKAN_SDK`
   pin shared by headers + loader (and `addGlslang`), so nothing can skew.
+- **SwiftShader** (the CPU driver, runnable targets only) — also in
+  [cmake/acmVulkan.cmake](cmake/acmVulkan.cmake), gated by `ARCHIMEDES_SOFTWARE_VULKAN`
+  (default ON). A pinned, hash-checked `luckyneko/swiftshader-prebuilt` archive per host
+  (`ARCHIMEDES_SWIFTSHADER_VERSION` + a SHA256 per platform: linux-x64, macos-arm64,
+  windows-x64) holding `vk_swiftshader_icd.json` and the library it names. A host with no
+  published archive (or none pinned yet) warns and stages nothing, so a default configure
+  never breaks. `ARCHIMEDES_SWIFTSHADER_DIR=<dir>` stages a local SwiftShader build instead
+  (a SwiftShader CMake build leaves both files in `build/<Darwin|Linux|Windows>/`). Sets
+  `ACM_SWIFTSHADER_ICD` / `ACM_SWIFTSHADER_LIB`. A library-only build never fetches it.
 - **GLFW** (testbed only) — [cmake/addGLFW.cmake](cmake/addGLFW.cmake). Windowing
   + Vulkan surface; exposes `glfw`.
 - **glslang** (testbed only) — [cmake/addGlslang.cmake](cmake/addGlslang.cmake).
@@ -574,10 +600,15 @@ goal end to end:
   `EXCLUDE_FROM_ALL` since we only link the `vulkan` dylib.
 - **MoltenVK**: the prebuilt `MoltenVK-macos.tar` release; `libMoltenVK.dylib` +
   `MoltenVK_icd.json` (relative `./libMoltenVK.dylib`, `is_portability_driver`).
-- **`acm_stage_vulkan_runtime(<target>)`**: POST_BUILD-copies the ICD + dylib to
-  `<bindir>/vulkan/`, and generates `build/run_<target>.sh` that exports
-  `VK_ICD_FILENAMES` (and `VK_LAYER_PATH` *only if* `$VULKAN_SDK` is present —
-  macOS ships validation layers only via the LunarG SDK, so they stay optional).
+- **SwiftShader**: the CPU driver's ICD json references `./<lib>`, so it is staged
+  beside its library exactly like MoltenVK.
+- **`acm_stage_vulkan_runtime(<target>)`**: POST_BUILD-copies each staged ICD + library to
+  `<bindir>/vulkan/`, and (off Windows) generates `build/run_<target>.sh` that exposes them —
+  `VK_ICD_FILENAMES` listing every staged driver on macOS (the staged drivers are the whole
+  list, as MoltenVK's always was), `VK_ADD_DRIVER_FILES` elsewhere (system GPU drivers stay
+  visible) — plus `VK_LAYER_PATH` *only if* `$VULKAN_SDK` is present (macOS ships
+  validation layers only via the LunarG SDK, so they stay optional). The loader ignores
+  `VK_ADD_DRIVER_FILES` when `VK_ICD_FILENAMES` is set, which is why macOS lists both.
 - GLFW is bound to our vendored loader via
   `glfwInitVulkanLoader(vkGetInstanceProcAddr)` (so it doesn't dlopen a system
   libvulkan).
@@ -623,7 +654,9 @@ The framework (`testbed/src/`):
   *every* surface, a shared device + a `RenderContext` per window, then the loop
   (`poll → onUpdate → render all views`, fork-join across `RenderWorker`s for multi-window,
   inline for single) and the **device-before-surface** teardown. `TESTBED_FRAME_CAP=<n>`
-  runs N frames then exits cleanly (scripted/CI smoke).
+  runs N frames then exits cleanly (scripted/CI smoke). `--device gpu|cpu` ranks the shared
+  device with `DevicePreferences::Default()` / `Cpu()`; `cpu` fails unless the CPU device
+  presents to every window. Every example runs on the CPU device.
 - **`RenderWorker`** ([RenderWorker.h](testbed/src/RenderWorker.h)) — one render thread per
   window for multi-window examples (fork-join: `kick(time)` / `wait()`), calling
   `example->onRenderView(i, time)`. Single-window examples skip it.
@@ -711,14 +744,29 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   compute dispatch fills a storage buffer mid-frame, read back after; needs a headless
   surface, so it SKIPs where the swapchain-backed renderer tests do). The compute /
   dynamic-uniform / storage-image tests are device-only (no surface), so they run anywhere
-  with a graphics/compute queue.
+  with a graphics/compute queue. [test_cpu_device.cpp](test/test_cpu_device.cpp) covers the
+  CPU device itself: the `DevicePreferences` presets, the ranking when both kinds are
+  present, and **one compute shader giving identical results on a hardware device and the
+  CPU device** in one process (SKIPs unless both are present).
+
+  **Every `[gpu]` test that selects its device through the shared helpers runs once per
+  device kind present** — a Catch2 generator over the kinds the instance offers (best
+  hardware device, then the CPU device), so a dev Mac proves both pathways in one run. Only
+  present kinds are generated, so a GPU-less machine runs each test once on the CPU device
+  and reports it *passed*, not skipped. On a failure, the `device: <name> (<kind>)` info line
+  says which run failed. When the CPU driver is staged, the test target is compiled with
+  `ACM_EXPECT_CPU_DEVICE`: a missing CPU device (or no instance at all) **FAILs** — staging is
+  broken — instead of SKIP-ing green. Capability gaps still SKIP.
   `bench-archimedes` is the Catch2 benchmark executable: it records public
   `CommandBuffer` draw sequences, exercises production factory/descriptor paths, and
-  measures headless `Renderer::render` frames against real resources. Run it through
+  measures headless `Renderer::render` frames against real resources, on the **top-ranked**
+  device only (`acmtest::KindPolicy::TopRanked`), so one run's numbers belong to one device
+  kind. Run it through
   `./build/run_bench-archimedes.sh "[fast]"` or `python3 bench/report.py "[fast]"`;
   GPU workloads SKIP when no live driver is available.
-  `test/CMakeLists.txt` points `VK_ICD_FILENAMES` at the vendored MoltenVK ICD
-  (`ACM_MOLTENVK_ICD`) for ctest. Each `[gpu]` test `SKIP`s (not fails) when no
+  `test/CMakeLists.txt` sets the ctest environment from `acm_vulkan_driver_environment`
+  (macOS: `VK_ICD_FILENAMES` = MoltenVK + the CPU driver; elsewhere `VK_ADD_DRIVER_FILES` =
+  the CPU driver). Without the CPU driver, a `[gpu]` test `SKIP`s (not fails) when no
   driver / extension / capability is present, so a GPU-less CI stays green. The
   swapchain-backed tests need a real surface: they use `VK_EXT_headless_surface`
   where available and otherwise (Windows desktop ICDs) an off-screen
@@ -730,11 +778,14 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   Silicon host is Metal-capable. In that environment MoltenVK reports
   `VK_ERROR_INCOMPATIBLE_DRIVER` / "Metal is not available" and the GPU tests skip.
   Record this as an execution-environment limitation, not as a hardware limitation of
-  the host machine; visual and benchmark verification still require a process with
-  live Metal access.
+  the host machine. The staged CPU device still runs there (it needs no Metal for headless
+  rendering or compute), so the `[gpu]` tests execute on it; visual checks of the hardware
+  path and GPU benchmark numbers still require a process with live Metal access.
 
 Shared `[gpu]` scaffolding lives in [test/vk_test_helpers.h](test/vk_test_helpers.h)
-— graphics-device selection plus `buildHeadlessStack()` (the full
+— per-device-kind selection (`selectGraphicsOption` / `selectGraphicsDevice` /
+`selectSurfaceOption`, `requireInstance`, and `topRankedKind` for benchmarks) plus
+`buildHeadlessStack()` (the full
 instance→surface→device→swapchain via `createHeadlessSurface`, SKIP-ing with a specific
 reason on any missing layer). It is backend-neutral — no raw Vulkan or platform headers,
 since the windowless surface is now a first-class API. Reuse it, don't re-roll it. The pipeline/render tests use precompiled
@@ -763,11 +814,12 @@ opt-ins through `InstanceConfig::validation` and `InstanceConfig::debug`, indepe
 of build type. Each remains guarded on runtime availability. Validation is enabled only
 as an instance layer; the legacy `VkDeviceCreateInfo` layer fields stay zero/null.
 
-Run the testbed via the generated launcher (it sets `VK_ICD_FILENAMES` to the
-staged MoltenVK ICD):
+Run the testbed via the generated launcher (it points the loader at the staged drivers);
+`--device cpu` runs it on the CPU device:
 
 ```sh
 ./build/run_testbed.sh
+./build/run_testbed.sh --device cpu compute-texture
 ```
 
 Run the tests with ctest from the build dir:
@@ -789,23 +841,28 @@ python3 bench/report.py "[fast]" --compare build/bench-history.json --json-appen
 The benchmark executable is `bench-archimedes`; workloads live in [bench/](bench/)
 and use tags such as `[bench][fast][gpu]`. They must exercise production
 Archimedes API paths, not copied benchmark-only implementations. The generated
-launcher sets `VK_ICD_FILENAMES` to the staged MoltenVK ICD on macOS, matching
-the testbed path. Direct launches from an IDE also work: the test, benchmark,
-and testbed executables call the public `acm::useStagedVulkanRuntime()` helper
-before creating an instance, and that helper points the loader at the staged ICD
-unless the caller already set `VK_ICD_FILENAMES`. The helper also defaults
+launcher points the loader at the staged drivers, matching the testbed path. Direct
+launches from an IDE also work: the test, benchmark, and testbed executables call the
+public `acm::useStagedVulkanRuntime()` helper before creating an instance. On every
+platform it finds `<exe dir>/vulkan/` (via `vulkan::executableDirectory()`, which lives in
+the [PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) seam because Windows needs
+`<windows.h>`): macOS sets `VK_ICD_FILENAMES` to the staged drivers; Linux/Windows add them
+with `VK_ADD_DRIVER_FILES`. It never overwrites a value the caller set, and leaves a
+caller-replaced driver list (`VK_ICD_FILENAMES` / `VK_DRIVER_FILES`) alone. The helper also defaults
 `MVK_CONFIG_LOG_LEVEL` to the CMake cache value `ARCHIMEDES_MOLTENVK_LOG_LEVEL`
 (`1` = errors only) unless the caller already set that environment variable, which
 keeps MoltenVK's default info-level startup logs out of test/benchmark output.
 Resource-creation benchmarks use bounded batches rather than Catch2's adaptive
 per-run resource counts, so calibration cannot build up thousands of live Vulkan
 objects before cleanup. `bench/report.py --json-out` writes one run record with
-UTC timestamp, git branch/hash/dirty metadata, forwarded Catch2 args, and flat
-benchmark rows in nanoseconds; `--json-append` maintains a `runs[]` history file
+UTC timestamp, git branch/hash/dirty metadata, forwarded Catch2 args, the device
+(`bench-archimedes --device-info` prints the top-ranked device's name and `hardware`/`cpu`
+kind), and flat benchmark rows in nanoseconds; `--json-append` maintains a `runs[]` history file
 for later graphing. Report rows are sorted by workload, section, then variant so
 Catch2 discovery order does not churn text output or JSON histories. `--compare
 <history.json>` compares the current run against the latest previous result for
-each matching workload/section/variant key before any same-command append happens;
+each matching workload/section/variant key **from a run on the same device kind** (runs
+recorded before device kinds existed count as `hardware`) before any same-command append happens;
 its `SIGNAL` column classifies `abs(current_mean - previous_mean) /
 hypot(current_stddev, previous_stddev)` as noise, weak, clear, or strong, and
 colors interactive terminal rows by delta direction with stronger signals drawn
@@ -832,6 +889,19 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
   for the Vulkan 1.3 target environment via `glslc` or `glslang`.
 
 ## Known rough edges (pre-existing, not yet addressed)
+
+- **The CPU driver prebuilt is not published yet.** `ARCHIMEDES_SWIFTSHADER_VERSION` and the
+  per-platform SHA256s in [cmake/acmVulkan.cmake](cmake/acmVulkan.cmake) are empty until
+  `luckyneko/swiftshader-prebuilt` publishes archives, so a default configure warns and stages
+  no CPU driver; `ARCHIMEDES_SWIFTSHADER_DIR` stages a local build meanwhile.
+- **No cap on the CPU driver's threads.** SwiftShader runs shaders on its own pool (up to 16
+  threads) and reads a thread count only from a `SwiftShader.ini` in the process's *working
+  directory*, which a library cannot rely on. A consumer with its own process-wide pool (lain)
+  can oversubscribe the CPU. Exposing a cap needs the prebuilt to read it from somewhere a
+  library controls (e.g. an environment variable).
+- **A windowed CPU device on macOS still needs Metal** (SwiftShader presents through a
+  `CAMetalLayer`); headless rendering and compute on it do not. SwiftShader also lacks
+  `wideLines`, like MoltenVK.
 
 - Pipeline state is configurable for topology / cull mode / front face / blend /
   polygon mode / samples, with named presets for the smoke-test default, 3D meshes,

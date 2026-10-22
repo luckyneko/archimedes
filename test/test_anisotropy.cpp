@@ -25,13 +25,10 @@
 TEST_CASE("an anisotropic sampler samples correctly", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());

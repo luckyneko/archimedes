@@ -10,16 +10,17 @@
 
 namespace acm
 {
-	// Prepare the Vulkan runtime environment for a direct launch. On macOS, point the
-	// loader at the MoltenVK ICD staged next to this executable (by the CMake helper
-	// acm_stage_vulkan_runtime) and default MoltenVK's log level, so an app finds the
-	// driver without a system Vulkan install or a hand-set VK_ICD_FILENAMES. Call once,
-	// before any other Vulkan or GLFW use (GLFW enumerates instance extensions before an
-	// instance exists, so the loader must already know where the ICD is).
+	// Prepare the Vulkan runtime environment for a direct launch: point the loader at the
+	// drivers staged next to this executable (by the CMake helper acm_stage_vulkan_runtime)
+	// so an app finds them without a system Vulkan install or a hand-set environment. The
+	// staged drivers are MoltenVK on macOS and the CPU driver (SwiftShader) wherever it was
+	// staged. Call once, before any other Vulkan or GLFW use (GLFW enumerates instance
+	// extensions before an instance exists, so the loader must already know its drivers).
 	//
-	// Both settings respect a value the caller already chose (VK_ICD_FILENAMES /
-	// MVK_CONFIG_LOG_LEVEL are never overwritten); the log-level default is the
-	// ARCHIMEDES_MOLTENVK_LOG_LEVEL CMake cache var. A no-op on non-Apple platforms,
-	// where the loader discovers system-registered ICDs.
+	// macOS makes the staged drivers the whole list (VK_ICD_FILENAMES); Linux and Windows
+	// keep system drivers and add the staged ones (VK_ADD_DRIVER_FILES). A value the caller
+	// already set is never overwritten, and a caller-replaced driver list (VK_ICD_FILENAMES /
+	// VK_DRIVER_FILES) is left alone. On macOS it also defaults MoltenVK's log level to the
+	// ARCHIMEDES_MOLTENVK_LOG_LEVEL CMake cache var.
 	void useStagedVulkanRuntime();
 } // namespace acm

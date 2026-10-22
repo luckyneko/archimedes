@@ -22,17 +22,13 @@
 TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	acm::Surface surface = instance.createHeadlessSurface(acm::Extent2D{800, 600});
 	if (!surface.valid())
 		SKIP("headless surface unavailable");
 
-	const std::vector<acm::SurfaceOption> options = instance.surfaceOptions(surface);
-	if (options.empty())
-		SKIP("headless surface exposes no compatible device options");
-	const acm::SurfaceOption option = options.front();
+	const acm::SurfaceOption option = acmtest::selectSurfaceOption(instance, surface);
 
 	acm::Device device = instance.createDevice(option.device);
 	REQUIRE(device.valid());

@@ -48,12 +48,9 @@ namespace
 TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
@@ -112,12 +109,9 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
@@ -174,12 +168,9 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 
@@ -239,12 +230,9 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 TEST_CASE("a sampled image is read without a sampler", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
 

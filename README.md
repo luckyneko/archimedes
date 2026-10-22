@@ -6,7 +6,10 @@ small, explicit `acm::` API over Vulkan 1.3: swapchain rendering, offscreen
 render-to-texture, texture upload/sampling, vertex/index/uniform/storage buffers,
 descriptor sets, dynamic uniforms, depth, MSAA, mipmaps, compute pipelines, and a live
 testbed. macOS runs through MoltenVK; the repo vendors the Vulkan runtime pieces needed
-by runnable targets, so no system install is required for the normal build.
+by runnable targets, so no system install is required for the normal build. A **CPU
+device** (SwiftShader, a CPU implementation of Vulkan) can be staged beside every runnable
+target, so the same rendering and compute code runs where no GPU driver works, or on the
+CPU by choice.
 
 The detailed architecture and contributor notes live in [CLAUDE.md](CLAUDE.md).
 
@@ -25,8 +28,9 @@ ctest --test-dir build --output-on-failure
 ```
 
 The first configure fetches pinned dependencies into `.cache/fetch/` and extracts them
-under the build directory. Tests that need a live Vulkan driver are SKIP-aware, so a
-machine without a usable driver can still exercise the CPU-side and compile/API checks.
+under the build directory. GPU tests run once per device kind present (a hardware device
+and the CPU device). With the CPU driver staged they run even on a machine with no GPU
+driver; without it, a test whose device is unavailable SKIPs.
 
 ### To build only the library
 
@@ -61,9 +65,17 @@ target_link_libraries(my-app PRIVATE archimedes Vulkan::Loader)
 acm_stage_vulkan_runtime(my-app)
 ```
 
-On macOS, `acm_stage_vulkan_runtime(my-app)` stages the vendored MoltenVK ICD and emits a
-launcher script that points the Vulkan loader at it. Elsewhere it is a no-op unless
-there is runtime staging to do.
+`acm_stage_vulkan_runtime(my-app)` copies the staged drivers next to the binary — MoltenVK
+on macOS, and the SwiftShader CPU driver wherever `ARCHIMEDES_SOFTWARE_VULKAN` (default ON)
+found one — and, off Windows, emits a `run_my-app.sh` launcher. Call
+`acm::useStagedVulkanRuntime()` at startup so a direct launch finds them too. Pick a device
+with `instance.graphicsOptions()` (hardware first, the CPU device last) or
+`instance.graphicsOptions(acm::DevicePreferences::Cpu())`.
+
+The CPU driver comes from a pinned prebuilt where one is published for the host
+(linux-x64, macos-arm64, windows-x64); elsewhere configure warns and stages nothing. Set
+`ARCHIMEDES_SWIFTSHADER_DIR` to a directory holding a local SwiftShader build's
+`vk_swiftshader_icd.json` and library to stage that instead.
 
 ## Tested Platforms
 
@@ -95,7 +107,10 @@ tests skip when the driver or capability they need is unavailable.
 - Named pipeline-state presets for default, 3D mesh, 2D sprite, and wireframe setups.
 - Pooling Vulkan memory sub-allocator and deferred destruction keyed to completed queue
   submissions.
-- Testbed examples that drive the API against live windows and real driver behavior.
+- Device preferences that rank hardware devices first and the CPU device last, or the CPU
+  device first on request.
+- Testbed examples that drive the API against live windows and real driver behavior, on a
+  hardware device or the CPU device.
 
 ## Testbed
 
@@ -124,6 +139,12 @@ Run a short scripted smoke test with:
 
 ```sh
 TESTBED_FRAME_CAP=120 ./build/run_testbed.sh compute-texture
+```
+
+Pass `--device cpu` to run an example on the CPU device instead of the GPU:
+
+```sh
+./build/run_testbed.sh --device cpu compute-texture
 ```
 
 ## API Start
@@ -226,7 +247,10 @@ working references for complete setup code.
 The Catch2 suite covers handle semantics, resource pools, Vulkan instance/device/surface
 plumbing, swapchains, renderer frames, offscreen rendering/readback, textures, samplers,
 vertex/index/uniform/dynamic-uniform buffers, descriptors, depth, MSAA, wireframe,
-compute, storage images, and multipass rendering.
+compute, storage images, and multipass rendering. Each GPU test runs on every device kind
+present, and one test checks that the same compute shader gives identical results on a
+hardware device and the CPU device. With the CPU driver staged, a missing CPU device fails
+the suite rather than letting it skip green.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -251,6 +275,9 @@ cmake --build build
 ./build/run_bench-archimedes.sh "[fast]"
 python3 bench/report.py "[fast]"
 ```
+
+Benchmarks run on the top-ranked device. `bench/report.py` records its name and kind in
+each JSON run, and `--compare` only compares runs from the same kind of device.
 
 `bench/report.py` can write JSON, append to a history file, and compare against previous
 runs. See [CLAUDE.md](CLAUDE.md#build--verify) for the detailed benchmark workflow.

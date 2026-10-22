@@ -60,7 +60,7 @@ namespace
 	}
 } // namespace
 
-int App::run(Example& example)
+int App::run(Example& example, DeviceChoice deviceChoice)
 {
 	acm::useStagedVulkanRuntime();
 
@@ -103,21 +103,29 @@ int App::run(Example& example)
 			return 1;
 		}
 
-	// One shared device for every window.
-	const std::vector<acm::SurfaceOption> surfaceOptions = instance.surfaceOptions(surfaces);
+	// One shared device for every window, ranked by the requested device kind.
+	const acm::DevicePreferences devicePreferences = deviceChoice == DeviceChoice::Cpu ? acm::DevicePreferences::Cpu() : acm::DevicePreferences::Default();
+	const std::vector<acm::SurfaceOption> surfaceOptions = instance.surfaceOptions(surfaces, acm::SurfacePreferences::Default(), devicePreferences);
 	if (surfaceOptions.empty())
 	{
 		fprintf(stderr, "no device presents to all windows\n");
 		return 1;
 	}
 	const acm::SurfaceOption surfaceOption = surfaceOptions.front();
+	const acm::DeviceInfo& chosen = instance.devices()[surfaceOption.device.deviceIndex];
+	const bool cpuDevice = chosen.type == acm::PhysicalDeviceType::Cpu;
+	if (deviceChoice == DeviceChoice::Cpu && !cpuDevice)
+	{
+		fprintf(stderr, "--device cpu: no CPU device presents to all windows\n");
+		return 1;
+	}
 	acm::Device device = instance.createDevice(surfaceOption.device);
 	if (!device.valid())
 	{
 		fprintf(stderr, "CreateACMDevice: FAIL\n");
 		return 1;
 	}
-	printf("Selected device: %s\n", instance.devices()[surfaceOption.device.deviceIndex].name.c_str());
+	printf("Selected device: %s (%s)\n", chosen.name.c_str(), cpuDevice ? "CPU device" : "hardware device");
 
 	// A RenderContext per window. Sized up front so the pointers handed to the example
 	// (and the workers) stay stable.

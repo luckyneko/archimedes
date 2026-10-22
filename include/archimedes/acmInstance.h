@@ -69,11 +69,17 @@ namespace acm
 
 		// Enumeration
 		const std::vector<acm::DeviceInfo>& devices() const;
+		// Graphics-capable options ranked by device kind; the no-argument form uses
+		// DevicePreferences::Default() (hardware devices first, the CPU device last).
 		std::vector<acm::DeviceOption> graphicsOptions() const;
+		std::vector<acm::DeviceOption> graphicsOptions(const acm::DevicePreferences& preferences) const;
+		// Device kind is the primary ranking; surface format and present mode rank within
+		// each device. Forms without DevicePreferences use DevicePreferences::Default().
 		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface) const;
 		std::vector<acm::SurfaceOption> surfaceOptions(const acm::Surface& surface, const acm::SurfacePreferences& preferences) const;
 		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces) const;
 		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces, const acm::SurfacePreferences& preferences) const;
+		std::vector<acm::SurfaceOption> surfaceOptions(const std::vector<acm::Surface>& surfaces, const acm::SurfacePreferences& surfacePreferences, const acm::DevicePreferences& devicePreferences) const;
 
 	private:
 		std::unique_ptr<acm::backend::Instance> m;
