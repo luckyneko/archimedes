@@ -109,7 +109,10 @@ namespace acm::vulkan
 		const uint32_t memoryType = findMemoryType(req.memoryTypeBits, props);
 		if (memoryType == UINT32_MAX)
 			return {};
-		const bool hostVisible = (props & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
+		// Map by the chosen type, not the request: a type can be both device-local and
+		// host-visible (unified memory, CPU devices), and a block created by a device-local
+		// request is later reused by host-visible ones of the same type.
+		const bool hostVisible = (m_memoryProperties.memoryTypes[memoryType].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
 
 		auto makeAllocation = [&](Block* block, VkDeviceSize offset) -> Allocation
 		{
