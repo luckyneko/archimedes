@@ -74,6 +74,10 @@ with `instance.graphicsOptions()` (hardware first, the CPU device last) or
 thread pool, cap the CPU driver's threads with
 `acm::useStagedVulkanRuntime(acm::RuntimeConfig{threads})`.
 
+SwiftShader is Apache-2.0: its licence texts are staged beside it
+(`vulkan/vk_swiftshader.LICENSE.txt`, `vulkan/vk_swiftshader.THIRD_PARTY_LICENSES.txt`) and
+listed in `ACM_SWIFTSHADER_LICENSES` for your own notices — ship them with the binary.
+
 The CPU driver comes from a pinned prebuilt where one is published for the host
 (linux-x64, macos-arm64, windows-x64); elsewhere configure warns and stages nothing. Set
 `ARCHIMEDES_SWIFTSHADER_DIR` to a directory holding a local SwiftShader build's
