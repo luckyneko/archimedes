@@ -27,15 +27,17 @@ set(ARCHIMEDES_MOLTENVK_VERSION "1.4.1" CACHE STRING "MoltenVK release (macOS po
 
 # The CPU driver (SwiftShader) staged beside runnable targets, so a CPU device is always
 # available (docs/adr/0001). Archives come from a pinned luckyneko/swiftshader-prebuilt
-# release; a platform whose SHA256 is empty has no published archive. Point
-# ARCHIMEDES_SWIFTSHADER_DIR at a directory holding vk_swiftshader_icd.json and the
-# library it names to stage a local build instead.
+# release: the tag and the per-platform SHA256s are one pin, kept as plain variables so a
+# build folder's stale cache can never hold an older tag. A platform whose SHA256 is empty
+# has no published archive. Point ARCHIMEDES_SWIFTSHADER_DIR at a directory holding
+# vk_swiftshader_icd.json and the library it names to stage a local build instead.
 option(ARCHIMEDES_SOFTWARE_VULKAN "Stage the SwiftShader CPU driver beside runnable targets" ON)
-set(ARCHIMEDES_SWIFTSHADER_VERSION "" CACHE STRING "luckyneko/swiftshader-prebuilt release tag (CPU driver)")
 set(ARCHIMEDES_SWIFTSHADER_DIR "" CACHE PATH "Local SwiftShader build to stage instead of the prebuilt (holds vk_swiftshader_icd.json)")
-set(_ACM_SWIFTSHADER_SHA256_linux-x64   "")
-set(_ACM_SWIFTSHADER_SHA256_macos-arm64 "")
-set(_ACM_SWIFTSHADER_SHA256_windows-x64 "")
+unset(ARCHIMEDES_SWIFTSHADER_VERSION CACHE) # once a cache entry; see above
+set(ARCHIMEDES_SWIFTSHADER_VERSION "2026.10.14-cddb5c91")
+set(_ACM_SWIFTSHADER_SHA256_linux-x64   "4eeeca5c8bf2f139090683544a6b3c8d841b67c68937bbe5b707c63ffef09745")
+set(_ACM_SWIFTSHADER_SHA256_macos-arm64 "c0f211feb0b12abe6c66f30df43b88eecea05a30a766c8be89464a7f2ef2aeda")
+set(_ACM_SWIFTSHADER_SHA256_windows-x64 "3153171c00faaa08e7df37d15c5a1caea77905855215639d3023392deb041ae9")
 
 # Ensure the Vulkan::Headers target exists. Prefers a real SDK (find_package),
 # else vendors Vulkan-Headers at the pinned SDK. A static library only needs the

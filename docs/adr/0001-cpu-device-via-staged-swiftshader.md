@@ -49,9 +49,10 @@ The library's one compile-time backend stays Vulkan.
 - On macOS, SwiftShader presents to a window through a `CAMetalLayer`, so a windowed CPU device still
   needs Metal. Headless rendering and compute do not.
 - SwiftShader runs shaders on its own thread pool, sized to the machine (up to 16 threads). A
-  consumer with its own process-wide pool (lain) can oversubscribe the CPU unless that pool is
-  capped. SwiftShader reads a thread count only from a `SwiftShader.ini` in the working
-  directory, which a library cannot rely on, so a cap is not yet exposed.
+  consumer with its own process-wide pool (lain) would oversubscribe the CPU. Upstream reads a
+  thread count only from a `SwiftShader.ini` in the working directory, which a library cannot
+  rely on, so the prebuilt carries one patch: `SWIFTSHADER_THREAD_COUNT` (1–256) sizes the pool.
+  `acm::RuntimeConfig::cpuDeviceThreads` sets it, keeping the cap backend-neutral.
 - Staging SwiftShader exposed a latent allocator bug: memory blocks were mapped only when the
   request that created them asked for host-visible memory, but on unified memory one type is
   both device-local and host-visible and blocks are shared. Blocks are now mapped by type.

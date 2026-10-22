@@ -10,6 +10,7 @@
 
 #include "archimedes/vulkan/PlatformSurface.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -39,6 +40,9 @@ namespace
 	constexpr char PathListSeparator = ':';
 #endif
 
+	// The most worker threads the CPU driver's scheduler holds (marl's MaxWorkerThreads).
+	constexpr uint32_t MaxCpuDeviceThreads = 256;
+
 	// The ICD manifests acm_stage_vulkan_runtime can place in <bindir>/vulkan/.
 	constexpr const char* StagedManifests[] = {
 		"MoltenVK_icd.json",	   // macOS portability driver
@@ -48,11 +52,14 @@ namespace
 
 namespace acm
 {
-	void useStagedVulkanRuntime()
+	void useStagedVulkanRuntime(const RuntimeConfig& config)
 	{
 #if defined(__APPLE__)
 		setEnvDefault("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL);
 #endif
+		// Read by the staged CPU driver (luckyneko/swiftshader-prebuilt's patched SwiftShader).
+		if (config.cpuDeviceThreads > 0)
+			setEnvDefault("SWIFTSHADER_THREAD_COUNT", std::to_string(std::min(config.cpuDeviceThreads, MaxCpuDeviceThreads)));
 
 		const std::filesystem::path executableDir = vulkan::executableDirectory();
 		if (executableDir.empty())

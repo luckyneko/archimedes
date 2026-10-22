@@ -13,6 +13,8 @@
 
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <cstdlib>
+#include <string>
 #include <vector>
 
 // The CPU device as a pathway (docs/adr/0001): device preferences rank it against hardware
@@ -20,6 +22,36 @@
 
 namespace
 {
+	void setEnv(const char* name, const char* value)
+	{
+#ifdef _WIN32
+		_putenv_s(name, value ? value : ""); // an empty value removes the variable
+#else
+		if (value)
+			setenv(name, value, 1);
+		else
+			unsetenv(name);
+#endif
+	}
+
+	// Restores an environment variable on scope exit, so a test leaves the process as it was.
+	struct EnvGuard
+	{
+		explicit EnvGuard(const char* name)
+			: name(name)
+		{
+			if (const char* value = std::getenv(name))
+				saved = value;
+			else
+				had = false;
+		}
+		~EnvGuard() { setEnv(name, had ? saved.c_str() : nullptr); }
+
+		const char* name;
+		std::string saved;
+		bool had{true};
+	};
+
 	// The first graphics option on a device of `kind`, or nullptr when there is none.
 	const acm::DeviceOption* firstOfKind(const std::vector<acm::DeviceOption>& options, const acm::Instance& instance, acmtest::DeviceKind kind)
 	{
@@ -76,6 +108,26 @@ TEST_CASE("DevicePreferences presets rank the CPU device", "[acm][unit]")
 	const acm::DevicePreferences cpu = acm::DevicePreferences::Cpu();
 	REQUIRE(cpu.types.front() == acm::PhysicalDeviceType::Cpu);
 	REQUIRE(cpu.types.size() == defaults.types.size());
+}
+
+TEST_CASE("useStagedVulkanRuntime caps the CPU driver's threads without overriding the caller", "[acm][unit]")
+{
+	const char* const name = "SWIFTSHADER_THREAD_COUNT";
+	const EnvGuard guard(name);
+	setEnv(name, nullptr);
+
+	acm::useStagedVulkanRuntime();
+	REQUIRE(std::getenv(name) == nullptr); // 0 keeps the driver's default
+
+	acm::RuntimeConfig config;
+	config.cpuDeviceThreads = 1000;
+	acm::useStagedVulkanRuntime(config);
+	REQUIRE(std::getenv(name) != nullptr);
+	REQUIRE(std::string(std::getenv(name)) == "256"); // clamped to the scheduler's limit
+
+	config.cpuDeviceThreads = 3;
+	acm::useStagedVulkanRuntime(config);
+	REQUIRE(std::string(std::getenv(name)) == "256"); // a value already set wins
 }
 
 TEST_CASE("Device options put hardware first by default and the CPU device first on request", "[acm][gpu]")

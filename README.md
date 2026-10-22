@@ -70,7 +70,9 @@ on macOS, and the SwiftShader CPU driver wherever `ARCHIMEDES_SOFTWARE_VULKAN` (
 found one — and, off Windows, emits a `run_my-app.sh` launcher. Call
 `acm::useStagedVulkanRuntime()` at startup so a direct launch finds them too. Pick a device
 with `instance.graphicsOptions()` (hardware first, the CPU device last) or
-`instance.graphicsOptions(acm::DevicePreferences::Cpu())`.
+`instance.graphicsOptions(acm::DevicePreferences::Cpu())`. To share the machine with your own
+thread pool, cap the CPU driver's threads with
+`acm::useStagedVulkanRuntime(acm::RuntimeConfig{threads})`.
 
 The CPU driver comes from a pinned prebuilt where one is published for the host
 (linux-x64, macos-arm64, windows-x64); elsewhere configure warns and stages nothing. Set

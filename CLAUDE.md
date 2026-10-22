@@ -562,8 +562,10 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
   [cmake/acmVulkan.cmake](cmake/acmVulkan.cmake), gated by `ARCHIMEDES_SOFTWARE_VULKAN`
   (default ON). A pinned, hash-checked `luckyneko/swiftshader-prebuilt` archive per host
   (`ARCHIMEDES_SWIFTSHADER_VERSION` + a SHA256 per platform: linux-x64, macos-arm64,
-  windows-x64) holding `vk_swiftshader_icd.json` and the library it names. A host with no
-  published archive (or none pinned yet) warns and stages nothing, so a default configure
+  windows-x64 — one pin, kept as plain variables so a build folder's stale cache can't hold an
+  older tag) holding `vk_swiftshader_icd.json` and the library it names. The prebuilt builds
+  upstream SwiftShader with one patch: `SWIFTSHADER_THREAD_COUNT` (1–256) sizes its worker
+  pool. A host with no published archive warns and stages nothing, so a default configure
   never breaks. `ARCHIMEDES_SWIFTSHADER_DIR=<dir>` stages a local SwiftShader build instead
   (a SwiftShader CMake build leaves both files in `build/<Darwin|Linux|Windows>/`). Sets
   `ACM_SWIFTSHADER_ICD` / `ACM_SWIFTSHADER_LIB`. A library-only build never fetches it.
@@ -848,7 +850,11 @@ platform it finds `<exe dir>/vulkan/` (via `vulkan::executableDirectory()`, whic
 the [PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) seam because Windows needs
 `<windows.h>`): macOS sets `VK_ICD_FILENAMES` to the staged drivers; Linux/Windows add them
 with `VK_ADD_DRIVER_FILES`. It never overwrites a value the caller set, and leaves a
-caller-replaced driver list (`VK_ICD_FILENAMES` / `VK_DRIVER_FILES`) alone. The helper also defaults
+caller-replaced driver list (`VK_ICD_FILENAMES` / `VK_DRIVER_FILES`) alone.
+`useStagedVulkanRuntime(RuntimeConfig{cpuDeviceThreads})` caps the CPU driver's worker pool
+(SwiftShader otherwise uses one thread per logical CPU, up to 16), so a host with its own
+process-wide pool (lain) can split the machine with it; it sets `SWIFTSHADER_THREAD_COUNT`
+unless the caller already did, and the driver reads it once, at the first CPU device. The helper also defaults
 `MVK_CONFIG_LOG_LEVEL` to the CMake cache value `ARCHIMEDES_MOLTENVK_LOG_LEVEL`
 (`1` = errors only) unless the caller already set that environment variable, which
 keeps MoltenVK's default info-level startup logs out of test/benchmark output.
@@ -890,15 +896,6 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 ## Known rough edges (pre-existing, not yet addressed)
 
-- **The CPU driver prebuilt is not published yet.** `ARCHIMEDES_SWIFTSHADER_VERSION` and the
-  per-platform SHA256s in [cmake/acmVulkan.cmake](cmake/acmVulkan.cmake) are empty until
-  `luckyneko/swiftshader-prebuilt` publishes archives, so a default configure warns and stages
-  no CPU driver; `ARCHIMEDES_SWIFTSHADER_DIR` stages a local build meanwhile.
-- **No cap on the CPU driver's threads.** SwiftShader runs shaders on its own pool (up to 16
-  threads) and reads a thread count only from a `SwiftShader.ini` in the process's *working
-  directory*, which a library cannot rely on. A consumer with its own process-wide pool (lain)
-  can oversubscribe the CPU. Exposing a cap needs the prebuilt to read it from somewhere a
-  library controls (e.g. an environment variable).
 - **A windowed CPU device on macOS still needs Metal** (SwiftShader presents through a
   `CAMetalLayer`); headless rendering and compute on it do not. SwiftShader also lacks
   `wideLines`, like MoltenVK.
