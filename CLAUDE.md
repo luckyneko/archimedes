@@ -578,12 +578,21 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
   (default ON). A pinned, hash-checked `luckyneko/swiftshader-prebuilt` archive per host
   (`ARCHIMEDES_SWIFTSHADER_VERSION` + a SHA256 per platform: linux-x64, macos-arm64,
   windows-x64 — one pin, kept as plain variables so a build folder's stale cache can't hold an
-  older tag) holding `vk_swiftshader_icd.json` and the library it names. The prebuilt builds
+  older tag, and set *inside* `_acm_require_cpu_driver()` because a function sees its caller's
+  variables: a parent project calling `acm_require_vulkan_runtime()` never sees archimedes'
+  directory scope) holding `vk_swiftshader_icd.json` and the library it names, plus
+  SwiftShader's `LICENSE.txt` (Apache-2.0) and `THIRD_PARTY_LICENSES.txt`. The prebuilt builds
   upstream SwiftShader with one patch: `SWIFTSHADER_THREAD_COUNT` (1–256) sizes its worker
   pool. A host with no published archive warns and stages nothing, so a default configure
   never breaks. `ARCHIMEDES_SWIFTSHADER_DIR=<dir>` stages a local SwiftShader build instead
-  (a SwiftShader CMake build leaves both files in `build/<Darwin|Linux|Windows>/`). Sets
-  `ACM_SWIFTSHADER_ICD` / `ACM_SWIFTSHADER_LIB`. A library-only build never fetches it.
+  (a SwiftShader CMake build leaves both files in `build/<Darwin|Linux|Windows>/`, but no
+  licence texts). Sets `ACM_SWIFTSHADER_ICD` / `ACM_SWIFTSHADER_LIB` /
+  `ACM_SWIFTSHADER_LICENSES` (the licence texts, for a consumer's own notices);
+  `acm_stage_vulkan_runtime` also stages the licences beside the library as
+  `vk_swiftshader.LICENSE.txt` / `vk_swiftshader.THIRD_PARTY_LICENSES.txt`. A library-only
+  build never fetches it. CI's `add_subdirectory` smoke
+  ([.github/subproject-smoke](.github/subproject-smoke)) provisions and stages the runtime
+  from a parent project's scope and runs a binary that must find the CPU device.
 - **GLFW** (testbed only) — [cmake/addGLFW.cmake](cmake/addGLFW.cmake). Windowing
   + Vulkan surface; exposes `glfw`.
 - **glslang** (testbed only) — [cmake/addGlslang.cmake](cmake/addGlslang.cmake).

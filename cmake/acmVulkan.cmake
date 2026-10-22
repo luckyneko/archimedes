@@ -27,17 +27,12 @@ set(ARCHIMEDES_MOLTENVK_VERSION "1.4.1" CACHE STRING "MoltenVK release (macOS po
 
 # The CPU driver (SwiftShader) staged beside runnable targets, so a CPU device is always
 # available (docs/adr/0001). Archives come from a pinned luckyneko/swiftshader-prebuilt
-# release: the tag and the per-platform SHA256s are one pin, kept as plain variables so a
-# build folder's stale cache can never hold an older tag. A platform whose SHA256 is empty
-# has no published archive. Point ARCHIMEDES_SWIFTSHADER_DIR at a directory holding
-# vk_swiftshader_icd.json and the library it names to stage a local build instead.
+# release, pinned in _acm_require_cpu_driver() below. Point ARCHIMEDES_SWIFTSHADER_DIR at
+# a directory holding vk_swiftshader_icd.json and the library it names to stage a local
+# build instead.
 option(ARCHIMEDES_SOFTWARE_VULKAN "Stage the SwiftShader CPU driver beside runnable targets" ON)
 set(ARCHIMEDES_SWIFTSHADER_DIR "" CACHE PATH "Local SwiftShader build to stage instead of the prebuilt (holds vk_swiftshader_icd.json)")
-unset(ARCHIMEDES_SWIFTSHADER_VERSION CACHE) # once a cache entry; see above
-set(ARCHIMEDES_SWIFTSHADER_VERSION "2026.10.14-cddb5c91")
-set(_ACM_SWIFTSHADER_SHA256_linux-x64   "4eeeca5c8bf2f139090683544a6b3c8d841b67c68937bbe5b707c63ffef09745")
-set(_ACM_SWIFTSHADER_SHA256_macos-arm64 "c0f211feb0b12abe6c66f30df43b88eecea05a30a766c8be89464a7f2ef2aeda")
-set(_ACM_SWIFTSHADER_SHA256_windows-x64 "3153171c00faaa08e7df37d15c5a1caea77905855215639d3023392deb041ae9")
+unset(ARCHIMEDES_SWIFTSHADER_VERSION CACHE) # once a cache entry; the pin is not cached
 
 # Ensure the Vulkan::Headers target exists. Prefers a real SDK (find_package),
 # else vendors Vulkan-Headers at the pinned SDK. A static library only needs the
@@ -106,8 +101,19 @@ endfunction()
 # both unset when ARCHIMEDES_SOFTWARE_VULKAN is OFF or this host has no published
 # archive. A missing archive warns rather than failing, so a default configure never breaks.
 function(_acm_require_cpu_driver)
+	# The pin: one release tag plus each platform's SHA256 (empty: no published archive).
+	# It lives in this body, not at module scope, because a function sees its *caller's*
+	# variables — a parent project calling acm_require_vulkan_runtime() never sees
+	# archimedes' directory scope, while a function body is global once defined. Plain
+	# variables, so a build folder's stale cache can never hold an older tag.
+	set(ARCHIMEDES_SWIFTSHADER_VERSION "2026.10.14-cddb5c91")
+	set(_sha256_linux-x64   "4eeeca5c8bf2f139090683544a6b3c8d841b67c68937bbe5b707c63ffef09745")
+	set(_sha256_macos-arm64 "c0f211feb0b12abe6c66f30df43b88eecea05a30a766c8be89464a7f2ef2aeda")
+	set(_sha256_windows-x64 "3153171c00faaa08e7df37d15c5a1caea77905855215639d3023392deb041ae9")
+
 	unset(ACM_SWIFTSHADER_LIB CACHE)
 	unset(ACM_SWIFTSHADER_ICD CACHE)
+	unset(ACM_SWIFTSHADER_LICENSES CACHE)
 	if(NOT ARCHIMEDES_SOFTWARE_VULKAN)
 		return()
 	endif()
@@ -127,7 +133,7 @@ function(_acm_require_cpu_driver)
 		endif()
 		set(_sha256 "")
 		if(_platform)
-			set(_sha256 "${_ACM_SWIFTSHADER_SHA256_${_platform}}")
+			set(_sha256 "${_sha256_${_platform}}")
 		endif()
 		if(NOT ARCHIMEDES_SWIFTSHADER_VERSION OR NOT _sha256)
 			message(WARNING "archimedes: no SwiftShader prebuilt for ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}; "
@@ -156,8 +162,23 @@ function(_acm_require_cpu_driver)
 		return()
 	endif()
 	list(GET _lib 0 _lib)
+
+	# Apache-2.0 redistribution ships the licence with the binary: SwiftShader's own and its
+	# third-party notices (LLVM, marl, SPIRV-Tools, ...). The prebuilt carries both; a local
+	# build folder usually has neither.
+	set(_licenses "")
+	foreach(_name IN ITEMS LICENSE.txt THIRD_PARTY_LICENSES.txt)
+		if(EXISTS "${_payload}/${_name}")
+			list(APPEND _licenses "${_payload}/${_name}")
+		endif()
+	endforeach()
+	if(NOT _licenses)
+		message(STATUS "archimedes: ${_origin} carries no licence texts; ACM_SWIFTSHADER_LICENSES is empty")
+	endif()
+
 	set(ACM_SWIFTSHADER_LIB "${_lib}" CACHE FILEPATH "Staged SwiftShader CPU driver library" FORCE)
 	set(ACM_SWIFTSHADER_ICD "${_icd}" CACHE FILEPATH "Staged SwiftShader CPU driver ICD manifest" FORCE)
+	set(ACM_SWIFTSHADER_LICENSES "${_licenses}" CACHE STRING "SwiftShader's licence texts, to ship with the CPU driver" FORCE)
 	message(STATUS "archimedes: CPU driver from ${_origin}")
 endfunction()
 
@@ -191,12 +212,22 @@ function(acm_stage_vulkan_runtime target)
 		return()
 	endif()
 
+	# SwiftShader's licence texts ship beside it, prefixed so they are not mistaken for the
+	# application's own.
+	set(_license_commands "")
+	foreach(_license IN LISTS ACM_SWIFTSHADER_LICENSES)
+		get_filename_component(_name "${_license}" NAME)
+		list(APPEND _license_commands
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_license}" "$<TARGET_FILE_DIR:${target}>/vulkan/vk_swiftshader.${_name}")
+	endforeach()
+
 	# Each ICD json references its library as ./<lib>, so the manifests and libraries
 	# must sit in the same directory. The linked loader (libvulkan) is resolved from its
 	# build dir via the rpath CMake adds automatically.
 	add_custom_command(TARGET ${target} POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/vulkan"
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_files} "$<TARGET_FILE_DIR:${target}>/vulkan/"
+		${_license_commands}
 		COMMENT "Staging Vulkan drivers for ${target}"
 		VERBATIM
 	)
