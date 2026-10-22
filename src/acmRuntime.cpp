@@ -34,59 +34,33 @@ namespace
 #endif
 	}
 
-#ifdef _WIN32
-	constexpr char PathListSeparator = ';';
-#else
-	constexpr char PathListSeparator = ':';
-#endif
-
 	// The most worker threads the CPU driver's scheduler holds (marl's MaxWorkerThreads).
 	constexpr uint32_t MaxCpuDeviceThreads = 256;
-
-	// The ICD manifests acm_stage_vulkan_runtime can place in <bindir>/vulkan/.
-	constexpr const char* StagedManifests[] = {
-		"MoltenVK_icd.json",	   // macOS portability driver
-		"vk_swiftshader_icd.json", // CPU driver
-	};
 } // namespace
 
 namespace acm
 {
 	void useStagedVulkanRuntime(const RuntimeConfig& config)
 	{
-#if defined(__APPLE__)
-		setEnvDefault("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL);
-#endif
-		// Read by the staged CPU driver (luckyneko/swiftshader-prebuilt's patched SwiftShader).
+		// Read by the staged CPU driver (luckyneko/swiftshader-prebuilt's patched SwiftShader),
+		// which acm::Instance loads directly; it needs no other environment.
 		if (config.cpuDeviceThreads > 0)
 			setEnvDefault("SWIFTSHADER_THREAD_COUNT", std::to_string(std::min(config.cpuDeviceThreads, MaxCpuDeviceThreads)));
 
+#if defined(__APPLE__)
+		setEnvDefault("MVK_CONFIG_LOG_LEVEL", ACM_MOLTENVK_LOG_LEVEL);
+
+		// MoltenVK goes through the loader's own discovery, not direct loading: GLFW must see
+		// it (and its surface extensions) before an instance exists, and MoltenVK 1.4.1 speaks
+		// loader-driver interface 5, below direct loading's 7. The staged driver is the whole
+		// list, as it always was.
 		const std::filesystem::path executableDir = vulkan::executableDirectory();
 		if (executableDir.empty())
 			return;
-
-		std::string staged;
-		for (const char* manifest : StagedManifests)
-		{
-			const std::filesystem::path path = executableDir / "vulkan" / manifest;
-			std::error_code ec;
-			if (!std::filesystem::exists(path, ec))
-				continue;
-			if (!staged.empty())
-				staged += PathListSeparator;
-			staged += path.string();
-		}
-		if (staged.empty())
-			return;
-
-#if defined(__APPLE__)
-		// The staged drivers are the whole list, as MoltenVK's always was.
-		setEnvDefault("VK_ICD_FILENAMES", staged);
-#else
-		// Keep system GPU drivers visible and add the staged ones. The loader ignores the
-		// addition when the caller replaced the driver list, so leave that choice alone.
-		if (!std::getenv("VK_ICD_FILENAMES") && !std::getenv("VK_DRIVER_FILES"))
-			setEnvDefault("VK_ADD_DRIVER_FILES", staged);
+		const std::filesystem::path moltenVK = executableDir / "vulkan" / "MoltenVK_icd.json";
+		std::error_code ec;
+		if (std::filesystem::exists(moltenVK, ec))
+			setEnvDefault("VK_ICD_FILENAMES", moltenVK.string());
 #endif
 	}
 } // namespace acm

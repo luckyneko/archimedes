@@ -53,10 +53,10 @@ acm_stage_vulkan_runtime(test-${PROJECT_NAME})
 # DYLD_LIBRARY_PATH) for both. Locally it is harmless (the system loader is found first).
 set(_acm_test_props TEST_PREFIX "(${PROJECT_NAME}) " DL_PATHS "$<TARGET_FILE_DIR:Vulkan::Loader>")
 
-# Point the loader at the staged drivers so [gpu] tests find them under ctest (no system
-# install): on macOS VK_ICD_FILENAMES lists MoltenVK + the CPU driver; elsewhere
-# VK_ADD_DRIVER_FILES adds the CPU driver while keeping system drivers visible. Nothing
-# is set when nothing is staged — an empty VK_ICD_FILENAMES would hide every driver.
+# Point the loader at the staged MoltenVK so [gpu] tests find it under ctest (no system
+# install): VK_ICD_FILENAMES on macOS, nothing elsewhere — an empty VK_ICD_FILENAMES would
+# hide every system driver. The CPU driver needs no environment: acm::Instance loads it
+# directly from the test executable's vulkan/ folder.
 acm_vulkan_driver_environment(_acm_driver_env)
 if(_acm_driver_env)
     list(APPEND _acm_test_props PROPERTIES ENVIRONMENT "${_acm_driver_env}")

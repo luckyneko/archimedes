@@ -19,12 +19,24 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <utility>
 
 namespace acm::vulkan
 {
+	namespace
+	{
+		// The CPU driver's library, as acm_stage_vulkan_runtime stages it in <exe dir>/vulkan/.
+#if defined(_WIN32)
+		constexpr const char* CpuDriverLibrary = "vk_swiftshader.dll";
+#elif defined(__APPLE__)
+		constexpr const char* CpuDriverLibrary = "libvk_swiftshader.dylib";
+#else
+		constexpr const char* CpuDriverLibrary = "libvk_swiftshader.so";
+#endif
+	} // namespace
 
 	// -----------------------------------------------------------------------------
 	// Lifetime
@@ -52,6 +64,16 @@ namespace acm::vulkan
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 		std::vector<VkExtensionProperties> availableExtensions(extensionCount);
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
+
+		// The staged CPU driver joins through VK_LUNARG_direct_driver_loading, not the loader's
+		// own discovery, which ignores driver environment variables in an elevated process.
+		// The loader cannot see a directly loaded driver before vkCreateInstance, so the
+		// driver's own instance extensions (its surfaces) are merged in here, before any name
+		// below points into this list.
+		PFN_vkGetInstanceProcAddr cpuDriverProcAddr = nullptr;
+		if (config.cpuDriver && extensionAvailable(availableExtensions, VK_LUNARG_DIRECT_DRIVER_LOADING_EXTENSION_NAME))
+			cpuDriverProcAddr = loadCpuDriver(availableExtensions);
+
 		std::vector<const char*> extensionNames;
 		for (const VkExtensionProperties& extension : availableExtensions)
 		{
@@ -69,6 +91,9 @@ namespace acm::vulkan
 		const bool debugUtils = config.debug && extensionAvailable(availableExtensions, VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		if (debugUtils)
 			extensionNames.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+		if (cpuDriverProcAddr)
+			extensionNames.push_back(VK_LUNARG_DIRECT_DRIVER_LOADING_EXTENSION_NAME);
 
 		uint32_t layerCount = 0;
 		vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -95,6 +120,22 @@ namespace acm::vulkan
 			debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 			debugCreateInfo.pfnUserCallback = validationCallback;
 			createInfo.pNext = &debugCreateInfo;
+		}
+
+		// Inclusive: the CPU driver joins the drivers the loader discovers itself. Chained in
+		// front so debugCreateInfo, reused for the messenger below, keeps an empty pNext.
+		VkDirectDriverLoadingInfoLUNARG cpuDriverInfo = {};
+		VkDirectDriverLoadingListLUNARG cpuDriverList = {};
+		if (cpuDriverProcAddr)
+		{
+			cpuDriverInfo.sType = VK_STRUCTURE_TYPE_DIRECT_DRIVER_LOADING_INFO_LUNARG;
+			cpuDriverInfo.pfnGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddrLUNARG>(cpuDriverProcAddr);
+			cpuDriverList.sType = VK_STRUCTURE_TYPE_DIRECT_DRIVER_LOADING_LIST_LUNARG;
+			cpuDriverList.pNext = createInfo.pNext;
+			cpuDriverList.mode = VK_DIRECT_DRIVER_LOADING_MODE_INCLUSIVE_LUNARG;
+			cpuDriverList.driverCount = 1;
+			cpuDriverList.pDrivers = &cpuDriverInfo;
+			createInfo.pNext = &cpuDriverList;
 		}
 
 		VkResult result = vkCreateInstance(&createInfo, nullptr, &m_instance);
@@ -229,6 +270,29 @@ namespace acm::vulkan
 		else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
 			std::fprintf(stderr, "validation layer [warn]: %s\n", callbackData->pMessage);
 		return VK_FALSE;
+	}
+
+	PFN_vkGetInstanceProcAddr Instance::loadCpuDriver(std::vector<VkExtensionProperties>& extensions)
+	{
+		const std::filesystem::path directory = executableDirectory();
+		if (directory.empty())
+			return nullptr;
+		PlatformLibrary library(directory / "vulkan" / CpuDriverLibrary);
+		auto procAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(library.symbol("vk_icdGetInstanceProcAddr"));
+		auto enumerate = procAddr ? reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(procAddr(VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties")) : nullptr;
+		uint32_t count = 0;
+		if (!enumerate || enumerate(nullptr, &count, nullptr) != VK_SUCCESS)
+			return nullptr;
+		std::vector<VkExtensionProperties> driverExtensions(count);
+		if (enumerate(nullptr, &count, driverExtensions.data()) != VK_SUCCESS)
+			return nullptr;
+		driverExtensions.resize(count);
+
+		for (const VkExtensionProperties& extension : driverExtensions)
+			if (!extensionAvailable(extensions, extension.extensionName))
+				extensions.push_back(extension);
+		m_cpuDriver = std::move(library);
+		return procAddr;
 	}
 
 	void Instance::enumerateDevices()

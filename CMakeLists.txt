@@ -85,8 +85,11 @@ set(SOURCE_FILES
 
 # A static library only needs the Vulkan *headers* to compile; the loader is a
 # link-time concern of an eventual executable. See cmake/addVulkan.cmake.
+# CMAKE_DL_LIBS (libdl on older glibc, empty elsewhere) backs the directly loaded CPU
+# driver (dlopen/dlsym).
 set(LIBRARIES
     Vulkan::Headers
+    ${CMAKE_DL_LIBS}
 )
 
 add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})

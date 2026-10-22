@@ -6,8 +6,8 @@
  *  (See accompanying file LICENSE)
  */
 
-// Platform glue: the window behind a headless surface, and the running executable's
-// location (for finding staged drivers). This is the one translation unit allowed to
+// Platform glue: the window behind a headless surface, the running executable's location
+// (for finding staged drivers), and loading a driver library directly. This is the one translation unit allowed to
 // pull in <windows.h>, so the Win32 code stays isolated from the backend-neutral code. The Vulkan platform define must precede the
 // first <vulkan/vulkan.h> include to expose vkCreateWin32SurfaceKHR, so windows.h and
 // the define come first.
@@ -27,6 +27,9 @@
 
 #if defined(__APPLE__)
 #	include <mach-o/dyld.h>
+#endif
+#if !defined(_WIN32)
+#	include <dlfcn.h>
 #endif
 
 #include <cstdint>
@@ -142,5 +145,41 @@ namespace acm::vulkan
 		if (ec)
 			return {};
 		return executable.parent_path();
+	}
+
+	// -----------------------------------------------------------------------------
+	// PlatformLibrary
+	// -----------------------------------------------------------------------------
+
+	PlatformLibrary::PlatformLibrary(const std::filesystem::path& path)
+	{
+#if defined(_WIN32)
+		m_handle = LoadLibraryW(path.c_str());
+#else
+		m_handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+#endif
+	}
+
+	void PlatformLibrary::reset()
+	{
+		if (!m_handle)
+			return;
+#if defined(_WIN32)
+		FreeLibrary(static_cast<HMODULE>(m_handle));
+#else
+		dlclose(m_handle);
+#endif
+		m_handle = nullptr;
+	}
+
+	void* PlatformLibrary::symbol(const char* name) const
+	{
+		if (!m_handle)
+			return nullptr;
+#if defined(_WIN32)
+		return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(m_handle), name));
+#else
+		return dlsym(m_handle, name);
+#endif
 	}
 } // namespace acm::vulkan

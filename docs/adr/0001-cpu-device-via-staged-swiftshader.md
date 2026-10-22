@@ -32,9 +32,14 @@ The library's one compile-time backend stays Vulkan.
 - **Staged by default.** `ARCHIMEDES_SOFTWARE_VULKAN` (default ON) stages the CPU driver beside every
   runnable target. On a host with no published archive, configure warns and behaves as if the option
   were OFF. A library-only build never fetches it.
-- **Added, not substituted.** Runtime setup adds the staged CPU driver to the loader's list on Linux and
-  Windows, so system GPU drivers stay visible. On macOS the staged drivers stay the exclusive list, as
-  MoltenVK's always was.
+- **Loaded directly, not through the environment.** `acm::Instance` loads the staged CPU driver
+  library itself and hands its entry point to the loader through `VK_LUNARG_direct_driver_loading`
+  (inclusive mode, so system GPU drivers stay visible). Driver environment variables were the first
+  approach, but the loader ignores them in an elevated Windows process (GitHub's Windows runners
+  are elevated, which is how it surfaced). The loader cannot list a directly loaded driver's
+  extensions before an instance exists, so `acm::Instance` asks the driver itself. MoltenVK stays on
+  `VK_ICD_FILENAMES`: GLFW needs it before an instance exists, and MoltenVK 1.4.1 cannot be loaded
+  directly (loader-driver interface 5, below the required 7).
 - **Ranked selection.** `DevicePreferences::Default()` ranks hardware devices first and the CPU device
   last, so a caller taking the first option gets a GPU when one exists. `DevicePreferences::Cpu()` puts
   the CPU device first.
@@ -46,10 +51,10 @@ The library's one compile-time backend stays Vulkan.
 - `[gpu]` tests run once for each device kind present. With the CPU driver staged, a missing CPU
   device is a test failure rather than a SKIP, because it means staging is broken. Capability gaps
   still SKIP.
-- The loader ignores driver environment variables in an elevated Windows process, so the staged
-  CPU driver is invisible there unless it is registered under
-  `HKLM\SOFTWARE\Khronos\Vulkan\Drivers`. CI does that, because GitHub's Windows runners run
-  elevated.
+- GLFW checks instance extensions before an instance exists, where a directly loaded driver is
+  invisible. So on a machine whose only driver is the CPU driver and where the loader ignores driver
+  environment variables (an elevated Windows process with no GPU driver), GLFW cannot create a
+  window surface; headless rendering, offscreen rendering and compute still work.
 - On macOS, SwiftShader presents to a window through a `CAMetalLayer`, so a windowed CPU device still
   needs Metal. Headless rendering and compute do not.
 - SwiftShader runs shaders on its own thread pool, sized to the machine (up to 16 threads). A

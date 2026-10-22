@@ -161,52 +161,24 @@ function(_acm_require_cpu_driver)
 	message(STATUS "archimedes: CPU driver from ${_origin}")
 endfunction()
 
-# The ICD manifests of every staged driver, as absolute paths beside their libraries.
-function(_acm_staged_manifests out)
-	set(_manifests "")
-	if(ACM_MOLTENVK_ICD)
-		list(APPEND _manifests "${ACM_MOLTENVK_ICD}")
-	endif()
-	if(ACM_SWIFTSHADER_ICD)
-		list(APPEND _manifests "${ACM_SWIFTSHADER_ICD}")
-	endif()
-	set(${out} "${_manifests}" PARENT_SCOPE)
-endfunction()
-
-# The loader environment exposing <manifests> as one NAME=VALUE entry (empty for no
-# manifests). macOS makes them the whole driver list, as MoltenVK's always was;
-# elsewhere they are added to the system's drivers. Matches
-# acm::useStagedVulkanRuntime() for launches that bypass it (ctest, launchers).
-function(_acm_driver_environment out)
-	set(_env "")
-	if(ARGN)
-		if(WIN32)
-			list(JOIN ARGN "\;" _joined)
-		else()
-			list(JOIN ARGN ":" _joined)
-		endif()
-		if(APPLE)
-			set(_env "VK_ICD_FILENAMES=${_joined}")
-		else()
-			set(_env "VK_ADD_DRIVER_FILES=${_joined}")
-		endif()
-	endif()
-	set(${out} "${_env}" PARENT_SCOPE)
-endfunction()
-
-# The loader environment (one NAME=VALUE entry, or empty) that exposes every staged
-# driver from where it was provisioned — for ctest and other launches that run a
-# binary without its staged copies being known at configure time.
+# The loader environment (one NAME=VALUE entry, or empty) exposing the staged MoltenVK
+# from where it was provisioned — for ctest and other launches that run a binary without
+# acm::useStagedVulkanRuntime(). Only MoltenVK goes through the environment, and its
+# manifest is the whole driver list, as it always was; the CPU driver needs none, because
+# acm::Instance loads it directly from <exe dir>/vulkan/.
 function(acm_vulkan_driver_environment out)
-	_acm_staged_manifests(_manifests)
-	_acm_driver_environment(_env ${_manifests})
+	set(_env "")
+	if(ACM_MOLTENVK_ICD)
+		set(_env "VK_ICD_FILENAMES=${ACM_MOLTENVK_ICD}")
+	endif()
 	set(${out} "${_env}" PARENT_SCOPE)
 endfunction()
 
 # Stages every staged driver (MoltenVK on macOS, the CPU driver where available) in
-# <target>'s <bindir>/vulkan/ and, off Windows, emits build/run_<target>.sh that points
-# the loader at them. A no-op when nothing is staged (e.g. Linux with the CPU driver
-# OFF). Call after the target is defined and acm_require_vulkan_runtime() has run.
+# <target>'s <bindir>/vulkan/ — where acm::Instance loads the CPU driver from — and, off
+# Windows, emits build/run_<target>.sh, which points the loader at a staged MoltenVK. A
+# no-op when nothing is staged (e.g. Linux with the CPU driver OFF). Call after the target
+# is defined and acm_require_vulkan_runtime() has run.
 function(acm_stage_vulkan_runtime target)
 	set(_files "")
 	if(ACM_MOLTENVK_ICD)
@@ -232,24 +204,19 @@ function(acm_stage_vulkan_runtime target)
 	if(WIN32)
 		return()
 	endif()
-	_acm_staged_manifests(_manifests)
-	set(_staged "")
-	foreach(_manifest IN LISTS _manifests)
-		get_filename_component(_name "${_manifest}" NAME)
-		list(APPEND _staged "$<TARGET_FILE_DIR:${target}>/vulkan/${_name}")
-	endforeach()
-	_acm_driver_environment(_env ${_staged})
+	set(_driver_env "")
+	if(ACM_MOLTENVK_ICD)
+		set(_driver_env "export VK_ICD_FILENAMES=\"$<TARGET_FILE_DIR:${target}>/vulkan/MoltenVK_icd.json\"\n")
+	endif()
 	set(_layer_env "")
 	if(DEFINED ENV{VULKAN_SDK})
 		set(_layer_env "export VK_LAYER_PATH=\"$ENV{VULKAN_SDK}/share/vulkan/explicit_layer.d\"\n")
 	endif()
-	string(REGEX REPLACE "^([A-Z_]+)=(.*)$" "\\1=\"\\2\"" _export "${_env}")
 	file(GENERATE
 		OUTPUT "${CMAKE_BINARY_DIR}/run_${target}.sh"
 		CONTENT "#!/bin/sh
 # Auto-generated: runs ${target} against its staged Vulkan drivers.
-export ${_export}
-${_layer_env}exec \"$<TARGET_FILE:${target}>\" \"$@\"
+${_driver_env}${_layer_env}exec \"$<TARGET_FILE:${target}>\" \"$@\"
 "
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)

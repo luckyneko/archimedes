@@ -17,8 +17,9 @@
 #include <string>
 #include <vector>
 
-// The CPU device as a pathway (docs/adr/0001): device preferences rank it against hardware
-// devices, and one compute shader gives the same result on either kind.
+// The CPU device as a pathway (docs/adr/0001): acm::Instance loads the staged CPU driver
+// directly, device preferences rank it against hardware devices, and one compute shader
+// gives the same result on either kind.
 
 namespace
 {
@@ -51,6 +52,21 @@ namespace
 		std::string saved;
 		bool had{true};
 	};
+
+#ifdef ACM_EXPECT_CPU_DEVICE
+	constexpr bool CpuDriverStaged = true;
+#else
+	constexpr bool CpuDriverStaged = false;
+#endif
+
+	size_t devicesNamed(const acm::Instance& instance, const char* name)
+	{
+		size_t count = 0;
+		for (const acm::DeviceInfo& device : instance.devices())
+			if (device.name.find(name) != std::string::npos)
+				++count;
+		return count;
+	}
 
 	// The first graphics option on a device of `kind`, or nullptr when there is none.
 	const acm::DeviceOption* firstOfKind(const std::vector<acm::DeviceOption>& options, const acm::Instance& instance, acmtest::DeviceKind kind)
@@ -128,6 +144,48 @@ TEST_CASE("useStagedVulkanRuntime caps the CPU driver's threads without overridi
 	config.cpuDeviceThreads = 3;
 	acm::useStagedVulkanRuntime(config);
 	REQUIRE(std::string(std::getenv(name)) == "256"); // a value already set wins
+}
+
+TEST_CASE("The CPU driver loads directly, without driver environment variables", "[acm][gpu]")
+{
+	if (!CpuDriverStaged)
+		SKIP("the CPU driver is not staged");
+
+	// Point the loader's own discovery at nothing: what an elevated Windows process gets,
+	// since the loader ignores these variables there. Only the directly loaded driver remains.
+	const EnvGuard driverFiles("VK_DRIVER_FILES");
+	const EnvGuard icdFilenames("VK_ICD_FILENAMES");
+	const EnvGuard addDriverFiles("VK_ADD_DRIVER_FILES");
+	setEnv("VK_DRIVER_FILES", nullptr);
+	setEnv("VK_ADD_DRIVER_FILES", nullptr);
+	setEnv("VK_ICD_FILENAMES", "acm-no-such-driver.json");
+
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	REQUIRE(instance.valid());
+	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
+	REQUIRE_FALSE(options.empty());
+	REQUIRE(instance.devices()[options.front().deviceIndex].type == acm::PhysicalDeviceType::Cpu);
+
+	// The loader cannot list a directly loaded driver's extensions before the instance
+	// exists, so the surface extensions came from the driver itself.
+	acm::Surface surface = instance.createHeadlessSurface(acm::Extent2D{64, 64});
+	REQUIRE(surface.valid());
+	REQUIRE_FALSE(instance.surfaceOptions(surface).empty());
+}
+
+TEST_CASE("InstanceConfig::cpuDriver off leaves the CPU driver unloaded", "[acm][gpu]")
+{
+	if (!CpuDriverStaged)
+		SKIP("the CPU driver is not staged");
+
+	// Counted against a default instance, so a system-installed SwiftShader cancels out. With
+	// no other driver (a GPU-less runner) the opted-out instance may not exist at all.
+	acm::Instance withDriver("acm-tests", acm::Version{0, 1, 0});
+	acmtest::requireInstance(withDriver);
+	acm::InstanceConfig config;
+	config.cpuDriver = false;
+	acm::Instance withoutDriver("acm-tests", acm::Version{0, 1, 0}, config);
+	REQUIRE(devicesNamed(withDriver, "SwiftShader") == devicesNamed(withoutDriver, "SwiftShader") + 1);
 }
 
 TEST_CASE("Device options put hardware first by default and the CPU device first on request", "[acm][gpu]")
