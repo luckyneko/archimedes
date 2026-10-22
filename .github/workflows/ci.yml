@@ -107,6 +107,22 @@ jobs:
       - name: Build full graph
         run: cmake --build build-full --parallel --config ${{ matrix.build_type }}
 
+      # GitHub's Windows runners run jobs elevated, and the Vulkan loader ignores driver
+      # environment variables (VK_ADD_DRIVER_FILES, which ctest sets) in an elevated process.
+      # An elevated loader finds drivers only through the Khronos registry key, so register
+      # the staged CPU driver there; without it every [gpu] test fails (it must find the CPU
+      # device whenever the CPU driver is staged).
+      - name: Register the CPU driver with the Vulkan loader
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          whoami /groups | Select-String 'Mandatory Label'
+          $icd = (Resolve-Path build-full/_deps/swiftshader-src/vk_swiftshader_icd.json).Path
+          $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name $icd -Value 0 -PropertyType DWord -Force | Out-Null
+          Write-Host "Registered $icd"
+
       - name: Test
         run: ctest --test-dir build-full --output-on-failure -C ${{ matrix.build_type }}
 

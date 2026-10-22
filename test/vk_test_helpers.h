@@ -49,7 +49,8 @@ namespace acmtest
 		if (instance.valid())
 			return;
 #ifdef ACM_EXPECT_CPU_DEVICE
-		FAIL("the CPU driver is staged but no Vulkan instance was created");
+		FAIL("the CPU driver is staged but no Vulkan instance was created (an elevated Windows "
+			 "process ignores driver environment variables; register the driver instead)");
 #endif
 		SKIP("no Vulkan driver available");
 	}

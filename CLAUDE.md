@@ -896,6 +896,14 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 ## Known rough edges (pre-existing, not yet addressed)
 
+- **An elevated Windows process cannot see the staged CPU driver.** The Vulkan loader ignores
+  driver environment variables (`VK_ADD_DRIVER_FILES`, `VK_ICD_FILENAMES`, `VK_DRIVER_FILES`)
+  in a high-integrity process and finds drivers only through the
+  `HKLM\SOFTWARE\Khronos\Vulkan\Drivers` registry key, so `useStagedVulkanRuntime` cannot
+  expose SwiftShader there. GitHub's Windows runners run elevated, so CI registers the staged
+  driver's manifest in that key before `ctest`. The loader's `VK_LUNARG_direct_driver_loading`
+  (the app loads the driver library and hands the loader its entry point) would work without
+  environment or registry.
 - **A windowed CPU device on macOS still needs Metal** (SwiftShader presents through a
   `CAMetalLayer`); headless rendering and compute on it do not. SwiftShader also lacks
   `wideLines`, like MoltenVK.

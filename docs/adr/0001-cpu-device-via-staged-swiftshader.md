@@ -46,6 +46,10 @@ The library's one compile-time backend stays Vulkan.
 - `[gpu]` tests run once for each device kind present. With the CPU driver staged, a missing CPU
   device is a test failure rather than a SKIP, because it means staging is broken. Capability gaps
   still SKIP.
+- The loader ignores driver environment variables in an elevated Windows process, so the staged
+  CPU driver is invisible there unless it is registered under
+  `HKLM\SOFTWARE\Khronos\Vulkan\Drivers`. CI does that, because GitHub's Windows runners run
+  elevated.
 - On macOS, SwiftShader presents to a window through a `CAMetalLayer`, so a windowed CPU device still
   needs Metal. Headless rendering and compute do not.
 - SwiftShader runs shaders on its own thread pool, sized to the machine (up to 16 threads). A
