@@ -91,9 +91,10 @@ Continuously built and tested on:
 - macOS 15 (AppleClang, Release)
 - Windows Server 2022 (MSVC, Release)
 
-The hosted CI runs formatting, library-only builds, full builds, and `ctest`. Live
-rendering validation still depends on the runner having a usable Vulkan driver; the GPU
-tests skip when the driver or capability they need is unavailable.
+The hosted CI runs formatting, library-only builds, full builds, an `add_subdirectory`
+consumer smoke, and `ctest`. The runners have no GPU, so the GPU tests run there on the
+staged CPU device (SwiftShader); hardware-GPU coverage comes from local runs (Apple Silicon
+so far). A GPU test skips only for a capability its device lacks.
 
 ## Features
 
