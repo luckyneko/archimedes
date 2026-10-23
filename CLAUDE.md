@@ -625,7 +625,9 @@ goal end to end:
   Python). Its second Apple-only `vulkan-framework` target is set
   `EXCLUDE_FROM_ALL` since we only link the `vulkan` dylib.
 - **MoltenVK**: the prebuilt `MoltenVK-macos.tar` release; `libMoltenVK.dylib` +
-  `MoltenVK_icd.json` (relative `./libMoltenVK.dylib`, `is_portability_driver`).
+  `MoltenVK_icd.json` (relative `./libMoltenVK.dylib`, `is_portability_driver`). It is
+  Apache-2.0: `ACM_MOLTENVK_LICENSES` names its `LICENSE`, which `acm_stage_vulkan_runtime`
+  stages as `vulkan/MoltenVK.LICENSE`.
 - **SwiftShader**: the CPU driver's library is staged in `<bindir>/vulkan/` (with its ICD
   json), where `acm::Instance` loads it directly.
 - **`acm_stage_vulkan_runtime(<target>)`**: POST_BUILD-copies each staged ICD + library to
