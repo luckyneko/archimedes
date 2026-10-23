@@ -91,6 +91,12 @@ function(acm_require_vulkan_runtime)
 		set(_payload "${moltenvk_SOURCE_DIR}/MoltenVK/dynamic/dylib/macOS")
 		set(ACM_MOLTENVK_DYLIB "${_payload}/libMoltenVK.dylib" CACHE FILEPATH "Vendored libMoltenVK.dylib" FORCE)
 		set(ACM_MOLTENVK_ICD   "${_payload}/MoltenVK_icd.json" CACHE FILEPATH "Vendored MoltenVK ICD manifest" FORCE)
+		# MoltenVK is Apache-2.0 too, so its licence ships with it like the CPU driver's.
+		set(_mvk_licenses "")
+		if(EXISTS "${moltenvk_SOURCE_DIR}/LICENSE")
+			set(_mvk_licenses "${moltenvk_SOURCE_DIR}/LICENSE")
+		endif()
+		set(ACM_MOLTENVK_LICENSES "${_mvk_licenses}" CACHE STRING "MoltenVK's licence text, to ship with the driver" FORCE)
 		message(STATUS "archimedes: vendored MoltenVK ${ARCHIMEDES_MOLTENVK_VERSION}")
 	endif()
 
@@ -240,14 +246,24 @@ function(acm_stage_vulkan_runtime target)
 		return()
 	endif()
 
-	# SwiftShader's licence texts ship beside it, prefixed so they are not mistaken for the
-	# application's own.
+	# Each staged driver's licence texts ship beside it, prefixed with the driver's name so
+	# they are not mistaken for the application's own (vk_swiftshader.LICENSE.txt,
+	# MoltenVK.LICENSE).
 	set(_license_commands "")
-	foreach(_license IN LISTS ACM_SWIFTSHADER_LICENSES)
-		get_filename_component(_name "${_license}" NAME)
-		list(APPEND _license_commands
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_license}" "$<TARGET_FILE_DIR:${target}>/vulkan/vk_swiftshader.${_name}")
-	endforeach()
+	if(ACM_SWIFTSHADER_ICD)
+		foreach(_license IN LISTS ACM_SWIFTSHADER_LICENSES)
+			get_filename_component(_name "${_license}" NAME)
+			list(APPEND _license_commands
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_license}" "$<TARGET_FILE_DIR:${target}>/vulkan/vk_swiftshader.${_name}")
+		endforeach()
+	endif()
+	if(ACM_MOLTENVK_ICD)
+		foreach(_license IN LISTS ACM_MOLTENVK_LICENSES)
+			get_filename_component(_name "${_license}" NAME)
+			list(APPEND _license_commands
+				COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_license}" "$<TARGET_FILE_DIR:${target}>/vulkan/MoltenVK.${_name}")
+		endforeach()
+	endif()
 
 	# Each ICD json references its library as ./<lib>, so the manifests and libraries
 	# must sit in the same directory. The linked loader (libvulkan) is resolved from its
