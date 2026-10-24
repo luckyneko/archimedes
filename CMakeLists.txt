@@ -61,6 +61,8 @@ set(SOURCE_FILES
     src/acmSwapChain.cpp
     src/acmTexture.cpp
     src/acmVulkanInterop.cpp
+    src/Platform.cpp
+    src/PlatformLibrary.cpp
     
     src/vulkan/Buffer.cpp
     src/vulkan/CommandBuffer.cpp

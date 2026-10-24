@@ -12,6 +12,7 @@
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmVersion.h"
+#include "archimedes/Platform.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/PlatformSurface.h"

@@ -8,10 +8,9 @@
 
 #include "archimedes/acmRuntime.h"
 
-#include "archimedes/vulkan/PlatformSurface.h"
+#include "archimedes/Platform.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -22,18 +21,6 @@
 
 namespace
 {
-	// Sets an environment variable unless the caller already chose a value.
-	void setEnvDefault(const char* name, const std::string& value)
-	{
-		if (std::getenv(name))
-			return;
-#ifdef _WIN32
-		_putenv_s(name, value.c_str());
-#else
-		setenv(name, value.c_str(), 0); // 0: do not overwrite
-#endif
-	}
-
 	// The most worker threads the CPU driver's scheduler holds (marl's MaxWorkerThreads).
 	constexpr uint32_t MaxCpuDeviceThreads = 256;
 } // namespace
@@ -54,7 +41,7 @@ namespace acm
 		// it (and its surface extensions) before an instance exists, and MoltenVK 1.4.1 speaks
 		// loader-driver interface 5, below direct loading's 7. The staged driver is the whole
 		// list, as it always was.
-		const std::filesystem::path executableDir = vulkan::executableDirectory();
+		const std::filesystem::path executableDir = executableDirectory();
 		if (executableDir.empty())
 			return;
 		const std::filesystem::path moltenVK = executableDir / "vulkan" / "MoltenVK_icd.json";

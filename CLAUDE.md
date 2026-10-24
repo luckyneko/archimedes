@@ -263,9 +263,10 @@ construction inputs into `*Config`, and do not add a `*Config` for a single requ
 choice just to make a signature look uniform.
 **The CPU driver is loaded directly.** When `InstanceConfig::cpuDriver` is on (the default)
 and the loader offers `VK_LUNARG_direct_driver_loading`, `vulkan::Instance` loads the CPU
-driver library from `<exe dir>/vulkan/` (a move-only `vulkan::PlatformLibrary`, in the
-[PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) seam because Windows needs
-`<windows.h>`), asks it for its own instance extensions, and chains a
+driver library from `<exe dir>/vulkan/` (`acm::executableDirectory()` from the private
+[Platform.h](private/archimedes/Platform.h), loaded by a move-only `acm::PlatformLibrary`
+from the private [PlatformLibrary.h](private/archimedes/PlatformLibrary.h) — neither is
+Vulkan-specific), asks it for its own instance extensions, and chains a
 `VkDirectDriverLoadingListLUNARG` (inclusive mode, so the loader's own drivers stay) onto
 `VkInstanceCreateInfo`. No environment variable or registry entry is involved, so it works in
 an elevated Windows process, where the loader ignores driver environment variables. The
@@ -872,7 +873,7 @@ Archimedes API paths, not copied benchmark-only implementations. The generated
 launcher points the loader at the staged drivers, matching the testbed path. Direct
 launches from an IDE also work: the test, benchmark, and testbed executables call the
 public `acm::useStagedVulkanRuntime()` helper before creating an instance. On macOS it
-finds `<exe dir>/vulkan/` (via `vulkan::executableDirectory()`) and sets `VK_ICD_FILENAMES`
+finds `<exe dir>/vulkan/` (via `acm::executableDirectory()`) and sets `VK_ICD_FILENAMES`
 to the staged MoltenVK; it never overwrites a value the caller set. The CPU driver needs no
 environment: `acm::Instance` loads it directly.
 `useStagedVulkanRuntime(RuntimeConfig{cpuDeviceThreads})` caps the CPU driver's worker pool
@@ -906,6 +907,12 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 - **C++17.** `target_compile_features(... cxx_std_17)`.
 - **Headers** use `#pragma once` (no include guards).
+- **Platform code** (`#ifdef _WIN32`, `<windows.h>`, `dlfcn.h`, `mach-o`) stays in the
+  platform translation units: [Platform.cpp](src/Platform.cpp) (executable location,
+  environment defaults), [PlatformLibrary.cpp](src/PlatformLibrary.cpp) (dynamic library
+  loading), and [PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) (the Win32
+  headless-surface fallback). Their private headers expose type-erased handles, so no other
+  file includes `<windows.h>`.
 - **Naming:** public classes are `PascalCase` in namespace `acm` with files
   `acm<Name>.{h,cpp}`. Private Vulkan owners are in `acm::vulkan` with matching
   `private/archimedes/vulkan` and `src/vulkan` paths. Public platform integration uses

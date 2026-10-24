@@ -12,8 +12,8 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmVersion.h"
+#include "archimedes/PlatformLibrary.h"
 #include "archimedes/ResourcePool.h"
-#include "archimedes/vulkan/PlatformSurface.h"
 #include "archimedes/vulkan/Resources.h"
 
 #include <vulkan/vulkan.h>
@@ -59,7 +59,7 @@ namespace acm::vulkan
 
 		// First member, so the driver library stays loaded until everything below is gone
 		// (vkDestroyInstance runs in the destructor body, before any member is destroyed).
-		acm::vulkan::PlatformLibrary m_cpuDriver;
+		acm::PlatformLibrary m_cpuDriver;
 		VkInstance m_instance{VK_NULL_HANDLE};
 		VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 		std::vector<const char*> m_layerNames;
