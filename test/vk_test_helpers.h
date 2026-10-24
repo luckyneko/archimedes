@@ -49,8 +49,7 @@ namespace acmtest
 		if (instance.valid())
 			return;
 #ifdef ACM_EXPECT_CPU_DEVICE
-		FAIL("the CPU driver is staged but no Vulkan instance was created (an elevated Windows "
-			 "process ignores driver environment variables; register the driver instead)");
+		FAIL("the CPU driver is staged but no Vulkan instance was created");
 #endif
 		SKIP("no Vulkan driver available");
 	}
@@ -65,7 +64,8 @@ namespace acmtest
 			(deviceKindOf(instance.devices()[option.deviceIndex].type) == DeviceKind::Cpu ? cpu : hardware) = true;
 #ifdef ACM_EXPECT_CPU_DEVICE
 		if (!cpu)
-			FAIL("the CPU driver is staged but no CPU device is available");
+			FAIL("the CPU driver is staged but no CPU device is available (acm::Instance loads it "
+				 "from <exe dir>/vulkan/)");
 #endif
 		std::vector<DeviceKind> kinds;
 		if (hardware)

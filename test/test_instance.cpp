@@ -23,6 +23,7 @@ TEST_CASE("InstanceConfig has production-safe defaults", "[acm][unit]")
 	STATIC_REQUIRE(config.portability);
 	STATIC_REQUIRE_FALSE(config.validation);
 	STATIC_REQUIRE_FALSE(config.debug);
+	STATIC_REQUIRE(config.cpuDriver);
 }
 
 TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")

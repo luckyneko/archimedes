@@ -12,6 +12,7 @@
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
 #include "archimedes/acmVersion.h"
+#include "archimedes/PlatformLibrary.h"
 #include "archimedes/ResourcePool.h"
 #include "archimedes/vulkan/Resources.h"
 
@@ -22,7 +23,7 @@
 namespace acm::vulkan
 {
 	// Move-only VkInstance owner. Enumerates physical devices and owns the stable pool
-	// for platform surfaces created from this instance.
+	// for platform surfaces created from this instance, plus the directly loaded CPU driver.
 	class Instance
 	{
 	public:
@@ -53,8 +54,12 @@ namespace acm::vulkan
 		static VkResult createDebugMessenger(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* createInfo, VkDebugUtilsMessengerEXT* messenger);
 		static void destroyDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT messenger);
 		static VKAPI_ATTR VkBool32 VKAPI_CALL validationCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData);
+		PFN_vkGetInstanceProcAddr loadCpuDriver(std::vector<VkExtensionProperties>& extensions);
 		void enumerateDevices();
 
+		// First member, so the driver library stays loaded until everything below is gone
+		// (vkDestroyInstance runs in the destructor body, before any member is destroyed).
+		acm::PlatformLibrary m_cpuDriver;
 		VkInstance m_instance{VK_NULL_HANDLE};
 		VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 		std::vector<const char*> m_layerNames;

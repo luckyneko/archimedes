@@ -261,6 +261,21 @@ mipmap behavior; `createPipeline(PipelineShaders, target, config)` groups the re
 shader identity separately from optional `PipelineConfig` state. Do not put required
 construction inputs into `*Config`, and do not add a `*Config` for a single required
 choice just to make a signature look uniform.
+**The CPU driver is loaded directly.** When `InstanceConfig::cpuDriver` is on (the default)
+and the loader offers `VK_LUNARG_direct_driver_loading`, `vulkan::Instance` loads the CPU
+driver library from `<exe dir>/vulkan/` (`acm::executableDirectory()` from the private
+[Platform.h](private/archimedes/Platform.h), loaded by a move-only `acm::PlatformLibrary`
+from the private [PlatformLibrary.h](private/archimedes/PlatformLibrary.h) — neither is
+Vulkan-specific), asks it for its own instance extensions, and chains a
+`VkDirectDriverLoadingListLUNARG` (inclusive mode, so the loader's own drivers stay) onto
+`VkInstanceCreateInfo`. No environment variable or registry entry is involved, so it works in
+an elevated Windows process, where the loader ignores driver environment variables. The
+loader cannot list a directly loaded driver before `vkCreateInstance`, so its extensions —
+its surfaces — are merged into the instance's available list before the surface extensions
+are chosen. The library stays loaded until after `vkDestroyInstance`. MoltenVK stays on the
+loader's own discovery: GLFW needs it before an instance exists, and MoltenVK 1.4.1 speaks
+loader-driver interface 5, below direct loading's 7.
+
 Archimedes requires a Vulkan 1.3 loader and exposes only physical devices whose
 `apiVersion` is at least 1.3 and which support the core `synchronization2` and
 `dynamicRendering` features;
@@ -553,7 +568,8 @@ via `DOWNLOAD_DIR "${CMAKE_SOURCE_DIR}/.cache/fetch/<url-path>"`.
   - `acm_stage_vulkan_runtime(<target>)` — stages every staged driver (MoltenVK on
     macOS, the CPU driver where provided) next to a binary; a no-op when there is none.
   - `acm_vulkan_driver_environment(<out>)` — the one `NAME=VALUE` loader environment
-    entry exposing the staged drivers from where they were provisioned (ctest uses it).
+    entry exposing the staged MoltenVK from where it was provisioned (ctest uses it); empty
+    off macOS. The CPU driver needs no environment.
 
   Each getter is idempotent (no-op if the target already exists, so a consumer can
   supply its own Vulkan) and version-locked to a single `ARCHIMEDES_VULKAN_SDK`
@@ -613,15 +629,13 @@ goal end to end:
   `MoltenVK_icd.json` (relative `./libMoltenVK.dylib`, `is_portability_driver`). It is
   Apache-2.0: `ACM_MOLTENVK_LICENSES` names its `LICENSE`, which `acm_stage_vulkan_runtime`
   stages as `vulkan/MoltenVK.LICENSE`.
-- **SwiftShader**: the CPU driver's ICD json references `./<lib>`, so it is staged
-  beside its library exactly like MoltenVK.
+- **SwiftShader**: the CPU driver's library is staged in `<bindir>/vulkan/` (with its ICD
+  json), where `acm::Instance` loads it directly.
 - **`acm_stage_vulkan_runtime(<target>)`**: POST_BUILD-copies each staged ICD + library to
-  `<bindir>/vulkan/`, and (off Windows) generates `build/run_<target>.sh` that exposes them —
-  `VK_ICD_FILENAMES` listing every staged driver on macOS (the staged drivers are the whole
-  list, as MoltenVK's always was), `VK_ADD_DRIVER_FILES` elsewhere (system GPU drivers stay
-  visible) — plus `VK_LAYER_PATH` *only if* `$VULKAN_SDK` is present (macOS ships
-  validation layers only via the LunarG SDK, so they stay optional). The loader ignores
-  `VK_ADD_DRIVER_FILES` when `VK_ICD_FILENAMES` is set, which is why macOS lists both.
+  `<bindir>/vulkan/`, and (off Windows) generates `build/run_<target>.sh` that exports
+  `VK_ICD_FILENAMES` for a staged MoltenVK (the whole driver list, as it always was) plus
+  `VK_LAYER_PATH` *only if* `$VULKAN_SDK` is present (macOS ships validation layers only via
+  the LunarG SDK, so they stay optional).
 - GLFW is bound to our vendored loader via
   `glfwInitVulkanLoader(vkGetInstanceProcAddr)` (so it doesn't dlopen a system
   libvulkan).
@@ -778,8 +792,10 @@ library is a thin wrapper over `vk*`, so coverage splits in two:
   `./build/run_bench-archimedes.sh "[fast]"` or `python3 bench/report.py "[fast]"`;
   GPU workloads SKIP when no live driver is available.
   `test/CMakeLists.txt` sets the ctest environment from `acm_vulkan_driver_environment`
-  (macOS: `VK_ICD_FILENAMES` = MoltenVK + the CPU driver; elsewhere `VK_ADD_DRIVER_FILES` =
-  the CPU driver). Without the CPU driver, a `[gpu]` test `SKIP`s (not fails) when no
+  (macOS: `VK_ICD_FILENAMES` = MoltenVK; nothing elsewhere — the CPU driver is loaded
+  directly). One test hides every driver the loader would find itself and checks the CPU
+  device still enumerates and presents to a headless surface, which is what an elevated
+  Windows process sees. Without the CPU driver, a `[gpu]` test `SKIP`s (not fails) when no
   driver / extension / capability is present, so a GPU-less CI stays green. The
   swapchain-backed tests need a real surface: they use `VK_EXT_headless_surface`
   where available and otherwise (Windows desktop ICDs) an off-screen
@@ -856,12 +872,10 @@ and use tags such as `[bench][fast][gpu]`. They must exercise production
 Archimedes API paths, not copied benchmark-only implementations. The generated
 launcher points the loader at the staged drivers, matching the testbed path. Direct
 launches from an IDE also work: the test, benchmark, and testbed executables call the
-public `acm::useStagedVulkanRuntime()` helper before creating an instance. On every
-platform it finds `<exe dir>/vulkan/` (via `vulkan::executableDirectory()`, which lives in
-the [PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) seam because Windows needs
-`<windows.h>`): macOS sets `VK_ICD_FILENAMES` to the staged drivers; Linux/Windows add them
-with `VK_ADD_DRIVER_FILES`. It never overwrites a value the caller set, and leaves a
-caller-replaced driver list (`VK_ICD_FILENAMES` / `VK_DRIVER_FILES`) alone.
+public `acm::useStagedVulkanRuntime()` helper before creating an instance. On macOS it
+finds `<exe dir>/vulkan/` (via `acm::executableDirectory()`) and sets `VK_ICD_FILENAMES`
+to the staged MoltenVK; it never overwrites a value the caller set. The CPU driver needs no
+environment: `acm::Instance` loads it directly.
 `useStagedVulkanRuntime(RuntimeConfig{cpuDeviceThreads})` caps the CPU driver's worker pool
 (SwiftShader otherwise uses one thread per logical CPU, up to 16), so a host with its own
 process-wide pool (lain) can split the machine with it; it sets `SWIFTSHADER_THREAD_COUNT`
@@ -893,6 +907,12 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 - **C++17.** `target_compile_features(... cxx_std_17)`.
 - **Headers** use `#pragma once` (no include guards).
+- **Platform code** (`#ifdef _WIN32`, `<windows.h>`, `dlfcn.h`, `mach-o`) stays in the
+  platform translation units: [Platform.cpp](src/Platform.cpp) (executable location,
+  environment defaults), [PlatformLibrary.cpp](src/PlatformLibrary.cpp) (dynamic library
+  loading), and [PlatformSurface.cpp](src/vulkan/PlatformSurface.cpp) (the Win32
+  headless-surface fallback). Their private headers expose type-erased handles, so no other
+  file includes `<windows.h>`.
 - **Naming:** public classes are `PascalCase` in namespace `acm` with files
   `acm<Name>.{h,cpp}`. Private Vulkan owners are in `acm::vulkan` with matching
   `private/archimedes/vulkan` and `src/vulkan` paths. Public platform integration uses
@@ -907,14 +927,16 @@ loader/MoltenVK/GLFW/glslang/Catch2 downloads).
 
 ## Known rough edges (pre-existing, not yet addressed)
 
-- **An elevated Windows process cannot see the staged CPU driver.** The Vulkan loader ignores
-  driver environment variables (`VK_ADD_DRIVER_FILES`, `VK_ICD_FILENAMES`, `VK_DRIVER_FILES`)
-  in a high-integrity process and finds drivers only through the
-  `HKLM\SOFTWARE\Khronos\Vulkan\Drivers` registry key, so `useStagedVulkanRuntime` cannot
-  expose SwiftShader there. GitHub's Windows runners run elevated, so CI registers the staged
-  driver's manifest in that key before `ctest`. The loader's `VK_LUNARG_direct_driver_loading`
-  (the app loads the driver library and hands the loader its entry point) would work without
-  environment or registry.
+- **GLFW cannot see a directly loaded CPU driver.** GLFW checks the loader's instance
+  extensions before any instance exists, where a directly loaded driver is invisible. On a
+  machine whose only driver is the CPU driver *and* where the loader ignores driver
+  environment variables (an elevated Windows process with no GPU driver),
+  `glfwCreateWindowSurface` therefore fails; headless, offscreen and compute work on the
+  CPU device there. Everywhere else a windowed CPU device works, because some driver the
+  loader discovers itself supplies the surface extensions GLFW checks for.
+- **The CPU driver needs a loader with `VK_LUNARG_direct_driver_loading`** (Vulkan SDK
+  1.3.230 or newer). The vendored loader has it; a consumer supplying an older
+  `Vulkan::Loader` gets no CPU device.
 - **A windowed CPU device on macOS still needs Metal** (SwiftShader presents through a
   `CAMetalLayer`); headless rendering and compute on it do not. SwiftShader also lacks
   `wideLines`, like MoltenVK.

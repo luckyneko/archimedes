@@ -29,6 +29,11 @@ namespace acm
 		bool validation{false};
 		// Enable VK_EXT_debug_utils and its diagnostic callback when available.
 		bool debug{false};
+		// Load the CPU driver staged beside the executable (<exe dir>/vulkan/) directly, so a
+		// CPU device is available without driver environment variables or registration —
+		// including in an elevated Windows process, where the loader ignores them. Needs a
+		// loader with VK_LUNARG_direct_driver_loading (Vulkan SDK 1.3.230 or newer).
+		bool cpuDriver{true};
 	};
 
 	// Unique owning root for Vulkan instance state. It enumerates physical devices and builds

@@ -67,8 +67,10 @@ acm_stage_vulkan_runtime(my-app)
 
 `acm_stage_vulkan_runtime(my-app)` copies the staged drivers next to the binary — MoltenVK
 on macOS, and the SwiftShader CPU driver wherever `ARCHIMEDES_SOFTWARE_VULKAN` (default ON)
-found one — and, off Windows, emits a `run_my-app.sh` launcher. Call
-`acm::useStagedVulkanRuntime()` at startup so a direct launch finds them too. Pick a device
+found one — and, off Windows, emits a `run_my-app.sh` launcher. `acm::Instance` loads the
+CPU driver directly from the binary's `vulkan/` folder (no environment variables, so it also
+works in an elevated Windows process); call `acm::useStagedVulkanRuntime()` at startup so a
+direct launch on macOS finds MoltenVK too. Pick a device
 with `instance.graphicsOptions()` (hardware first, the CPU device last) or
 `instance.graphicsOptions(acm::DevicePreferences::Cpu())`. To share the machine with your own
 thread pool, cap the CPU driver's threads with
