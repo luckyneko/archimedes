@@ -22,13 +22,9 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	config.validation = true;
 	config.debug = true;
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
-	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
-	if (options.empty())
-		SKIP("no graphics-capable queue family");
-	const acm::DeviceOption option = options.front();
+	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
 	const acm::DeviceInfo& chosen = instance.devices()[option.deviceIndex];
 
 	acm::Device device = instance.createDevice(option);
@@ -51,13 +47,9 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 TEST_CASE("Device feature config controls optional and required features", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
-	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
-	if (options.empty())
-		SKIP("no graphics-capable queue family");
-	const acm::DeviceOption option = options.front();
+	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
 	const acm::DeviceInfo& chosen = instance.devices()[option.deviceIndex];
 
 	acm::DeviceConfig noOptional;
@@ -111,13 +103,9 @@ TEST_CASE("Device feature config controls optional and required features", "[acm
 TEST_CASE("Device creation fails when a required feature is unavailable", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
-	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
-	if (options.empty())
-		SKIP("no graphics-capable queue family");
-	const acm::DeviceOption option = options.front();
+	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
 	const acm::DeviceInfo& chosen = instance.devices()[option.deviceIndex];
 
 	acm::DeviceConfig config;

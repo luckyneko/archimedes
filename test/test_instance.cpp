@@ -6,6 +6,8 @@
  *  (See accompanying file LICENSE)
  */
 
+#include "vk_test_helpers.h"
+
 #include <archimedes/acmVulkanInterop.h>
 #include <archimedes/archimedes.h>
 #include <vulkan/vulkan.h>
@@ -21,6 +23,7 @@ TEST_CASE("InstanceConfig has production-safe defaults", "[acm][unit]")
 	STATIC_REQUIRE(config.portability);
 	STATIC_REQUIRE_FALSE(config.validation);
 	STATIC_REQUIRE_FALSE(config.debug);
+	STATIC_REQUIRE(config.cpuDriver);
 }
 
 TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
@@ -29,8 +32,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	config.validation = true;
 	config.debug = true;
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	REQUIRE(acm::interop::instance(instance) != VK_NULL_HANDLE);
 #if defined(__APPLE__)
@@ -58,8 +60,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 TEST_CASE("Instance transfers ownership on move", "[acm][gpu]")
 {
 	acm::Instance a("acm-tests", acm::Version{0, 1, 0});
-	if (!a.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(a);
 
 	acm::Instance b = std::move(a);
 	VkInstance raw = acm::interop::instance(b);

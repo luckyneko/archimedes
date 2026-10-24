@@ -63,6 +63,45 @@ namespace acm
 		uint32_t queueFamily{0};
 	};
 
+	struct DevicePreferences
+	{
+		// Physical-device kinds, most preferred first. Kinds not listed sort after the listed
+		// ones; empty means "no ranking" and keeps enumeration order. graphicsOptions() and
+		// surfaceOptions(...) use Default() explicitly. The sort is stable, so devices of the
+		// same kind keep enumeration order.
+		std::vector<acm::PhysicalDeviceType> types;
+
+		// Hardware devices first and the CPU device last: a caller that takes the first
+		// option gets a GPU when one exists and the CPU device otherwise.
+		static DevicePreferences Default()
+		{
+			DevicePreferences preferences;
+			preferences.types = {
+				acm::PhysicalDeviceType::DiscreteGpu,
+				acm::PhysicalDeviceType::IntegratedGpu,
+				acm::PhysicalDeviceType::VirtualGpu,
+				acm::PhysicalDeviceType::Other,
+				acm::PhysicalDeviceType::Cpu,
+			};
+			return preferences;
+		}
+
+		// The CPU device first, for callers that choose the CPU pathway on purpose. Hardware
+		// devices follow, so check DeviceInfo::type when the CPU device is required.
+		static DevicePreferences Cpu()
+		{
+			DevicePreferences preferences = Default();
+			preferences.types = {
+				acm::PhysicalDeviceType::Cpu,
+				acm::PhysicalDeviceType::DiscreteGpu,
+				acm::PhysicalDeviceType::IntegratedGpu,
+				acm::PhysicalDeviceType::VirtualGpu,
+				acm::PhysicalDeviceType::Other,
+			};
+			return preferences;
+		}
+	};
+
 	struct SurfacePreferences
 	{
 		// Empty means "no ranking preference"; surfaceOptions(surface) uses Default()

@@ -42,13 +42,10 @@ namespace
 TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
@@ -143,13 +140,10 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 {
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
-	if (!instance.valid())
-		SKIP("no Vulkan driver available");
+	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
-	if (!gpu)
-		SKIP("no graphics-capable queue family");
 
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());

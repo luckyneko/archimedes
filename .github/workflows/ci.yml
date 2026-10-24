@@ -122,9 +122,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .github/subproject-smoke/.cache/fetch
-          key: ${{ runner.os }}-subproject-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', '.github/subproject-smoke/*') }}
+          key: ${{ runner.os }}-subproject-runtime-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', '.github/subproject-smoke/*') }}
           restore-keys: |
-            ${{ runner.os }}-subproject-
+            ${{ runner.os }}-subproject-runtime-
+
+      # The parent provisions the Vulkan runtime itself (loader, staged drivers), and the
+      # loader build needs the windowing headers.
+      - name: Install Linux windowing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
       - name: Configure parent project
         run: >
@@ -134,3 +141,10 @@ jobs:
 
       - name: Build parent project
         run: cmake --build build-subproject --parallel
+
+      - name: Run the parent's binary on the staged CPU driver
+        run: |
+          ./build-subproject/parent-runtime-smoke
+          test -f build-subproject/vulkan/vk_swiftshader_icd.json
+          test -f build-subproject/vulkan/vk_swiftshader.LICENSE.txt
+          test -f build-subproject/vulkan/vk_swiftshader.THIRD_PARTY_LICENSES.txt

@@ -6,11 +6,11 @@
  *  (See accompanying file LICENSE)
  */
 
-// Platform window/surface glue for headless rendering. This is the one translation
-// unit allowed to pull in <windows.h>, so the Win32 surface fallback stays isolated
-// from the backend-neutral surface code. The Vulkan platform define must precede the
-// first <vulkan/vulkan.h> include to expose vkCreateWin32SurfaceKHR, so windows.h and
-// the define come first.
+// Platform window/surface glue for headless rendering. A platform translation unit, one of
+// the few allowed to pull in <windows.h>, so the Win32 surface fallback stays isolated from
+// the backend-neutral surface code. The Vulkan platform define must precede the first
+// <vulkan/vulkan.h> include to expose vkCreateWin32SurfaceKHR, so windows.h and the define
+// come first.
 #ifdef _WIN32
 #	ifndef WIN32_LEAN_AND_MEAN
 #		define WIN32_LEAN_AND_MEAN

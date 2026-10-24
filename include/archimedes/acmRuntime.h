@@ -8,18 +8,28 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace acm
 {
-	// Prepare the Vulkan runtime environment for a direct launch. On macOS, point the
-	// loader at the MoltenVK ICD staged next to this executable (by the CMake helper
-	// acm_stage_vulkan_runtime) and default MoltenVK's log level, so an app finds the
-	// driver without a system Vulkan install or a hand-set VK_ICD_FILENAMES. Call once,
-	// before any other Vulkan or GLFW use (GLFW enumerates instance extensions before an
-	// instance exists, so the loader must already know where the ICD is).
-	//
-	// Both settings respect a value the caller already chose (VK_ICD_FILENAMES /
-	// MVK_CONFIG_LOG_LEVEL are never overwritten); the log-level default is the
-	// ARCHIMEDES_MOLTENVK_LOG_LEVEL CMake cache var. A no-op on non-Apple platforms,
-	// where the loader discovers system-registered ICDs.
-	void useStagedVulkanRuntime();
+	// Runtime setup knobs for useStagedVulkanRuntime().
+	struct RuntimeConfig
+	{
+		// Worker threads the CPU driver may run shaders on, so a host with its own
+		// process-wide pool can split the machine with it. 0 keeps the driver's default (one
+		// per logical CPU, at most 16); larger values are clamped to 256. The driver reads it
+		// once, when the first CPU device is created, and a value the caller already set in
+		// the environment (SWIFTSHADER_THREAD_COUNT) wins.
+		uint32_t cpuDeviceThreads{0};
+	};
+
+	// Prepare the Vulkan runtime environment for a direct launch, before any other Vulkan or
+	// GLFW use (GLFW enumerates instance extensions before an instance exists, so the loader
+	// must already know its drivers). On macOS it points the loader at the MoltenVK staged next
+	// to this executable (by the CMake helper acm_stage_vulkan_runtime) through
+	// VK_ICD_FILENAMES, and defaults MoltenVK's log level to the ARCHIMEDES_MOLTENVK_LOG_LEVEL
+	// CMake cache var. The staged CPU driver needs nothing here — acm::Instance loads it
+	// directly (InstanceConfig::cpuDriver) — except the optional thread cap in `config`. A
+	// value the caller already set in the environment is never overwritten.
+	void useStagedVulkanRuntime(const acm::RuntimeConfig& config = {});
 } // namespace acm

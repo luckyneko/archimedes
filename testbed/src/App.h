@@ -10,6 +10,13 @@
 
 class Example;
 
+// Which kind of device the testbed runs on (`--device gpu|cpu`).
+enum class DeviceChoice
+{
+	Hardware, // the best GPU (falling back to the CPU device when there is none)
+	Cpu,	  // the CPU device; fails if none presents to every window
+};
+
 // Owns the testbed lifecycle and drives one Example: instance + GLFW, the example's
 // windows + surfaces, a shared device, a RenderContext per window, the per-frame loop
 // (fork-join across render threads for multi-window, inline for single-window), and the
@@ -17,5 +24,5 @@ class Example;
 class App
 {
 public:
-	int run(Example& example);
+	int run(Example& example, DeviceChoice deviceChoice = DeviceChoice::Hardware);
 };
