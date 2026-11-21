@@ -28,6 +28,28 @@
 
 namespace acm::vulkan
 {
+	// One acquired swapchain frame for Device::submitFrame. Without a command buffer,
+	// renderFinished or swapChain nothing is presented: the batch only consumes the
+	// acquire semaphore and signals the fence.
+	struct FrameSubmission
+	{
+		VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
+		VkSemaphore imageAvailable{VK_NULL_HANDLE};
+		VkSemaphore renderFinished{VK_NULL_HANDLE};
+		VkFence inFlight{VK_NULL_HANDLE};
+		VkSwapchainKHR swapChain{VK_NULL_HANDLE};
+		uint32_t imageIndex{0};
+	};
+
+	// What Device::submitFrame left behind, error or not: whether a batch that signals the
+	// fence is pending (and its serial), and whether the swapchain must be rebuilt.
+	struct FrameSubmitResult
+	{
+		bool submitted{false};
+		uint64_t serial{0};
+		bool needsRecreate{false};
+	};
+
 	// Move-only logical-device backend. Owns every device-scoped resource pool,
 	// the queue submission path, deferred destruction, and the memory allocator.
 	class Device
@@ -54,7 +76,12 @@ namespace acm::vulkan
 		size_t memoryBlockCount() const { return m_allocator->blockCount(); }
 
 		// Synchronization
-		void waitIdle();
+		// Waits the device idle under the queue mutex, then collects garbage up to the last
+		// serial submitted before the wait and returns that serial. Other threads may keep
+		// submitting once the wait returns, so later collection must not go past it.
+		uint64_t waitIdle();
+		// Never call with the queue mutex held: payload destructors run here, and some of
+		// them (a SwapChain's) wait the device idle.
 		void collectGarbage(uint64_t completedSerial);
 
 		// Native access
@@ -67,7 +94,10 @@ namespace acm::vulkan
 		// Submission
 		acm::Error copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size);
 		acm::Error submitOneShot(const std::function<void(VkCommandBuffer)>& record);
-		acm::Error submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial);
+		// Resets the fence, submits and presents. If the frame cannot be submitted it still
+		// tries to consume the acquire semaphore and signal the fence; `result` says what
+		// is pending either way.
+		acm::Error submitFrame(const acm::vulkan::FrameSubmission& frame, acm::vulkan::FrameSubmitResult& result);
 
 		// Factories
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
@@ -80,7 +110,10 @@ namespace acm::vulkan
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, const acm::RenderTargetConfig& config);
-		bool invalidateRenderTarget(acm::RenderTarget& target);
+		// Ends a swapchain image's target before its swapchain is destroyed, once the device
+		// has finished with it: the view of the borrowed image is destroyed now and every
+		// copied wrapper goes stale; the rest of the payload leaves through deferred collection.
+		void retireSwapChainTarget(acm::RenderTarget& target);
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config);
 		acm::CommandPool createCommandPool();
 		acm::CommandBuffer allocateCommandBuffer(const acm::CommandPool& pool);

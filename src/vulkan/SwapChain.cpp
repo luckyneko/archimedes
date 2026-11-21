@@ -65,6 +65,7 @@ namespace acm::vulkan
 		m_swapChain = std::exchange(other.m_swapChain, VK_NULL_HANDLE);
 		m_extent = std::exchange(other.m_extent, {});
 		m_renderTargets = std::move(other.m_renderTargets);
+		m_generation = std::exchange(other.m_generation, 0);
 		m_error = std::move(other.m_error);
 		return *this;
 	}
@@ -75,10 +76,12 @@ namespace acm::vulkan
 
 	bool SwapChain::recreate()
 	{
-		owner().waitIdle();
+		// Other renderers may submit again as soon as the wait returns, so collection stays
+		// bounded by the serial the wait completed.
+		const uint64_t completedSerial = owner().waitIdle();
 		if (!rebuild(owner()))
 			return false;
-		owner().collectGarbage(std::numeric_limits<uint64_t>::max());
+		owner().collectGarbage(completedSerial);
 		return true;
 	}
 
@@ -121,19 +124,21 @@ namespace acm::vulkan
 	void SwapChain::release()
 	{
 		Device* owner = std::exchange(m_owner, nullptr);
+		const VkSwapchainKHR swapChain = std::exchange(m_swapChain, VK_NULL_HANDLE);
 		if (owner)
 		{
-			owner->waitIdle();
-			invalidateTargets(*owner);
-			owner->collectGarbage(std::numeric_limits<uint64_t>::max());
+			// Every render into and present of these images must finish before their views
+			// and the swapchain go, and no submission serial covers a present.
+			if (swapChain || !m_renderTargets.empty())
+				owner->waitIdle();
+			retireTargets(*owner);
+			if (swapChain)
+				vkDestroySwapchainKHR(owner->vkDevice(), swapChain, nullptr);
 		}
 		else
 		{
 			m_renderTargets.clear();
 		}
-		const VkSwapchainKHR swapChain = std::exchange(m_swapChain, VK_NULL_HANDLE);
-		if (owner && swapChain)
-			vkDestroySwapchainKHR(owner->vkDevice(), swapChain, nullptr);
 		m_surface.reset();
 		m_extent = {};
 	}
@@ -189,34 +194,32 @@ namespace acm::vulkan
 			acm::RenderTarget target = owner.createRenderTarget(image, m_format.format, {extent.width, extent.height}, m_config.depth, m_config.samples);
 			if (!target.valid())
 			{
+				// Nothing has used the new swapchain yet, so it and its views can go now.
 				for (acm::RenderTarget& created : targets)
-					owner.invalidateRenderTarget(created);
-				targets.clear();
-				owner.waitIdle();
+					owner.retireSwapChainTarget(created);
 				vkDestroySwapchainKHR(owner.vkDevice(), newSwapChain, nullptr);
 				return false;
 			}
 			targets.push_back(std::move(target));
 		}
 
-		const bool hadOldTargets = !m_renderTargets.empty();
+		// The old swapchain's views are destroyed before the swapchain itself, rather than
+		// left to deferred collection: a sweep tags them with the newest serial, which another
+		// renderer's submission can push past the wait the caller completed.
 		const VkSwapchainKHR oldSwapChain = std::exchange(m_swapChain, newSwapChain);
-		if (hadOldTargets || oldSwapChain)
-			owner.waitIdle();
-		invalidateTargets(owner);
-		if (hadOldTargets)
-			owner.collectGarbage(std::numeric_limits<uint64_t>::max());
+		retireTargets(owner);
 		if (oldSwapChain)
 			vkDestroySwapchainKHR(owner.vkDevice(), oldSwapChain, nullptr);
 		m_extent = {extent.width, extent.height};
 		m_renderTargets = std::move(targets);
+		++m_generation;
 		return true;
 	}
 
-	void SwapChain::invalidateTargets(Device& owner)
+	void SwapChain::retireTargets(Device& owner)
 	{
 		for (acm::RenderTarget& target : m_renderTargets)
-			owner.invalidateRenderTarget(target);
+			owner.retireSwapChainTarget(target);
 		m_renderTargets.clear();
 	}
 

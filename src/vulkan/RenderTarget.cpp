@@ -227,6 +227,21 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Retirement
+	// -----------------------------------------------------------------------------
+
+	void RenderTarget::releaseBorrowedImage()
+	{
+		if (!m_owner || !m_ownsColorView)
+			return;
+		const VkImageView colorView = std::exchange(m_colorView, VK_NULL_HANDLE);
+		m_ownsColorView = false;
+		m_colorImage = VK_NULL_HANDLE;
+		if (colorView)
+			vkDestroyImageView(m_owner->vkDevice(), colorView, nullptr);
+	}
+
+	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
 
@@ -317,11 +332,6 @@ namespace acm::vulkan
 		return vkCreateImageView(owner.vkDevice(), &viewInfo, nullptr, &attachment.view) == VK_SUCCESS;
 	}
 
-	VkImage RenderTarget::colorAttachmentImage() const
-	{
-		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaColor.image : m_colorImage;
-	}
-
 	VkImageView RenderTarget::colorAttachmentView() const
 	{
 		return m_samples != VK_SAMPLE_COUNT_1_BIT ? m_msaaColor.view : m_colorView;
@@ -362,19 +372,29 @@ namespace acm::vulkan
 
 	void RenderTarget::recordBeginTransitions(VkCommandBuffer commandBuffer) const
 	{
+		// Every attachment is cleared, so each barrier discards its contents (from UNDEFINED)
+		// but still waits for the image's previous use: the attachment writes of its last
+		// pass, and for the target image also its finish state. That is a later pass's read
+		// for a texture, and for a swapchain image (finish stage NONE) the acquire semaphore,
+		// which the frame submission waits at COLOR_ATTACHMENT_OUTPUT. With MSAA the target
+		// image is the resolve attachment, also written at COLOR_ATTACHMENT_OUTPUT.
+		constexpr VkPipelineStageFlags2 colorStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		constexpr VkAccessFlags2 colorAccess = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		constexpr VkPipelineStageFlags2 depthStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		constexpr VkAccessFlags2 depthAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		VkImageMemoryBarrier2 barriers[3] = {};
 		uint32_t barrierCount = 0;
-		if (const VkImage image = colorAttachmentImage())
+		if (m_colorImage)
 		{
-			barriers[barrierCount++] = imageBarrier(image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+			barriers[barrierCount++] = imageBarrier(m_colorImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | m_finalColorAccess, colorAccess, colorStage | m_finalColorStage, colorStage);
 		}
-		if (m_samples != VK_SAMPLE_COUNT_1_BIT && m_colorImage)
+		if (m_samples != VK_SAMPLE_COUNT_1_BIT && m_msaaColor.image)
 		{
-			barriers[barrierCount++] = imageBarrier(m_colorImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+			barriers[barrierCount++] = imageBarrier(m_msaaColor.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, colorAccess, colorStage, colorStage);
 		}
 		if (const VkImage image = depthAttachmentImage())
 		{
-			barriers[barrierCount++] = imageBarrier(image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT);
+			barriers[barrierCount++] = imageBarrier(image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, depthAccess, depthStage, depthStage);
 		}
 		if (barrierCount == 0)
 			return;
