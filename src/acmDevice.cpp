@@ -247,15 +247,28 @@ namespace acm
 		if (auto error = commandBuffer.begin())
 			return error;
 		record(commandBuffer);
+		// A rejected recording call means the buffer lacks work the caller asked for:
+		// report it instead of submitting the rest. end() still runs so the buffer
+		// leaves the recording state.
+		const Error recordingError = commandBuffer.error();
 		if (auto error = commandBuffer.end())
-			return error;
+			return recordingError ? recordingError : error;
+		if (recordingError)
+			return recordingError;
 
 		return submitSync(commandBuffer);
 	}
 
 	Error Device::submitSync(const CommandBuffer& commandBuffer)
 	{
-		return m ? m->submitCommandBufferSync(commandBuffer) : Error("submitSync: invalid device");
+		if (!m)
+			return Error("submitSync: invalid device");
+		const backend::CommandBuffer* backendCommandBuffer = commandBuffer.backend();
+		if (!backendCommandBuffer)
+			return Error("submitSync: invalid command buffer");
+		if (backendCommandBuffer->recording())
+			return Error("submitSync: command buffer is still recording; call end() first");
+		return m->submitCommandBufferSync(commandBuffer);
 	}
 
 	// -----------------------------------------------------------------------------

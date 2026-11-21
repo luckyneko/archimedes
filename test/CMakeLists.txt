@@ -37,6 +37,7 @@ add_executable(test-${PROJECT_NAME}
     test_storage_image.cpp
     test_multipass.cpp
     test_cpu_device.cpp
+    test_recording_errors.cpp
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)

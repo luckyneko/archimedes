@@ -28,6 +28,12 @@ namespace acm::vulkan
 
 	// Move-only owner of a primary VkCommandBuffer allocated from an acm::CommandPool.
 	// It retains the public pool wrapper so vkFreeCommandBuffers has a live pool.
+	//
+	// Recording state lives here, shared by every public wrapper copy: whether the buffer
+	// is recording, the open rendering scope, the bound pipelines, and the sticky recording
+	// error. A recording call that rejects its input records nothing and returns an error;
+	// the first such error since begin() is kept (first error wins) and reported by
+	// recordingError() until the next begin(). Recording is caller-synchronized.
 	class CommandBuffer
 	{
 	public:
@@ -43,7 +49,11 @@ namespace acm::vulkan
 		// State
 		acm::vulkan::Device& owner() const { return *m_owner; }
 		bool valid() const { return m_owner && m_commandBuffer != VK_NULL_HANDLE && m_error.ok(); }
+		// Construction error (a live payload never has one).
 		acm::Error error() const { return m_error; }
+		// The first rejected recording call since begin().
+		acm::Error recordingError() const { return m_recordingError; }
+		bool recording() const { return m_recording; }
 		VkCommandBuffer vkCommandBuffer() const;
 
 		// Recording
@@ -52,40 +62,51 @@ namespace acm::vulkan
 
 		// Rendering
 		acm::Error beginRendering(const acm::RenderTarget& target, float r, float g, float b, float a);
-		void endRendering();
-		void setViewportAndScissor(acm::Extent2D extent);
-		acm::Error bindPipeline(const acm::vulkan::Pipeline& pipeline);
-		void bindDescriptorSet(const acm::vulkan::Pipeline& pipeline, const acm::vulkan::DescriptorSet& set, const uint32_t* dynamicOffset);
+		acm::Error endRendering();
+		acm::Error setViewportAndScissor(acm::Extent2D extent);
+		acm::Error bindPipeline(const acm::vulkan::Pipeline* pipeline);
+		acm::Error bindDescriptorSet(const acm::vulkan::Pipeline* pipeline, const acm::vulkan::DescriptorSet* set, const uint32_t* dynamicOffset);
 		acm::Error draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
-		void bindVertexBuffer(const acm::vulkan::Buffer& buffer);
-		void bindIndexBuffer(const acm::vulkan::Buffer& buffer);
+		acm::Error bindVertexBuffer(const acm::vulkan::Buffer* buffer);
+		acm::Error bindIndexBuffer(const acm::vulkan::Buffer* buffer);
 		acm::Error drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-		void copyTextureToBuffer(const acm::vulkan::Texture& texture, const acm::vulkan::Buffer& buffer);
+
+		// Transfer
+		acm::Error copyTextureToBuffer(const acm::vulkan::Texture* texture, const acm::vulkan::Buffer* buffer);
 
 		// Compute
-		void bindComputePipeline(const acm::vulkan::ComputePipeline& pipeline);
-		void bindComputeDescriptorSet(const acm::vulkan::ComputePipeline& pipeline, const acm::vulkan::DescriptorSet& set);
-		void dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ);
+		acm::Error bindComputePipeline(const acm::vulkan::ComputePipeline* pipeline);
+		acm::Error bindComputeDescriptorSet(const acm::vulkan::ComputePipeline* pipeline, const acm::vulkan::DescriptorSet* set);
+		acm::Error dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ);
 
 		// Synchronization
-		void bufferBarrier(const acm::vulkan::Buffer& buffer, acm::ShaderStage srcStage, acm::ShaderStage dstStage);
-		void transitionImage(const acm::vulkan::Texture& texture, acm::ImageLayout from, acm::ImageLayout to);
+		acm::Error bufferBarrier(const acm::vulkan::Buffer* buffer, acm::ShaderStage srcStage, acm::ShaderStage dstStage);
+		acm::Error transitionImage(const acm::vulkan::Texture* texture, acm::ImageLayout from, acm::ImageLayout to);
 
 	private:
 		// Internals
+		acm::Error fail(const char* message);
+		acm::Error fail(acm::Error error);
+		acm::Error requireRecording(const char* call);
+		acm::Error requireOutsideRendering(const char* call);
 		bool graphicsPipelineCompatibleWith(const acm::vulkan::RenderTarget& target) const;
 		void rememberGraphicsPipeline(const acm::vulkan::Pipeline& pipeline);
 		void forgetGraphicsPipeline();
+		void resetRecordingState();
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::CommandPool m_pool;
 		acm::RenderTarget m_renderTarget;
+		bool m_recording{false};
+		bool m_renderingActive{false};
 		bool m_graphicsPipelineBound{false};
+		bool m_computePipelineBound{false};
 		VkFormat m_graphicsPipelineColorFormat{VK_FORMAT_UNDEFINED};
 		VkFormat m_graphicsPipelineDepthFormat{VK_FORMAT_UNDEFINED};
 		VkSampleCountFlagBits m_graphicsPipelineSampleCount{VK_SAMPLE_COUNT_1_BIT};
 		VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE};
+		acm::Error m_recordingError;
 		acm::Error m_error;
 	};
 } // namespace acm::vulkan

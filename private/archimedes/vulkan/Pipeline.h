@@ -17,6 +17,7 @@
 namespace acm::vulkan
 {
 	class Device;
+	class DescriptorSet;
 	class DescriptorSetLayout;
 	class RenderTarget;
 
@@ -45,12 +46,21 @@ namespace acm::vulkan
 		VkSampleCountFlagBits sampleCount() const { return m_sampleCount; }
 		bool compatibleWith(const acm::vulkan::RenderTarget& target) const;
 
+		// Descriptors
+		// Whether the pipeline was built with a descriptor layout (set 0) at all.
+		bool hasDescriptorLayout() const { return m_descriptorLayoutIdentity != nullptr; }
+		// Whether `set` can be bound as set 0: allocated from this pipeline's descriptor
+		// layout, or from one with identical bindings.
+		bool acceptsDescriptorSet(const acm::vulkan::DescriptorSet& set) const;
+
 	private:
 		// Internals
 		void release();
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::DescriptorSetLayout m_descriptorLayout;
+		// The retained layout's backend, kept for identity comparison on every bind.
+		const acm::vulkan::DescriptorSetLayout* m_descriptorLayoutIdentity{nullptr};
 		VkFormat m_colorFormat{VK_FORMAT_UNDEFINED};
 		VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
 		VkSampleCountFlagBits m_sampleCount{VK_SAMPLE_COUNT_1_BIT};

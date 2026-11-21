@@ -10,6 +10,7 @@
 
 #include "archimedes/acmPipeline.h"
 #include "archimedes/vulkan/Convert.h"
+#include "archimedes/vulkan/DescriptorSet.h"
 #include "archimedes/vulkan/DescriptorSetLayout.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/RenderTarget.h"
@@ -205,6 +206,7 @@ namespace acm::vulkan
 		}
 
 		m_descriptorLayout = config.descriptorLayout;
+		m_descriptorLayoutIdentity = m_descriptorLayout.backend();
 	}
 
 	Pipeline::~Pipeline()
@@ -224,6 +226,7 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_descriptorLayout = std::move(other.m_descriptorLayout);
+		m_descriptorLayoutIdentity = std::exchange(other.m_descriptorLayoutIdentity, nullptr);
 		m_colorFormat = std::exchange(other.m_colorFormat, VK_FORMAT_UNDEFINED);
 		m_depthFormat = std::exchange(other.m_depthFormat, VK_FORMAT_UNDEFINED);
 		m_sampleCount = std::exchange(other.m_sampleCount, VK_SAMPLE_COUNT_1_BIT);
@@ -253,6 +256,22 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Descriptors
+	// -----------------------------------------------------------------------------
+
+	bool Pipeline::acceptsDescriptorSet(const DescriptorSet& set) const
+	{
+		if (!m_descriptorLayoutIdentity)
+			return false;
+		// Same layout object: the common case, a pointer compare. Otherwise compare the
+		// bindings (identically defined layouts are compatible).
+		if (set.matchesLayout(m_descriptorLayoutIdentity, nullptr))
+			return true;
+		const DescriptorSetLayout* layout = m_descriptorLayout.backend();
+		return layout && set.matchesLayout(m_descriptorLayoutIdentity, layout->bindings());
+	}
+
+	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
 
@@ -266,6 +285,7 @@ namespace acm::vulkan
 		if (owner && layout)
 			vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 		m_descriptorLayout.reset();
+		m_descriptorLayoutIdentity = nullptr;
 		m_colorFormat = VK_FORMAT_UNDEFINED;
 		m_depthFormat = VK_FORMAT_UNDEFINED;
 		m_sampleCount = VK_SAMPLE_COUNT_1_BIT;

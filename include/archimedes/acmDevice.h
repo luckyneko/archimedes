@@ -105,8 +105,12 @@ namespace acm
 		// dispatch, a transfer). It stalls the queue, so it is a load-time / per-frame-at-
 		// most tool, not a hot path, and is externally synchronized like waitIdle (locks
 		// the device mutex around submit + wait; don't call it while another thread
-		// submits). The callback records into an already-begun command buffer.
+		// submits). The callback records into an already-begun command buffer. If any of
+		// its recording calls was rejected, nothing is submitted and the first rejection
+		// (CommandBuffer::error()) is returned.
 		acm::Error submitSync(const std::function<void(acm::CommandBuffer& cmd)>& record);
+		// Submits an ended command buffer as recorded; a rejected recording call is not in
+		// it, so check commandBuffer.error() first when that matters.
 		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:
