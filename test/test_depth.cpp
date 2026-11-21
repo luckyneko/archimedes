@@ -190,3 +190,97 @@ TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 	REQUIRE(pixels[center + 0] < 60);
 	readback.unmap();
 }
+
+// A pipeline that does no depth testing, built for a depth-bearing target, still names
+// the target's depth format, so it must carry a (disabled) depth-stencil state. With depth
+// off the later draw wins: the far red triangle covers the near green one.
+TEST_CASE("a pipeline without depth testing renders into a depth-bearing target", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acmtest::requireInstance(instance);
+
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	constexpr uint32_t kSize = 64;
+	const acm::Extent2D extent{kSize, kSize};
+
+	auto runScene = [&](acm::SampleCount samples)
+	{
+		acm::Texture color = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+		acm::RenderTarget target = device.createRenderTarget(color, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc, true, samples});
+		REQUIRE(target.valid());
+		REQUIRE(target.hasDepth());
+
+		acm::DescriptorSetLayout layout = device.createDescriptorSetLayout({
+			{0, acm::DescriptorType::UniformBuffer, acm::ShaderStage::Vertex},
+			{1, acm::DescriptorType::UniformBuffer, acm::ShaderStage::Fragment},
+		});
+		REQUIRE(layout.valid());
+
+		acm::PipelineShaders shaders;
+		shaders.vertex = device.createShader(acmtest::uniformTransformVertSpirv());
+		shaders.fragment = device.createShader(acmtest::uniformColorFragSpirv());
+		acm::PipelineConfig config;
+		config.descriptorLayout = layout;
+		REQUIRE_FALSE(config.depth.test);
+		REQUIRE_FALSE(config.depth.write);
+		acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
+		REQUIRE(pipeline.valid());
+
+		auto makeSet = [&](float z, const float (&rgba)[4])
+		{
+			const Mat4 mvp = translateZ(z);
+			acm::Buffer xform = device.createBuffer(sizeof(mvp), acm::BufferUsage::Uniform);
+			acm::Buffer col = device.createBuffer(sizeof(rgba), acm::BufferUsage::Uniform);
+			REQUIRE_FALSE(xform.write(&mvp, sizeof(mvp)));
+			REQUIRE_FALSE(col.write(rgba, sizeof(rgba)));
+			acm::DescriptorSet set = device.createDescriptorSet(layout);
+			set.setBuffer(0, xform);
+			set.setBuffer(1, col);
+			return set;
+		};
+		const float green[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+		const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+		acm::DescriptorSet nearSet = makeSet(0.3f, green);
+		acm::DescriptorSet farSet = makeSet(0.7f, red);
+
+		acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
+		REQUIRE(readback.valid());
+
+		acm::CommandPool pool = device.createCommandPool();
+		acm::CommandBuffer cmd = pool.allocate();
+		REQUIRE(cmd.valid());
+		REQUIRE_FALSE(cmd.begin());
+		REQUIRE_FALSE(cmd.beginRendering(target));
+		cmd.setViewportAndScissor(extent);
+		REQUIRE_FALSE(cmd.bindPipeline(pipeline));
+		cmd.bindDescriptorSet(pipeline, nearSet);
+		REQUIRE_FALSE(cmd.draw(3));
+		cmd.bindDescriptorSet(pipeline, farSet);
+		REQUIRE_FALSE(cmd.draw(3));
+		cmd.endRendering();
+		cmd.copyTextureToBuffer(color, readback);
+		REQUIRE_FALSE(cmd.error());
+		REQUIRE_FALSE(cmd.end());
+		REQUIRE_FALSE(device.submitSync(cmd));
+
+		const auto* pixels = static_cast<const uint8_t*>(readback.map());
+		REQUIRE(pixels != nullptr);
+		const size_t center = (size_t(kSize / 2) * kSize + kSize / 2) * 4;
+		const uint8_t b = pixels[center + 0];
+		const uint8_t g = pixels[center + 1];
+		const uint8_t r = pixels[center + 2];
+		readback.unmap();
+		REQUIRE(r > 200);
+		REQUIRE(g < 60);
+		REQUIRE(b < 60);
+	};
+
+	runScene(acm::SampleCount::One);
+	if (static_cast<int>(device.maxSampleCount()) >= static_cast<int>(acm::SampleCount::Four))
+		runScene(acm::SampleCount::Four);
+}
