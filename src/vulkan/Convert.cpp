@@ -99,6 +99,33 @@ namespace acm::vulkan
 		}
 	}
 
+	uint32_t bytesPerPixel(acm::Format format)
+	{
+		switch (format)
+		{
+			case acm::Format::R8G8B8A8_Unorm:
+			case acm::Format::R8G8B8A8_Srgb:
+			case acm::Format::B8G8R8A8_Unorm:
+			case acm::Format::B8G8R8A8_Srgb:
+			case acm::Format::A2B10G10R10_Unorm_Pack32:
+			case acm::Format::D32_Sfloat:
+			case acm::Format::D24_Unorm_S8_Uint:
+			case acm::Format::R32_Sfloat:
+				return 4;
+			case acm::Format::R16G16B16A16_Sfloat:
+			case acm::Format::R32G32_Sfloat:
+				return 8;
+			case acm::Format::R32G32B32_Sfloat:
+				return 12;
+			case acm::Format::R32G32B32A32_Sfloat:
+				return 16;
+			case acm::Format::Undefined:
+				return 0;
+		}
+		assert(false && "acm::vulkan::bytesPerPixel: invalid acm::Format");
+		return 0;
+	}
+
 	// -----------------------------------------------------------------------------
 	// Surface Presentation
 	// -----------------------------------------------------------------------------

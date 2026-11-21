@@ -14,7 +14,7 @@
 #include "archimedes/vulkan/Device.h"
 
 #include <algorithm>
-#include <cassert>
+#include <string>
 #include <utility>
 
 namespace acm::vulkan
@@ -37,7 +37,10 @@ namespace acm::vulkan
 		const VkFormat vkFormat = toVk(format);
 		const bool depth = isDepthFormat(format);
 		const VkImageAspectFlags aspect = depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-		m_mipLevels = (mipmapped && !depth) ? computeMipLevels(extent) : 1;
+		// Mip-generation fallback: upload() builds the chain with linear blits, so a
+		// format that cannot be blitted (or linearly filtered) gets a single level here
+		// rather than levels that upload() could never fill. mipLevels() reports it.
+		m_mipLevels = (mipmapped && !depth && supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat)) ? computeMipLevels(extent) : 1;
 
 		VkImageCreateInfo imageInfo = {};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -62,13 +65,17 @@ namespace acm::vulkan
 
 		VkMemoryRequirements requirements;
 		vkGetImageMemoryRequirements(owner.vkDevice(), m_image, &requirements);
-		m_allocation = owner.allocator().allocate(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		m_allocation = owner.allocator().allocate(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, AllocationKind::NonLinear);
 		if (!m_allocation.valid())
 		{
 			m_error = acm::Error("failed to allocate texture memory");
 			return;
 		}
-		vkBindImageMemory(owner.vkDevice(), m_image, m_allocation.memory, m_allocation.offset);
+		if (vkBindImageMemory(owner.vkDevice(), m_image, m_allocation.memory, m_allocation.offset) != VK_SUCCESS)
+		{
+			m_error = acm::Error("failed to bind texture memory");
+			return;
+		}
 
 		VkImageViewCreateInfo viewInfo = {};
 		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -186,18 +193,18 @@ namespace acm::vulkan
 
 	acm::Error Texture::upload(const void* pixels, size_t size)
 	{
-		assert(m_format != acm::Format::D32_Sfloat && "acm::Texture::upload: depth textures cannot be uploaded");
+		// Validate before touching the GPU, so a rejected upload leaves the texture as it was.
+		if (isDepthFormat(m_format))
+			return acm::Error("Texture::upload: depth textures cannot be uploaded");
+		if (!pixels)
+			return acm::Error("Texture::upload: pixels is null");
+		const size_t expected = size_t(m_extent.width) * m_extent.height * bytesPerPixel(m_format);
+		if (size != expected)
+			return acm::Error("Texture::upload: size is " + std::to_string(size) + " bytes, but the texture's extent and format need " + std::to_string(expected));
 
-		uint32_t uploadedMipLevels = m_mipLevels;
-		if (uploadedMipLevels > 1)
-		{
-			VkFormatProperties2 properties = {};
-			properties.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
-			vkGetPhysicalDeviceFormatProperties2(owner().vkPhysicalDevice(), toVk(m_format), &properties);
-			if (!(properties.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
-				uploadedMipLevels = 1;
-		}
-
+		// The constructor only allocates levels it can generate, so every level is
+		// written here and none is left UNDEFINED under the all-levels view.
+		const uint32_t uploadedMipLevels = m_mipLevels;
 		acm::Buffer staging = owner().createBuffer(size, acm::BufferUsage::Staging);
 		if (!staging.valid())
 			return acm::Error("Texture::upload: failed to create staging buffer");
@@ -268,6 +275,17 @@ namespace acm::vulkan
 	bool Texture::isDepthFormat(acm::Format format)
 	{
 		return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
+	}
+
+	bool Texture::supportsMipGeneration(VkPhysicalDevice physicalDevice, VkFormat format)
+	{
+		// upload() blits each level from the one above with VK_FILTER_LINEAR, which needs
+		// blit source + destination support and linear filtering on optimal tiling.
+		VkFormatProperties2 properties = {};
+		properties.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+		vkGetPhysicalDeviceFormatProperties2(physicalDevice, format, &properties);
+		constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+		return (properties.formatProperties.optimalTilingFeatures & required) == required;
 	}
 
 	uint32_t Texture::computeMipLevels(acm::Extent2D extent)

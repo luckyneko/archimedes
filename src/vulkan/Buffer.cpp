@@ -12,7 +12,6 @@
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 
-#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -50,13 +49,14 @@ namespace acm::vulkan
 													 : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		VkMemoryRequirements requirements;
 		vkGetBufferMemoryRequirements(owner.vkDevice(), m_buffer, &requirements);
-		m_allocation = owner.allocator().allocate(requirements, properties);
+		m_allocation = owner.allocator().allocate(requirements, properties, AllocationKind::Linear);
 		if (!m_allocation.valid())
 		{
 			m_error = acm::Error("failed to allocate buffer memory");
 			return;
 		}
-		vkBindBufferMemory(owner.vkDevice(), m_buffer, m_allocation.memory, m_allocation.offset);
+		if (vkBindBufferMemory(owner.vkDevice(), m_buffer, m_allocation.memory, m_allocation.offset) != VK_SUCCESS)
+			m_error = acm::Error("failed to bind buffer memory");
 	}
 
 	Buffer::~Buffer()
@@ -104,21 +104,26 @@ namespace acm::vulkan
 
 	acm::Error Buffer::write(const void* data, size_t size)
 	{
-		const size_t bytes = std::min(size, m_size);
+		if (!data)
+			return acm::Error("Buffer::write: data is null");
+		if (size > m_size)
+			return acm::Error("Buffer::write: size exceeds the buffer");
+		if (size == 0)
+			return {};
 		if (m_hostVisible)
 		{
 			if (!m_allocation.mapped)
 				return acm::Error("Buffer::write: map failed");
-			std::memcpy(m_allocation.mapped, data, bytes);
+			std::memcpy(m_allocation.mapped, data, size);
 			return {};
 		}
 
-		acm::Buffer staging = owner().createBuffer(bytes, acm::BufferUsage::Staging);
+		acm::Buffer staging = owner().createBuffer(size, acm::BufferUsage::Staging);
 		if (!staging.valid())
 			return acm::Error("Buffer::write: failed to create staging buffer");
-		if (acm::Error error = staging.backend()->write(data, bytes))
+		if (acm::Error error = staging.backend()->write(data, size))
 			return error;
-		return owner().copyBuffer(staging.backend()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
+		return owner().copyBuffer(staging.backend()->vkBuffer(), m_buffer, VkDeviceSize(size));
 	}
 
 	// -----------------------------------------------------------------------------

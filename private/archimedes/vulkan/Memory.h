@@ -34,11 +34,22 @@ namespace acm::vulkan
 		bool valid() const { return memory != VK_NULL_HANDLE; }
 	};
 
+	// What an allocation backs. Vulkan forbids a linear resource (a buffer) and a
+	// non-linear one (an optimal-tiling image) from sharing a
+	// VkPhysicalDeviceLimits::bufferImageGranularity page, so the allocator keeps
+	// the two kinds in separate blocks and needs no per-allocation padding.
+	enum class AllocationKind
+	{
+		Linear,	   // buffers
+		NonLinear, // optimal-tiling images
+	};
+
 	// A simple pooling sub-allocator: it carves resource allocations out of large
 	// VkDeviceMemory blocks (one block serves many resources), instead of one
 	// vkAllocateMemory per resource — which keeps us well under
-	// maxMemoryAllocationCount and avoids per-resource allocation overhead. Per
-	// block it keeps a first-fit free list (coalesced on free). Host-visible blocks
+	// maxMemoryAllocationCount and avoids per-resource allocation overhead. Each
+	// block holds one memory type and one AllocationKind. Per block it keeps a
+	// first-fit free list (coalesced on free). Blocks of a host-visible memory type
 	// are persistently mapped. Allocation/free are protected by an allocator mutex;
 	// one instance lives per Device. Blocks are freed when the allocator is destroyed,
 	// so every allocation must be free()d (and its resource destroyed) first.
@@ -51,9 +62,10 @@ namespace acm::vulkan
 
 		// Allocation
 		// Sub-allocates for `req` from a block whose memory type satisfies `props`
-		// (a new block is created if none fits). Returns an invalid Allocation on
-		// failure.
-		Allocation allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props);
+		// and whose kind is `kind` (a new block is created if none fits). Images use
+		// the default; buffers pass AllocationKind::Linear. Returns an invalid
+		// Allocation on failure, including a failed persistent map of a new block.
+		Allocation allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props, AllocationKind kind = AllocationKind::NonLinear);
 		void free(const Allocation& allocation);
 
 		// Diagnostics
