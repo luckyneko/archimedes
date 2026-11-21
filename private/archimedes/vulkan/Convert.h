@@ -26,6 +26,9 @@ namespace acm::vulkan
 	// whether the value is representable so callers can skip the rest.
 	VkFormat toVk(acm::Format format);
 	bool tryFromVk(VkFormat format, acm::Format& out);
+	// Bytes one tightly packed texel of `format` occupies (0 for Undefined). For
+	// D24_Unorm_S8_Uint this is the packed 32-bit texel, not a per-aspect copy size.
+	uint32_t bytesPerPixel(acm::Format format);
 
 	VkColorSpaceKHR toVk(acm::ColorSpace colorSpace);
 	bool tryFromVk(VkColorSpaceKHR colorSpace, acm::ColorSpace& out);

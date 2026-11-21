@@ -93,8 +93,8 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 	REQUIRE(mipped.mipLevels() > 1);
 	REQUIRE(flat.mipLevels() == 1);
 	REQUIRE_FALSE(device.createRenderTarget(mipped, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc}).valid());
-	mipped.upload(pixels.data(), pixels.size()); // generates the chain
-	flat.upload(pixels.data(), pixels.size());
+	REQUIRE_FALSE(mipped.upload(pixels.data(), pixels.size())); // generates the chain
+	REQUIRE_FALSE(flat.upload(pixels.data(), pixels.size()));
 
 	acm::Buffer mippedOut = sampleTopMip(mipped);
 	acm::Buffer flatOut = sampleTopMip(flat);
@@ -119,4 +119,47 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 	REQUIRE(fr > 200);
 	REQUIRE(fb < 60);
 	REQUIRE(fg < 60);
+}
+
+// The mip count is decided at creation from what upload() can generate: a format the
+// device can blit and linearly filter gets the full chain, any other gets one level, so
+// upload() never leaves a level unwritten under the all-levels view. Every level count a
+// mipmapped texture reports must be one of those two, and a correctly sized upload must
+// fill it. Covers 8- and 16-byte texels alongside the 4-byte one above.
+TEST_CASE("mipmapped textures only allocate levels upload can generate", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acmtest::requireInstance(instance);
+
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	constexpr uint32_t kSize = 32;
+	constexpr uint32_t kFullChain = 6; // 32, 16, 8, 4, 2, 1
+	const acm::Extent2D extent{kSize, kSize};
+
+	struct Case
+	{
+		acm::Format format;
+		size_t bytesPerPixel;
+	};
+	const Case cases[] = {
+		{acm::Format::R8G8B8A8_Unorm, 4},
+		{acm::Format::R16G16B16A16_Sfloat, 8},
+		{acm::Format::R32G32B32A32_Sfloat, 16},
+	};
+	for (const Case& c : cases)
+	{
+		INFO("format " << int(c.format));
+		acm::Texture texture = device.createTexture(c.format, extent, acm::TextureConfig{true});
+		REQUIRE(texture.valid());
+		const uint32_t levels = texture.mipLevels();
+		REQUIRE((levels == kFullChain || levels == 1));
+		const std::vector<uint8_t> pixels(size_t(kSize) * kSize * c.bytesPerPixel, 0x3c);
+		REQUIRE_FALSE(texture.upload(pixels.data(), pixels.size()));
+		REQUIRE(texture.valid());
+	}
 }

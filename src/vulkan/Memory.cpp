@@ -19,7 +19,8 @@ namespace acm::vulkan
 		VkDeviceMemory memory{VK_NULL_HANDLE};
 		VkDeviceSize size{0};
 		uint32_t memoryType{0};
-		void* mapped{nullptr}; // persistent map for host-visible blocks
+		AllocationKind kind{AllocationKind::NonLinear}; // never mixed within a block
+		void* mapped{nullptr};							// persistent map for host-visible blocks
 		struct Region
 		{
 			VkDeviceSize offset;
@@ -103,7 +104,7 @@ namespace acm::vulkan
 	// Allocation
 	// -----------------------------------------------------------------------------
 
-	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
+	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props, AllocationKind kind)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		const uint32_t memoryType = findMemoryType(req.memoryTypeBits, props);
@@ -125,10 +126,12 @@ namespace acm::vulkan
 			return a;
 		};
 
-		// Reuse an existing block of the right memory type if it has room.
+		// Reuse an existing block of the right memory type and kind if it has room.
+		// Keeping linear and non-linear resources in separate blocks satisfies
+		// bufferImageGranularity without padding between neighbours.
 		for (auto& block : m_blocks)
 		{
-			if (block->memoryType != memoryType)
+			if (block->memoryType != memoryType || block->kind != kind)
 				continue;
 			VkDeviceSize offset = 0;
 			if (block->tryAllocate(req.size, req.alignment, offset))
@@ -150,8 +153,12 @@ namespace acm::vulkan
 		block->memory = memory;
 		block->size = blockSize;
 		block->memoryType = memoryType;
-		if (hostVisible)
-			vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped);
+		block->kind = kind;
+		if (hostVisible && vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped) != VK_SUCCESS)
+		{
+			vkFreeMemory(m_device, memory, nullptr);
+			return {};
+		}
 		block->freeRegions.push_back({0, blockSize});
 
 		VkDeviceSize offset = 0;
