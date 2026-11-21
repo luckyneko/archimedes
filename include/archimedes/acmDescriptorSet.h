@@ -24,6 +24,15 @@ namespace acm
 	// buffer with setBuffer(), then bind it for a draw via
 	// CommandBuffer::bindDescriptorSet. `arrayElement` targets an element of a
 	// descriptor-array binding (`DescriptorBinding::count` > 1); 0 for a plain binding.
+	//
+	// Each write returns an error, and changes nothing, when the set is invalid, `binding`
+	// is not in the layout, `arrayElement` is past the binding's count, the binding's
+	// DescriptorType does not match the call, or a resource is invalid, owned by another
+	// Device, or unusable there (a depth texture, a buffer larger than the device's range
+	// limit). A successful write retains the texture / sampler / buffer it points at until
+	// that element is rewritten or the set is destroyed, so callers may drop their own
+	// wrappers once written. Copies of a DescriptorSet share one native set; writing it
+	// is caller-synchronized, and must not happen while a submitted command still uses it.
 	class DescriptorSet
 	{
 	public:
@@ -44,28 +53,28 @@ namespace acm
 		// Writes
 		// Writes a combined image sampler at `binding` (the texture is sampled in
 		// SHADER_READ_ONLY layout — i.e. it was rendered/uploaded ready to sample).
-		void setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement = 0);
+		acm::Error setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement = 0);
 
 		// Writes a buffer at `binding` — a uniform or storage descriptor, matching the
 		// layout binding's type. The buffer is host-visible (write it with Buffer::write).
-		void setBuffer(uint32_t binding, const acm::Buffer& buffer, uint32_t arrayElement = 0);
+		acm::Error setBuffer(uint32_t binding, const acm::Buffer& buffer, uint32_t arrayElement = 0);
 
 		// Writes a dynamic uniform buffer at `binding` (layout type UniformBufferDynamic):
 		// the descriptor covers `elementSize` bytes and the per-draw base offset is given
 		// at bind time via CommandBuffer::bindDescriptorSet(..., dynamicOffset). Lets one
 		// buffer hold many objects' constants. `elementSize` is the size one draw reads.
-		void setDynamicBuffer(uint32_t binding, const acm::Buffer& buffer, size_t elementSize, uint32_t arrayElement = 0);
+		acm::Error setDynamicBuffer(uint32_t binding, const acm::Buffer& buffer, size_t elementSize, uint32_t arrayElement = 0);
 
 		// Writes a storage image at `binding` (layout type StorageImage) — a shader-
 		// writable image with no sampler, bound in GENERAL layout. The texture must have
 		// been created with `storage`; transition it to General before the shader writes it.
-		void setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
+		acm::Error setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
 
 		// Writes a sampled image at `binding` (layout type SampledImage) — a read-only image
 		// with no sampler, bound in SHADER_READ_ONLY layout, for a shader that takes its
 		// sampler from another binding (or reads texels with texelFetch). What an external
 		// renderer with a separate sampler set wants: ImGui's Vulkan backend is one.
-		void setSampledImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
+		acm::Error setSampledImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement = 0);
 
 	private:
 		// Construction
