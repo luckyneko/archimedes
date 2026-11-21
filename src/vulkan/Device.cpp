@@ -131,6 +131,7 @@ namespace acm::vulkan
 		clearResourcePool(m_samplers);
 		clearResourcePool(m_textures);
 		clearResourcePool(m_buffers);
+		// Nothing can submit any more, so every pending serial is complete.
 		for (;;)
 		{
 			collectGarbage(UINT64_MAX);
@@ -216,10 +217,18 @@ namespace acm::vulkan
 	// Synchronization
 	// -----------------------------------------------------------------------------
 
-	void Device::waitIdle()
+	uint64_t Device::waitIdle()
 	{
-		vkDeviceWaitIdle(m_device);
-		collectGarbage(m_lastSubmittedSerial.load(std::memory_order_relaxed));
+		uint64_t completedSerial = 0;
+		{
+			// vkDeviceWaitIdle needs the queue externally synchronized, and holding the queue
+			// mutex pins the serial: nothing submitted after this wait can count as complete.
+			std::lock_guard<std::mutex> lock(m_queueMutex);
+			vkDeviceWaitIdle(m_device);
+			completedSerial = m_lastSubmittedSerial.load(std::memory_order_relaxed);
+		}
+		collectGarbage(completedSerial);
+		return completedSerial;
 	}
 
 	void Device::collectGarbage(uint64_t completedSerial)
@@ -290,51 +299,75 @@ namespace acm::vulkan
 			return acm::Error("failed to end one-shot command buffer");
 		}
 
-		std::lock_guard<std::mutex> lock(m_queueMutex);
+		// Collect only after unlocking: payload destructors must never run under the queue mutex.
 		uint64_t submittedSerial = 0;
-		if (queueSubmit(commandBuffer, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
+		const char* failure = nullptr;
 		{
-			vkDestroyCommandPool(m_device, pool, nullptr);
-			return acm::Error("failed to submit one-shot command buffer");
+			std::lock_guard<std::mutex> lock(m_queueMutex);
+			if (queueSubmit(commandBuffer, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
+				failure = "failed to submit one-shot command buffer";
+			else if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
+				failure = "failed to wait for one-shot command buffer";
 		}
-		if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
-		{
-			vkDestroyCommandPool(m_device, pool, nullptr);
-			return acm::Error("failed to wait for one-shot command buffer");
-		}
-		collectGarbage(submittedSerial);
 		vkDestroyCommandPool(m_device, pool, nullptr);
+		if (failure)
+			return acm::Error(failure);
+		collectGarbage(submittedSerial);
 		return {};
 	}
 
-	acm::Error Device::submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial)
+	acm::Error Device::submitFrame(const FrameSubmission& frame, FrameSubmitResult& result)
 	{
+		result = {};
+		// The swapchain image is first written as a color attachment, so the acquire only
+		// has to complete before that stage; a renderer pre-pass's compute and transfers
+		// run without waiting for it.
 		VkSemaphoreSubmitInfo waitSemaphore = {};
 		waitSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		waitSemaphore.semaphore = imageAvailable;
+		waitSemaphore.semaphore = frame.imageAvailable;
 		waitSemaphore.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		VkSemaphoreSubmitInfo signalSemaphore = {};
 		signalSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		signalSemaphore.semaphore = renderFinished;
+		signalSemaphore.semaphore = frame.renderFinished;
 		signalSemaphore.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &renderFinished;
+		presentInfo.pWaitSemaphores = &frame.renderFinished;
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapChain;
-		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pSwapchains = &frame.swapChain;
+		presentInfo.pImageIndices = &frame.imageIndex;
+		const bool presents = frame.commandBuffer && frame.renderFinished && frame.swapChain;
 
 		std::lock_guard<std::mutex> lock(m_queueMutex);
-		if (vkResetFences(m_device, 1, &inFlight) != VK_SUCCESS)
-			return acm::Error("failed to reset draw fence");
-		if (queueSubmit(commandBuffer, &waitSemaphore, &signalSemaphore, inFlight, submittedSerial) != VK_SUCCESS)
-			return acm::Error("failed to submit draw command buffer");
-		const VkResult present = vkQueuePresentKHR(m_queue, &presentInfo);
-		if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR)
-			needsRecreate = true;
-		else if (present != VK_SUCCESS)
-			return acm::Error("failed to present swapchain image");
+		if (vkResetFences(m_device, 1, &frame.inFlight) != VK_SUCCESS)
+		{
+			result.needsRecreate = true;
+			return acm::Error("failed to reset frame fence");
+		}
+		if (presents && queueSubmit(frame.commandBuffer, &waitSemaphore, &signalSemaphore, frame.inFlight, result.serial) == VK_SUCCESS)
+		{
+			result.submitted = true;
+			const VkResult present = vkQueuePresentKHR(m_queue, &presentInfo);
+			if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR)
+				result.needsRecreate = true;
+			else if (present != VK_SUCCESS)
+			{
+				result.needsRecreate = true;
+				return acm::Error("failed to present swapchain image");
+			}
+			return {};
+		}
+
+		// Nothing to present: consume the acquire semaphore and signal the fence so the frame
+		// slot can be reused. The image stays acquired until the swapchain is rebuilt.
+		result.needsRecreate = true;
+		waitSemaphore.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+		result.submitted = queueSubmit(VK_NULL_HANDLE, &waitSemaphore, nullptr, frame.inFlight, result.serial) == VK_SUCCESS;
+		if (presents)
+			return acm::Error("failed to submit frame command buffer");
+		if (!result.submitted)
+			return acm::Error("failed to release swapchain frame");
 		return {};
 	}
 
@@ -440,9 +473,12 @@ namespace acm::vulkan
 		return acm::RenderTarget(std::move(inserted.resource));
 	}
 
-	bool Device::invalidateRenderTarget(acm::RenderTarget& target)
+	void Device::retireSwapChainTarget(acm::RenderTarget& target)
 	{
-		return target.m_resource.forceInvalidate();
+		if (RenderTarget* backend = target.backend())
+			backend->releaseBorrowedImage();
+		target.m_resource.forceInvalidate();
+		target.reset();
 	}
 
 	acm::SwapChain Device::createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config)
@@ -482,12 +518,14 @@ namespace acm::vulkan
 		if (!commandBuffer.valid() || &commandBuffer.backend()->owner() != this)
 			return acm::Error("submitSync: invalid command buffer");
 		VkCommandBuffer vkCommand = commandBuffer.backend()->vkCommandBuffer();
-		std::lock_guard<std::mutex> lock(m_queueMutex);
 		uint64_t submittedSerial = 0;
-		if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
-			return acm::Error("submitSync: failed to submit");
-		if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
-			return acm::Error("submitSync: failed to wait for queue");
+		{
+			std::lock_guard<std::mutex> lock(m_queueMutex);
+			if (queueSubmit(vkCommand, nullptr, nullptr, VK_NULL_HANDLE, submittedSerial) != VK_SUCCESS)
+				return acm::Error("submitSync: failed to submit");
+			if (vkQueueWaitIdle(m_queue) != VK_SUCCESS)
+				return acm::Error("submitSync: failed to wait for queue");
+		}
 		collectGarbage(submittedSerial);
 		return {};
 	}
@@ -532,8 +570,8 @@ namespace acm::vulkan
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
 		submitInfo.waitSemaphoreInfoCount = waitSemaphore ? 1u : 0u;
 		submitInfo.pWaitSemaphoreInfos = waitSemaphore;
-		submitInfo.commandBufferInfoCount = 1;
-		submitInfo.pCommandBufferInfos = &commandBufferInfo;
+		submitInfo.commandBufferInfoCount = commandBuffer ? 1u : 0u;
+		submitInfo.pCommandBufferInfos = commandBuffer ? &commandBufferInfo : nullptr;
 		submitInfo.signalSemaphoreInfoCount = signalSemaphore ? 1u : 0u;
 		submitInfo.pSignalSemaphoreInfos = signalSemaphore;
 		submittedSerial = m_lastSubmittedSerial.fetch_add(1, std::memory_order_relaxed) + 1;

@@ -16,6 +16,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <cstdint>
 #include <vector>
 
 namespace acm::vulkan
@@ -43,19 +44,26 @@ namespace acm::vulkan
 		acm::Error error() const { return m_error; }
 
 		// Images
+		// Waits the device idle, then rebuilds; externally synchronized with this swapchain's
+		// renderer, but other renderers on the Device may keep submitting.
 		bool recreate();
 		acm::SurfaceFormat format() const;
 		acm::Extent2D extent() const;
 		size_t renderTargetCount() const;
 		acm::RenderTarget renderTarget(size_t index) const;
+		// Counts successful builds, so a renderer can tell its per-image state is stale. Each
+		// build after the first follows a device-idle wait.
+		uint64_t generation() const { return m_generation; }
 		VkResult acquireNextImage(VkSemaphore semaphore, uint32_t& imageIndex) const;
 		VkSwapchainKHR vkSwapChain() const;
 
 	private:
 		// Internals
 		void release();
+		// Replaces the swapchain and its targets. The device must have finished with the old
+		// ones: recreate() waits it idle first.
 		bool rebuild(acm::vulkan::Device& owner);
-		void invalidateTargets(acm::vulkan::Device& owner);
+		void retireTargets(acm::vulkan::Device& owner);
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::Surface m_surface;
@@ -65,6 +73,7 @@ namespace acm::vulkan
 		VkSwapchainKHR m_swapChain{VK_NULL_HANDLE};
 		acm::Extent2D m_extent;
 		std::vector<acm::RenderTarget> m_renderTargets;
+		uint64_t m_generation{0};
 		acm::Error m_error;
 	};
 } // namespace acm::vulkan

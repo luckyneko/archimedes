@@ -18,6 +18,7 @@ add_executable(test-${PROJECT_NAME}
     test_swapchain.cpp
     test_pipeline.cpp
     test_renderer.cpp
+    test_renderer_threads.cpp
     test_texture.cpp
     test_sampler.cpp
     test_vertexbuffer.cpp

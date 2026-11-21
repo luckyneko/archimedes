@@ -55,16 +55,16 @@ namespace acm::vulkan
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		VkFenceCreateInfo fenceInfo = {};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 		m_frames.resize(acm::Renderer::MaxFramesInFlight);
 		for (Frame& frame : m_frames)
 			if (vkCreateSemaphore(owner.vkDevice(), &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS ||
-				vkCreateSemaphore(owner.vkDevice(), &semaphoreInfo, nullptr, &frame.renderFinished) != VK_SUCCESS ||
 				vkCreateFence(owner.vkDevice(), &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS)
 			{
 				m_error = acm::Error("failed to create renderer frame synchronization");
 				return;
 			}
+		if (acm::Error error = rebuildPresentSemaphores(*swapChain.backend()))
+			m_error = error;
 	}
 
 	Renderer::~Renderer()
@@ -87,6 +87,8 @@ namespace acm::vulkan
 		m_commandPool = std::move(other.m_commandPool);
 		m_commandBuffers = std::move(other.m_commandBuffers);
 		m_frames = std::move(other.m_frames);
+		m_presentSemaphores = std::move(other.m_presentSemaphores);
+		m_presentGeneration = std::exchange(other.m_presentGeneration, 0);
 		m_currentFrame = std::exchange(other.m_currentFrame, 0);
 		m_needsRecreate = std::exchange(other.m_needsRecreate, false);
 		m_error = std::move(other.m_error);
@@ -107,16 +109,22 @@ namespace acm::vulkan
 				return {};
 			m_needsRecreate = false;
 		}
+		SwapChain& swapChain = *m_swapChain.backend();
+		if (swapChain.generation() != m_presentGeneration)
+		{
+			if (acm::Error error = rebuildPresentSemaphores(swapChain))
+				return error;
+		}
 
 		Frame& frame = m_frames[m_currentFrame];
-		vkWaitForFences(owner().vkDevice(), 1, &frame.inFlight, VK_TRUE, std::numeric_limits<uint64_t>::max());
-		if (frame.submissionSerial != 0)
+		if (frame.pending)
 		{
+			vkWaitForFences(owner().vkDevice(), 1, &frame.inFlight, VK_TRUE, std::numeric_limits<uint64_t>::max());
+			frame.pending = false;
 			owner().collectGarbage(frame.submissionSerial);
-			frame.submissionSerial = 0;
 		}
 		uint32_t imageIndex = 0;
-		const VkResult acquire = m_swapChain.backend()->acquireNextImage(frame.imageAvailable, imageIndex);
+		const VkResult acquire = swapChain.acquireNextImage(frame.imageAvailable, imageIndex);
 		if (acquire == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			m_needsRecreate = true;
@@ -125,36 +133,36 @@ namespace acm::vulkan
 		if (acquire != VK_SUCCESS && acquire != VK_SUBOPTIMAL_KHR)
 			return acm::Error("failed to acquire swapchain image");
 
-		acm::RenderTarget target = m_swapChain.renderTarget(imageIndex);
-		if (!target.valid())
-			return acm::Error("acquired swapchain image has no render target");
-		acm::CommandBuffer& commandBuffer = m_commandBuffers[m_currentFrame];
-		if (acm::Error error = commandBuffer.begin())
-			return error;
-		if (prePass)
-			prePass(commandBuffer, uint32_t(m_currentFrame));
-		if (acm::Error error = commandBuffer.error())
-			return error;
-		if (acm::Error error = commandBuffer.beginRendering(target))
-			return error;
-		commandBuffer.setViewportAndScissor(target.extent());
-		if (record)
-			record(commandBuffer, uint32_t(m_currentFrame));
-		const acm::Error recordingError = commandBuffer.error();
-		commandBuffer.endRendering();
-		if (acm::Error error = commandBuffer.end())
-			return error;
-		if (recordingError)
-			return recordingError;
-
-		const VkCommandBuffer vkCommand = commandBuffer.backend()->vkCommandBuffer();
-		const VkSwapchainKHR vkSwapChain = m_swapChain.backend()->vkSwapChain();
-		if (!vkCommand || !vkSwapChain)
-			return acm::Error("renderer resources became invalid");
-		if (acm::Error error = owner().submitFrame(vkCommand, frame.imageAvailable, frame.renderFinished, frame.inFlight, vkSwapChain, imageIndex, m_needsRecreate, frame.submissionSerial))
-			return error;
+		// The image is acquired and imageAvailable will be signalled, so from here the frame
+		// is always submitted and the slot always advances, whatever recording does: an early
+		// return would hand the next acquire a semaphore that is still signalled and never
+		// give the image back.
+		const uint32_t frameIndex = uint32_t(m_currentFrame);
 		m_currentFrame = (m_currentFrame + 1) % acm::Renderer::MaxFramesInFlight;
-		return {};
+		acm::CommandBuffer& commandBuffer = m_commandBuffers[frameIndex];
+		const acm::RenderTarget target = swapChain.renderTarget(imageIndex);
+		acm::Error frameError = recordFrame(commandBuffer, target, frameIndex, prePass, record);
+		const bool presentable = !frameError || recordClearFrame(commandBuffer, target);
+
+		FrameSubmission submission;
+		submission.imageAvailable = frame.imageAvailable;
+		submission.inFlight = frame.inFlight;
+		if (presentable)
+		{
+			submission.commandBuffer = commandBuffer.backend() ? commandBuffer.backend()->vkCommandBuffer() : VK_NULL_HANDLE;
+			submission.renderFinished = imageIndex < m_presentSemaphores.size() ? m_presentSemaphores[imageIndex] : VK_NULL_HANDLE;
+			submission.swapChain = swapChain.vkSwapChain();
+			submission.imageIndex = imageIndex;
+			if (!frameError && (!submission.commandBuffer || !submission.renderFinished || !submission.swapChain))
+				frameError = acm::Error("renderer resources became invalid");
+		}
+		FrameSubmitResult result;
+		const acm::Error submitError = owner().submitFrame(submission, result);
+		frame.pending = result.submitted;
+		frame.submissionSerial = result.serial;
+		if (result.needsRecreate)
+			m_needsRecreate = true;
+		return frameError ? frameError : submitError;
 	}
 
 	// -----------------------------------------------------------------------------
@@ -165,21 +173,83 @@ namespace acm::vulkan
 	{
 		Device* owner = std::exchange(m_owner, nullptr);
 		const VkDevice device = owner ? owner->vkDevice() : VK_NULL_HANDLE;
+		// No fence covers a present's wait on its semaphore; only an idle device does.
+		if (device && !m_presentSemaphores.empty())
+			owner->waitIdle();
+		for (const VkSemaphore semaphore : m_presentSemaphores)
+		{
+			if (device && semaphore)
+				vkDestroySemaphore(device, semaphore, nullptr);
+		}
 		for (const Frame& frame : m_frames)
 		{
-			if (device && frame.renderFinished)
-				vkDestroySemaphore(device, frame.renderFinished, nullptr);
 			if (device && frame.imageAvailable)
 				vkDestroySemaphore(device, frame.imageAvailable, nullptr);
 			if (device && frame.inFlight)
 				vkDestroyFence(device, frame.inFlight, nullptr);
 		}
+		m_presentSemaphores.clear();
+		m_presentGeneration = 0;
 		m_frames.clear();
 		m_commandBuffers.clear();
 		m_commandPool.reset();
 		m_swapChain.reset();
 		m_currentFrame = 0;
 		m_needsRecreate = false;
+	}
+
+	acm::Error Renderer::rebuildPresentSemaphores(const SwapChain& swapChain)
+	{
+		// Every swapchain rebuild after the first follows a device-idle wait, which also
+		// finished the presents waiting on the old semaphores.
+		const VkDevice device = owner().vkDevice();
+		for (const VkSemaphore semaphore : m_presentSemaphores)
+			vkDestroySemaphore(device, semaphore, nullptr);
+		m_presentSemaphores.assign(swapChain.renderTargetCount(), VK_NULL_HANDLE);
+		VkSemaphoreCreateInfo semaphoreInfo = {};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		for (VkSemaphore& semaphore : m_presentSemaphores)
+		{
+			if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS)
+				return acm::Error("failed to create renderer present semaphores");
+		}
+		m_presentGeneration = swapChain.generation();
+		return {};
+	}
+
+	acm::Error Renderer::recordFrame(acm::CommandBuffer& commandBuffer, const acm::RenderTarget& target, uint32_t frameIndex, const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record)
+	{
+		if (!target.valid())
+			return acm::Error("acquired swapchain image has no render target");
+		if (acm::Error error = commandBuffer.begin())
+			return error;
+		if (prePass)
+			prePass(commandBuffer, frameIndex);
+		acm::Error error = commandBuffer.error();
+		if (!error)
+			error = commandBuffer.beginRendering(target);
+		if (!error)
+		{
+			commandBuffer.setViewportAndScissor(target.extent());
+			if (record)
+				record(commandBuffer, frameIndex);
+			error = commandBuffer.error();
+		}
+		// Closes the frame's rendering scope, or one a failing callback left open.
+		commandBuffer.endRendering();
+		const acm::Error endError = commandBuffer.end();
+		return error ? error : endError;
+	}
+
+	bool Renderer::recordClearFrame(acm::CommandBuffer& commandBuffer, const acm::RenderTarget& target)
+	{
+		// Replaces a failed recording with a bare clear, which still leaves the acquired image
+		// in its present layout.
+		if (!target.valid() || commandBuffer.begin())
+			return false;
+		const bool cleared = !commandBuffer.beginRendering(target);
+		commandBuffer.endRendering();
+		return !commandBuffer.end() && cleared;
 	}
 
 } // namespace acm::vulkan
