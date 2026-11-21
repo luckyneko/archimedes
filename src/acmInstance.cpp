@@ -60,6 +60,11 @@ namespace acm
 		return m_error;
 	}
 
+	bool Instance::validationEnabled() const
+	{
+		return m && m->validationEnabled();
+	}
+
 	backend::Instance* Instance::backend() const
 	{
 		return m.get();

@@ -39,6 +39,7 @@ add_executable(test-${PROJECT_NAME}
     test_multipass.cpp
     test_cpu_device.cpp
     test_recording_errors.cpp
+    test_diagnostics.cpp
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
@@ -69,4 +70,36 @@ endif()
 if(ACM_SWIFTSHADER_ICD)
     target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_EXPECT_CPU_DEVICE)
 endif()
+
+# Vulkan validation for the suite. test/main.cpp sets ACM_VALIDATION before any instance
+# exists, so every instance turns on VK_LAYER_KHRONOS_validation, and a Catch2 listener
+# fails the test case during which a validation error was logged.
+#   AUTO    validate whenever the loader finds the layer; without it the suite runs as before
+#   REQUIRE as AUTO, but a missing layer FAILs every [gpu] test instead of testing nothing
+#   OFF     instances keep the validation their configs ask for
+# ARCHIMEDES_TEST_SYNC_VALIDATION also turns on the layer's synchronization validation
+# (VK_KHRONOS_VALIDATION_VALIDATE_SYNC, which can equally be exported for one run).
+set(ARCHIMEDES_TEST_VALIDATION "AUTO" CACHE STRING "Vulkan validation in the tests: AUTO, REQUIRE or OFF")
+set_property(CACHE ARCHIMEDES_TEST_VALIDATION PROPERTY STRINGS AUTO REQUIRE OFF)
+option(ARCHIMEDES_TEST_SYNC_VALIDATION "Turn on the validation layer's synchronization validation in the tests" OFF)
+string(TOUPPER "${ARCHIMEDES_TEST_VALIDATION}" _acm_test_validation)
+if(_acm_test_validation STREQUAL "REQUIRE")
+    target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_REQUIRE_VALIDATION)
+elseif(_acm_test_validation STREQUAL "OFF")
+    target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_TEST_VALIDATION_OFF)
+elseif(NOT _acm_test_validation STREQUAL "AUTO")
+    message(FATAL_ERROR "ARCHIMEDES_TEST_VALIDATION must be AUTO, REQUIRE or OFF, not '${ARCHIMEDES_TEST_VALIDATION}'")
+endif()
+if(ARCHIMEDES_TEST_SYNC_VALIDATION)
+    target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_TEST_SYNC_VALIDATION)
+endif()
+
+# ARCHIMEDES_SANITIZE instruments the suite like the library. Under ThreadSanitizer the
+# binary reads test/tsan.supp itself (see main.cpp), so no TSAN_OPTIONS is needed.
+acm_sanitize(test-${PROJECT_NAME})
+acm_sanitizers(_acm_sanitizers)
+if("thread" IN_LIST _acm_sanitizers)
+    target_compile_definitions(test-${PROJECT_NAME} PRIVATE ACM_TSAN_SUPPRESSIONS="${CMAKE_CURRENT_SOURCE_DIR}/tsan.supp")
+endif()
+
 catch_discover_tests(test-${PROJECT_NAME} ${_acm_test_props})

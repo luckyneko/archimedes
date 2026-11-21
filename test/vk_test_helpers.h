@@ -8,10 +8,14 @@
 
 #pragma once
 
+#include <archimedes/acmLog.h>
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <mutex>
+#include <string>
+#include <utility>
 #include <vector>
 
 // Shared scaffolding for the [gpu] integration tests. Header-only (inline) so
@@ -25,8 +29,75 @@
 // device. Only present kinds are generated, so a GPU-less machine runs each test once,
 // on the CPU device, and reports it passed rather than skipped. When the CPU driver is
 // staged (ACM_EXPECT_CPU_DEVICE) a missing CPU device means staging is broken and FAILs.
+//
+// Validation: test/main.cpp sets ACM_VALIDATION before any instance exists whenever the
+// loader finds VK_LAYER_KHRONOS_validation, so every instance the suite creates — through
+// these helpers or not — runs validated, and it installs validationLogHandler(). A Catch2
+// listener in main.cpp then fails the test case during which a validation error was logged,
+// with the messages in the failure. ARCHIMEDES_TEST_VALIDATION=REQUIRE (ACM_REQUIRE_VALIDATION)
+// makes a missing layer FAIL requireInstance(); =OFF leaves instances as their configs ask.
 namespace acmtest
 {
+	// A validation error the harness recorded.
+	struct LoggedError
+	{
+		std::string id;
+		std::string text;
+	};
+
+	// What the suite's log handler records for the listener. Never destroyed, so a message
+	// logged during static destruction is still safe.
+	struct ValidationCapture
+	{
+		std::mutex mutex;
+		std::vector<LoggedError> errors;
+		std::string device; // the device this test run selected, named in the failure
+	};
+
+	inline ValidationCapture& validationCapture()
+	{
+		static ValidationCapture* capture = new ValidationCapture;
+		return *capture;
+	}
+
+	// The suite's log handler (installed by test/main.cpp): records every validation error
+	// for the listener, then prints like the default handler. Thread-safe.
+	inline void validationLogHandler(const acm::LogMessage& message)
+	{
+		if (message.category == acm::LogCategory::Validation && message.severity == acm::LogSeverity::Error)
+		{
+			ValidationCapture& capture = validationCapture();
+			std::lock_guard<std::mutex> lock(capture.mutex);
+			capture.errors.push_back({message.id, message.text});
+		}
+		acm::defaultLogHandler(message);
+	}
+
+	// The validation errors recorded since the last call, which the listener then no longer
+	// sees. The listener calls it at each section's end; a test may call it to claim errors
+	// it provoked on purpose.
+	inline std::vector<LoggedError> takeValidationErrors()
+	{
+		ValidationCapture& capture = validationCapture();
+		std::lock_guard<std::mutex> lock(capture.mutex);
+		return std::exchange(capture.errors, {});
+	}
+
+	// The device the running test selected (empty until a helper selects one).
+	inline void noteDevice(std::string device)
+	{
+		ValidationCapture& capture = validationCapture();
+		std::lock_guard<std::mutex> lock(capture.mutex);
+		capture.device = std::move(device);
+	}
+
+	inline std::string notedDevice()
+	{
+		ValidationCapture& capture = validationCapture();
+		std::lock_guard<std::mutex> lock(capture.mutex);
+		return capture.device;
+	}
+
 	enum class DeviceKind
 	{
 		Hardware,
@@ -44,14 +115,22 @@ namespace acmtest
 	}
 
 	// SKIPs (or FAILs, when the CPU driver is staged) when no Vulkan instance could be made.
+	// With validation required, an instance without the validation layer FAILs too.
 	inline void requireInstance(const acm::Instance& instance)
 	{
-		if (instance.valid())
-			return;
+		if (!instance.valid())
+		{
 #ifdef ACM_EXPECT_CPU_DEVICE
-		FAIL("the CPU driver is staged but no Vulkan instance was created");
+			FAIL("the CPU driver is staged but no Vulkan instance was created");
 #endif
-		SKIP("no Vulkan driver available");
+			SKIP("no Vulkan driver available");
+		}
+#ifdef ACM_REQUIRE_VALIDATION
+		if (!instance.validationEnabled())
+			FAIL("validation is required (ARCHIMEDES_TEST_VALIDATION=REQUIRE) but VK_LAYER_KHRONOS_validation "
+				 "is not active: the loader did not find it (install it, or point VK_ADD_LAYER_PATH at its "
+				 "manifest directory), or ACM_VALIDATION=0 is set");
+#endif
 	}
 
 	// The device kind of this run. Every helper below shares this one generator, so a test
@@ -96,6 +175,7 @@ namespace acmtest
 			if (deviceKindOf(info.type) == kind)
 			{
 				UNSCOPED_INFO("device: " << info.name << " (" << deviceKindName(kind) << ")");
+				noteDevice(info.name + " (" + deviceKindName(kind) + ")");
 				return option;
 			}
 		}
@@ -128,6 +208,7 @@ namespace acmtest
 			if (deviceKindOf(info.type) == kind)
 			{
 				UNSCOPED_INFO("device: " << info.name << " (" << deviceKindName(kind) << ")");
+				noteDevice(info.name + " (" + deviceKindName(kind) + ")");
 				return option;
 			}
 		}

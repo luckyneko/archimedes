@@ -21,13 +21,21 @@ namespace acm
 {
 	// Instance creation knobs. Portability is enabled by default so macOS/MoltenVK
 	// devices enumerate without callers needing platform-specific setup.
+	//
+	// The environment variable ACM_VALIDATION, set to anything but empty or "0" when the
+	// instance is created, turns `validation` and `debug` on whatever the config says, so a
+	// suite or a shipped binary can be validated without a rebuild.
 	struct InstanceConfig
 	{
 		// Enumerate portability drivers such as MoltenVK when the extension is available.
 		bool portability{true};
-		// Enable an available standard validation layer.
+		// Enable VK_LAYER_KHRONOS_validation when the loader finds it. When it is missing the
+		// instance is created without it and a Library warning is logged (acmLog.h);
+		// Instance::validationEnabled() reports the outcome. Its reports reach the log hook
+		// only with `debug` on too.
 		bool validation{false};
-		// Enable VK_EXT_debug_utils and its diagnostic callback when available.
+		// Enable VK_EXT_debug_utils and relay every debug-messenger message (validation,
+		// performance, loader/driver) to the log hook (acmLog.h) with its own severity.
 		bool debug{false};
 		// Load the CPU driver staged beside the executable (<exe dir>/vulkan/) directly, so a
 		// CPU device is available without driver environment variables or registration —
@@ -55,6 +63,9 @@ namespace acm
 		void reset();
 		bool valid() const;
 		acm::Error error() const;
+		// Whether the Khronos validation layer is active on this instance (requested through
+		// InstanceConfig::validation or ACM_VALIDATION, and found by the loader).
+		bool validationEnabled() const;
 		// Opaque backend handle for the Vulkan-interop seam (acmVulkanInterop.h). Not a
 		// public native-handle API on its own — the raw VkInstance and VkSurfaceKHR
 		// adoption live in acm::interop.
