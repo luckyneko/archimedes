@@ -24,6 +24,10 @@ namespace acm
 {
 	// Unique owning root for device resources. Factories allocate children in stable
 	// typed resource pools; every child wrapper must be reset before the Device.
+	// An invalid Device (default-constructed, moved-from, reset, or failed creation) is
+	// safe to call: factories return invalid children, capability queries return neutral
+	// values (empty DeviceInfo, no features, SampleCount::One, alignment 1, no memory
+	// blocks), waitIdle() does nothing, and submitSync returns an error.
 	class Device
 	{
 	public:
@@ -101,8 +105,12 @@ namespace acm
 		// dispatch, a transfer). It stalls the queue, so it is a load-time / per-frame-at-
 		// most tool, not a hot path, and is externally synchronized like waitIdle (locks
 		// the device mutex around submit + wait; don't call it while another thread
-		// submits). The callback records into an already-begun command buffer.
+		// submits). The callback records into an already-begun command buffer. If any of
+		// its recording calls was rejected, nothing is submitted and the first rejection
+		// (CommandBuffer::error()) is returned.
 		acm::Error submitSync(const std::function<void(acm::CommandBuffer& cmd)>& record);
+		// Submits an ended command buffer as recorded; a rejected recording call is not in
+		// it, so check commandBuffer.error() first when that matters.
 		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:

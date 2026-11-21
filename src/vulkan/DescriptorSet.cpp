@@ -15,12 +15,62 @@
 #include "archimedes/vulkan/Sampler.h"
 #include "archimedes/vulkan/Texture.h"
 
-#include <cassert>
 #include <map>
 #include <utility>
 
 namespace acm::vulkan
 {
+	namespace
+	{
+		const char* typeName(acm::DescriptorType type)
+		{
+			switch (type)
+			{
+				case acm::DescriptorType::UniformBuffer:
+					return "UniformBuffer";
+				case acm::DescriptorType::CombinedImageSampler:
+					return "CombinedImageSampler";
+				case acm::DescriptorType::StorageBuffer:
+					return "StorageBuffer";
+				case acm::DescriptorType::UniformBufferDynamic:
+					return "UniformBufferDynamic";
+				case acm::DescriptorType::StorageImage:
+					return "StorageImage";
+				case acm::DescriptorType::SampledImage:
+					return "SampledImage";
+			}
+			return "an unknown type";
+		}
+
+		std::string typeMismatch(uint32_t binding, acm::DescriptorType actual, const char* expected)
+		{
+			return "binding " + std::to_string(binding) + " is " + typeName(actual) + ", not " + expected;
+		}
+
+		bool isDepthFormat(acm::Format format)
+		{
+			return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
+		}
+
+		bool sameBindings(const std::vector<acm::DescriptorBinding>& a, const std::vector<acm::DescriptorBinding>& b)
+		{
+			if (a.size() != b.size())
+				return false;
+			for (const acm::DescriptorBinding& left : a)
+			{
+				bool matched = false;
+				for (const acm::DescriptorBinding& right : b)
+					if (left.binding == right.binding)
+					{
+						matched = left.type == right.type && left.stage == right.stage && left.count == right.count;
+						break;
+					}
+				if (!matched)
+					return false;
+			}
+			return true;
+		}
+	} // namespace
 
 	// -----------------------------------------------------------------------------
 	// Lifetime
@@ -71,6 +121,23 @@ namespace acm::vulkan
 			m_error = acm::Error("failed to allocate descriptor set");
 			return;
 		}
+
+		// One retention slot per descriptor, laid out binding by binding.
+		m_bindings = *bindings;
+		m_firstSlot.reserve(m_bindings.size());
+		size_t slots = 0;
+		for (const acm::DescriptorBinding& binding : m_bindings)
+		{
+			m_firstSlot.push_back(slots);
+			if (binding.type == acm::DescriptorType::UniformBufferDynamic)
+			{
+				m_dynamicDescriptorCount += binding.count;
+				m_dynamicSlot = slots;
+			}
+			slots += binding.count;
+		}
+		m_written.resize(slots);
+		m_layoutIdentity = layout.backend();
 		m_layout = layout;
 	}
 
@@ -91,6 +158,12 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_layout = std::move(other.m_layout);
+		m_layoutIdentity = std::exchange(other.m_layoutIdentity, nullptr);
+		m_bindings = std::move(other.m_bindings);
+		m_firstSlot = std::move(other.m_firstSlot);
+		m_written = std::move(other.m_written);
+		m_dynamicDescriptorCount = std::exchange(other.m_dynamicDescriptorCount, 0u);
+		m_dynamicSlot = std::exchange(other.m_dynamicSlot, size_t(0));
 		m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
 		m_set = std::exchange(other.m_set, VK_NULL_HANDLE);
 		m_error = std::move(other.m_error);
@@ -107,114 +180,138 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Layout
+	// -----------------------------------------------------------------------------
+
+	bool DescriptorSet::matchesLayout(const DescriptorSetLayout* layout, const std::vector<acm::DescriptorBinding>* bindings) const
+	{
+		if (!layout || !m_layoutIdentity)
+			return false;
+		if (layout == m_layoutIdentity)
+			return true;
+		return bindings && sameBindings(*bindings, m_bindings);
+	}
+
+	bool DescriptorSet::dynamicBufferExtent(size_t& range, size_t& bufferSize) const
+	{
+		if (m_dynamicDescriptorCount != 1 || m_dynamicSlot >= m_written.size())
+			return false;
+		const Written& written = m_written[m_dynamicSlot];
+		if (!written.buffer.valid())
+			return false;
+		range = written.range;
+		bufferSize = written.bufferSize;
+		return true;
+	}
+
+	// -----------------------------------------------------------------------------
 	// Writes
 	// -----------------------------------------------------------------------------
 
-	void DescriptorSet::setTexture(uint32_t binding, const Texture& texture, const Sampler& sampler, uint32_t arrayElement)
+	acm::Error DescriptorSet::setTexture(uint32_t binding, const acm::Texture& texture, const acm::Sampler& sampler, uint32_t arrayElement)
 	{
-		if (&owner() != &texture.owner() || &owner() != &sampler.owner())
-			return;
-		const VkImageView imageView = texture.vkImageView();
-		const VkSampler vkSampler = sampler.vkSampler();
-		if (!imageView || !vkSampler)
-			return;
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = imageView;
-		imageInfo.sampler = vkSampler;
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_set;
-		write.dstBinding = binding;
-		write.dstArrayElement = arrayElement;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		write.pImageInfo = &imageInfo;
-		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+		constexpr const char* call = "setTexture";
+		size_t slot = 0;
+		acm::DescriptorType type{};
+		if (acm::Error error = locate(call, binding, arrayElement, slot, type))
+			return error;
+		if (type != acm::DescriptorType::CombinedImageSampler)
+			return fail(call, typeMismatch(binding, type, "CombinedImageSampler"));
+		if (acm::Error error = checkImage(call, texture))
+			return error;
+		const Sampler* backendSampler = sampler.backend();
+		if (!backendSampler || !backendSampler->vkSampler())
+			return fail(call, "invalid sampler");
+		if (&backendSampler->owner() != m_owner)
+			return fail(call, "sampler is owned by another device");
+
+		writeImage(binding, arrayElement, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.backend()->vkImageView(), backendSampler->vkSampler(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		m_written[slot] = Written{texture, sampler, acm::Buffer{}, 0, 0};
+		return {};
 	}
 
-	void DescriptorSet::setBuffer(uint32_t binding, const Buffer& buffer, uint32_t arrayElement)
+	acm::Error DescriptorSet::setBuffer(uint32_t binding, const acm::Buffer& buffer, uint32_t arrayElement)
 	{
-		if (&owner() != &buffer.owner())
-			return;
-		const VkBuffer vkBuffer = buffer.vkBuffer();
-		if (!vkBuffer)
-			return;
-		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = vkBuffer;
-		bufferInfo.range = VK_WHOLE_SIZE;
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_set;
-		write.dstBinding = binding;
-		write.dstArrayElement = arrayElement;
-		write.descriptorCount = 1;
-		write.descriptorType = bufferType(binding);
-		write.pBufferInfo = &bufferInfo;
-		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+		constexpr const char* call = "setBuffer";
+		size_t slot = 0;
+		acm::DescriptorType type{};
+		if (acm::Error error = locate(call, binding, arrayElement, slot, type))
+			return error;
+		if (type == acm::DescriptorType::UniformBufferDynamic)
+			return fail(call, typeMismatch(binding, type, "UniformBuffer or StorageBuffer; write it with setDynamicBuffer"));
+		if (type != acm::DescriptorType::UniformBuffer && type != acm::DescriptorType::StorageBuffer)
+			return fail(call, typeMismatch(binding, type, "UniformBuffer or StorageBuffer"));
+		if (acm::Error error = checkBuffer(call, buffer))
+			return error;
+		const size_t size = buffer.backend()->size();
+		const VkPhysicalDeviceLimits& limits = m_owner->properties().limits;
+		if (type == acm::DescriptorType::UniformBuffer && size > limits.maxUniformBufferRange)
+			return fail(call, "buffer size " + std::to_string(size) + " exceeds the device's maxUniformBufferRange " + std::to_string(limits.maxUniformBufferRange));
+		if (type == acm::DescriptorType::StorageBuffer && size > limits.maxStorageBufferRange)
+			return fail(call, "buffer size " + std::to_string(size) + " exceeds the device's maxStorageBufferRange " + std::to_string(limits.maxStorageBufferRange));
+
+		writeBuffer(binding, arrayElement, toVk(type), buffer.backend()->vkBuffer(), VK_WHOLE_SIZE);
+		m_written[slot] = Written{acm::Texture{}, acm::Sampler{}, buffer, size, size};
+		return {};
 	}
 
-	void DescriptorSet::setDynamicBuffer(uint32_t binding, const Buffer& buffer, size_t elementSize, uint32_t arrayElement)
+	acm::Error DescriptorSet::setDynamicBuffer(uint32_t binding, const acm::Buffer& buffer, size_t elementSize, uint32_t arrayElement)
 	{
-		if (&owner() != &buffer.owner())
-			return;
-		const VkBuffer vkBuffer = buffer.vkBuffer();
-		if (!vkBuffer)
-			return;
-		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = vkBuffer;
-		bufferInfo.range = elementSize;
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_set;
-		write.dstBinding = binding;
-		write.dstArrayElement = arrayElement;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-		write.pBufferInfo = &bufferInfo;
-		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+		constexpr const char* call = "setDynamicBuffer";
+		size_t slot = 0;
+		acm::DescriptorType type{};
+		if (acm::Error error = locate(call, binding, arrayElement, slot, type))
+			return error;
+		if (type != acm::DescriptorType::UniformBufferDynamic)
+			return fail(call, typeMismatch(binding, type, "UniformBufferDynamic"));
+		if (acm::Error error = checkBuffer(call, buffer))
+			return error;
+		const size_t size = buffer.backend()->size();
+		const uint32_t maxRange = m_owner->properties().limits.maxUniformBufferRange;
+		if (elementSize == 0)
+			return fail(call, "element size must be non-zero");
+		if (elementSize > size)
+			return fail(call, "element size " + std::to_string(elementSize) + " exceeds the buffer size " + std::to_string(size));
+		if (elementSize > maxRange)
+			return fail(call, "element size " + std::to_string(elementSize) + " exceeds the device's maxUniformBufferRange " + std::to_string(maxRange));
+
+		writeBuffer(binding, arrayElement, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, buffer.backend()->vkBuffer(), VkDeviceSize(elementSize));
+		m_written[slot] = Written{acm::Texture{}, acm::Sampler{}, buffer, elementSize, size};
+		return {};
 	}
 
-	void DescriptorSet::setStorageImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	acm::Error DescriptorSet::setStorageImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement)
 	{
-		if (&owner() != &texture.owner())
-			return;
-		const VkImageView imageView = texture.vkImageView();
-		if (!imageView)
-			return;
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageInfo.imageView = imageView;
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_set;
-		write.dstBinding = binding;
-		write.dstArrayElement = arrayElement;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		write.pImageInfo = &imageInfo;
-		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+		constexpr const char* call = "setStorageImage";
+		size_t slot = 0;
+		acm::DescriptorType type{};
+		if (acm::Error error = locate(call, binding, arrayElement, slot, type))
+			return error;
+		if (type != acm::DescriptorType::StorageImage)
+			return fail(call, typeMismatch(binding, type, "StorageImage"));
+		if (acm::Error error = checkImage(call, texture))
+			return error;
+
+		writeImage(binding, arrayElement, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, texture.backend()->vkImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
+		m_written[slot] = Written{texture, acm::Sampler{}, acm::Buffer{}, 0, 0};
+		return {};
 	}
 
-	void DescriptorSet::setSampledImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	acm::Error DescriptorSet::setSampledImage(uint32_t binding, const acm::Texture& texture, uint32_t arrayElement)
 	{
-		if (&owner() != &texture.owner())
-			return;
-		const VkImageView imageView = texture.vkImageView();
-		if (!imageView)
-			return;
-		VkDescriptorImageInfo imageInfo = {};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = imageView;
-		VkWriteDescriptorSet write = {};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_set;
-		write.dstBinding = binding;
-		write.dstArrayElement = arrayElement;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		write.pImageInfo = &imageInfo;
-		vkUpdateDescriptorSets(owner().vkDevice(), 1, &write, 0, nullptr);
+		constexpr const char* call = "setSampledImage";
+		size_t slot = 0;
+		acm::DescriptorType type{};
+		if (acm::Error error = locate(call, binding, arrayElement, slot, type))
+			return error;
+		if (type != acm::DescriptorType::SampledImage)
+			return fail(call, typeMismatch(binding, type, "SampledImage"));
+		if (acm::Error error = checkImage(call, texture))
+			return error;
+
+		writeImage(binding, arrayElement, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, texture.backend()->vkImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		m_written[slot] = Written{texture, acm::Sampler{}, acm::Buffer{}, 0, 0};
+		return {};
 	}
 
 	// -----------------------------------------------------------------------------
@@ -228,18 +325,90 @@ namespace acm::vulkan
 		m_set = VK_NULL_HANDLE;
 		if (owner && pool)
 			vkDestroyDescriptorPool(owner->vkDevice(), pool, nullptr);
+		// The native set is gone, so what it pointed at may go too.
+		m_written.clear();
+		m_firstSlot.clear();
+		m_bindings.clear();
+		m_dynamicDescriptorCount = 0;
+		m_dynamicSlot = 0;
+		m_layoutIdentity = nullptr;
 		m_layout.reset();
 	}
 
-	VkDescriptorType DescriptorSet::bufferType(uint32_t binding) const
+	acm::Error DescriptorSet::locate(const char* call, uint32_t binding, uint32_t arrayElement, size_t& slot, acm::DescriptorType& type) const
 	{
-		const auto* bindings = m_layout.valid() ? m_layout.backend()->bindings() : nullptr;
-		if (bindings)
-			for (const acm::DescriptorBinding& candidate : *bindings)
-				if (candidate.binding == binding)
-					return toVk(candidate.type);
-		assert(false && "acm::DescriptorSet::setBuffer: unknown binding");
-		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		for (size_t i = 0; i < m_bindings.size(); ++i)
+		{
+			const acm::DescriptorBinding& candidate = m_bindings[i];
+			if (candidate.binding != binding)
+				continue;
+			if (arrayElement >= candidate.count)
+				return fail(call, "array element " + std::to_string(arrayElement) + " is out of range for binding " + std::to_string(binding) + " (count " + std::to_string(candidate.count) + ")");
+			slot = m_firstSlot[i] + arrayElement;
+			type = candidate.type;
+			return {};
+		}
+		return fail(call, "binding " + std::to_string(binding) + " is not in the descriptor set layout");
+	}
+
+	acm::Error DescriptorSet::checkImage(const char* call, const acm::Texture& texture) const
+	{
+		const Texture* backendTexture = texture.backend();
+		if (!backendTexture || !backendTexture->vkImageView())
+			return fail(call, "invalid texture");
+		if (&backendTexture->owner() != m_owner)
+			return fail(call, "texture is owned by another device");
+		if (isDepthFormat(backendTexture->format()))
+			return fail(call, "a depth texture cannot be bound to a shader descriptor");
+		return {};
+	}
+
+	acm::Error DescriptorSet::checkBuffer(const char* call, const acm::Buffer& buffer) const
+	{
+		const Buffer* backendBuffer = buffer.backend();
+		if (!backendBuffer || !backendBuffer->vkBuffer())
+			return fail(call, "invalid buffer");
+		if (&backendBuffer->owner() != m_owner)
+			return fail(call, "buffer is owned by another device");
+		return {};
+	}
+
+	void DescriptorSet::writeImage(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkImageView view, VkSampler sampler, VkImageLayout layout) const
+	{
+		VkDescriptorImageInfo imageInfo = {};
+		imageInfo.imageLayout = layout;
+		imageInfo.imageView = view;
+		imageInfo.sampler = sampler;
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_set;
+		write.dstBinding = binding;
+		write.dstArrayElement = arrayElement;
+		write.descriptorCount = 1;
+		write.descriptorType = type;
+		write.pImageInfo = &imageInfo;
+		vkUpdateDescriptorSets(m_owner->vkDevice(), 1, &write, 0, nullptr);
+	}
+
+	void DescriptorSet::writeBuffer(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkBuffer buffer, VkDeviceSize range) const
+	{
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer = buffer;
+		bufferInfo.range = range;
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_set;
+		write.dstBinding = binding;
+		write.dstArrayElement = arrayElement;
+		write.descriptorCount = 1;
+		write.descriptorType = type;
+		write.pBufferInfo = &bufferInfo;
+		vkUpdateDescriptorSets(m_owner->vkDevice(), 1, &write, 0, nullptr);
+	}
+
+	acm::Error DescriptorSet::fail(const char* call, const std::string& reason)
+	{
+		return acm::Error(std::string(call) + ": " + reason);
 	}
 
 } // namespace acm::vulkan

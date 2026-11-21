@@ -16,6 +16,7 @@
 #include "archimedes/acmTexture.h"
 #include "archimedes/backendAPI.h"
 
+#include <string>
 #include <utility>
 
 namespace acm
@@ -56,7 +57,7 @@ namespace acm
 		if (m_error)
 			return m_error;
 		if (auto* resource = m_resource.access())
-			return resource->error();
+			return resource->recordingError();
 		return {};
 	}
 
@@ -73,31 +74,15 @@ namespace acm
 	{
 		m_error = {};
 		if (auto* resource = m_resource.access())
-		{
-			if (acm::Error error = resource->begin())
-			{
-				m_error = error;
-				return error;
-			}
-			return {};
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->begin();
+		return invalid("begin");
 	}
 
 	Error CommandBuffer::end()
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (acm::Error error = resource->end())
-			{
-				m_error = error;
-				return error;
-			}
-			return {};
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->end();
+		return invalid("end");
 	}
 
 	// -----------------------------------------------------------------------------
@@ -107,177 +92,125 @@ namespace acm
 	Error CommandBuffer::beginRendering(const RenderTarget& target, float r, float g, float b, float a)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (acm::Error error = resource->beginRendering(target, r, g, b, a))
-			{
-				m_error = error;
-				return error;
-			}
-			return {};
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->beginRendering(target, r, g, b, a);
+		return invalid("beginRendering");
 	}
 
-	void CommandBuffer::endRendering()
+	Error CommandBuffer::endRendering()
 	{
 		if (auto* resource = m_resource.access())
-			resource->endRendering();
+			return resource->endRendering();
+		return invalid("endRendering");
 	}
 
-	void CommandBuffer::setViewportAndScissor(Extent2D extent)
+	Error CommandBuffer::setViewportAndScissor(Extent2D extent)
 	{
 		if (auto* resource = m_resource.access())
-			resource->setViewportAndScissor(extent);
+			return resource->setViewportAndScissor(extent);
+		return invalid("setViewportAndScissor");
 	}
 
 	Error CommandBuffer::bindPipeline(const Pipeline& pipeline)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (pipeline.backend())
-			{
-				if (acm::Error error = resource->bindPipeline(*pipeline.backend()))
-				{
-					m_error = error;
-					return error;
-				}
-				return {};
-			}
-			m_error = Error("invalid graphics pipeline");
-			return m_error;
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->bindPipeline(pipeline.backend());
+		return invalid("bindPipeline");
 	}
 
-	void CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set)
+	Error CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (pipeline.backend() && set.backend())
-				resource->bindDescriptorSet(*pipeline.backend(), *set.backend(), nullptr);
-		}
+			return resource->bindDescriptorSet(pipeline.backend(), set.backend(), nullptr);
+		return invalid("bindDescriptorSet");
 	}
 
-	void CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set, uint32_t dynamicOffset)
+	Error CommandBuffer::bindDescriptorSet(const Pipeline& pipeline, const DescriptorSet& set, uint32_t dynamicOffset)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (pipeline.backend() && set.backend())
-				resource->bindDescriptorSet(*pipeline.backend(), *set.backend(), &dynamicOffset);
-		}
+			return resource->bindDescriptorSet(pipeline.backend(), set.backend(), &dynamicOffset);
+		return invalid("bindDescriptorSet");
 	}
 
 	Error CommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (acm::Error error = resource->draw(vertexCount, instanceCount, firstVertex, firstInstance))
-			{
-				m_error = error;
-				return error;
-			}
-			return {};
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->draw(vertexCount, instanceCount, firstVertex, firstInstance);
+		return invalid("draw");
 	}
 
-	void CommandBuffer::bindVertexBuffer(const Buffer& buffer)
+	Error CommandBuffer::bindVertexBuffer(const Buffer& buffer)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (buffer.backend())
-				resource->bindVertexBuffer(*buffer.backend());
-		}
+			return resource->bindVertexBuffer(buffer.backend());
+		return invalid("bindVertexBuffer");
 	}
 
-	void CommandBuffer::bindIndexBuffer(const Buffer& buffer)
+	Error CommandBuffer::bindIndexBuffer(const Buffer& buffer)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (buffer.backend())
-				resource->bindIndexBuffer(*buffer.backend());
-		}
+			return resource->bindIndexBuffer(buffer.backend());
+		return invalid("bindIndexBuffer");
 	}
 
 	Error CommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (acm::Error error = resource->drawIndexed(indexCount, instanceCount, firstIndex, vertexOffset, firstInstance))
-			{
-				m_error = error;
-				return error;
-			}
-			return {};
-		}
-		m_error = Error("invalid command buffer");
-		return m_error;
+			return resource->drawIndexed(indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+		return invalid("drawIndexed");
 	}
 
 	// -----------------------------------------------------------------------------
 	// Transfer
 	// -----------------------------------------------------------------------------
 
-	void CommandBuffer::copyTextureToBuffer(const Texture& texture, const Buffer& buffer)
+	Error CommandBuffer::copyTextureToBuffer(const Texture& texture, const Buffer& buffer)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (texture.backend() && buffer.backend())
-				resource->copyTextureToBuffer(*texture.backend(), *buffer.backend());
-		}
+			return resource->copyTextureToBuffer(texture.backend(), buffer.backend());
+		return invalid("copyTextureToBuffer");
 	}
 
 	// -----------------------------------------------------------------------------
 	// Compute
 	// -----------------------------------------------------------------------------
 
-	void CommandBuffer::bindComputePipeline(const ComputePipeline& pipeline)
+	Error CommandBuffer::bindComputePipeline(const ComputePipeline& pipeline)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (pipeline.backend())
-				resource->bindComputePipeline(*pipeline.backend());
-		}
+			return resource->bindComputePipeline(pipeline.backend());
+		return invalid("bindComputePipeline");
 	}
 
-	void CommandBuffer::bindComputeDescriptorSet(const ComputePipeline& pipeline, const DescriptorSet& set)
+	Error CommandBuffer::bindComputeDescriptorSet(const ComputePipeline& pipeline, const DescriptorSet& set)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (pipeline.backend() && set.backend())
-				resource->bindComputeDescriptorSet(*pipeline.backend(), *set.backend());
-		}
+			return resource->bindComputeDescriptorSet(pipeline.backend(), set.backend());
+		return invalid("bindComputeDescriptorSet");
 	}
 
-	void CommandBuffer::dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ)
+	Error CommandBuffer::dispatch(uint32_t groupsX, uint32_t groupsY, uint32_t groupsZ)
 	{
 		if (auto* resource = m_resource.access())
-			resource->dispatch(groupsX, groupsY, groupsZ);
+			return resource->dispatch(groupsX, groupsY, groupsZ);
+		return invalid("dispatch");
 	}
 
 	// -----------------------------------------------------------------------------
 	// Synchronization
 	// -----------------------------------------------------------------------------
 
-	void CommandBuffer::bufferBarrier(const Buffer& buffer, ShaderStage srcStage, ShaderStage dstStage)
+	Error CommandBuffer::bufferBarrier(const Buffer& buffer, ShaderStage srcStage, ShaderStage dstStage)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (buffer.backend())
-				resource->bufferBarrier(*buffer.backend(), srcStage, dstStage);
-		}
+			return resource->bufferBarrier(buffer.backend(), srcStage, dstStage);
+		return invalid("bufferBarrier");
 	}
 
-	void CommandBuffer::transitionImage(const Texture& texture, ImageLayout from, ImageLayout to)
+	Error CommandBuffer::transitionImage(const Texture& texture, ImageLayout from, ImageLayout to)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (texture.backend())
-				resource->transitionImage(*texture.backend(), from, to);
-		}
+			return resource->transitionImage(texture.backend(), from, to);
+		return invalid("transitionImage");
 	}
 
 	// -----------------------------------------------------------------------------
@@ -292,6 +225,18 @@ namespace acm
 	CommandBuffer::CommandBuffer(Error error)
 		: m_error(std::move(error))
 	{
+	}
+
+	// -----------------------------------------------------------------------------
+	// Internals
+	// -----------------------------------------------------------------------------
+
+	Error CommandBuffer::invalid(const char* call)
+	{
+		Error error(std::string(call) + ": invalid command buffer");
+		if (!m_error)
+			m_error = error;
+		return error;
 	}
 
 } // namespace acm

@@ -7,6 +7,7 @@
  */
 
 #include "test_spirv.h"
+#include "test_spirv_api_errors.h"
 #include "vk_test_helpers.h"
 
 #include <archimedes/acmVulkanInterop.h>
@@ -301,4 +302,172 @@ TEST_CASE("a sampled image is read without a sampler", "[acm][gpu]")
 	REQUIRE(leftG == 0);
 	REQUIRE(rightR == 0);
 	REQUIRE(rightG == 255);
+}
+
+TEST_CASE("descriptor writes reject bad bindings, elements, types and resources", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acmtest::requireInstance(instance);
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	acm::Device other = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+	REQUIRE(other.valid());
+
+	const acm::Extent2D extent{kSize, kSize};
+	acm::DescriptorSetLayout layout = device.createDescriptorSetLayout({
+		{0, acm::DescriptorType::CombinedImageSampler, acm::ShaderStage::Fragment, 2},
+		{1, acm::DescriptorType::UniformBuffer, acm::ShaderStage::Fragment},
+		{2, acm::DescriptorType::UniformBufferDynamic, acm::ShaderStage::Fragment},
+		{3, acm::DescriptorType::StorageImage, acm::ShaderStage::Compute},
+		{4, acm::DescriptorType::SampledImage, acm::ShaderStage::Fragment},
+		{5, acm::DescriptorType::StorageBuffer, acm::ShaderStage::Fragment},
+	});
+	REQUIRE(layout.valid());
+	acm::DescriptorSet set = device.createDescriptorSet(layout);
+	REQUIRE(set.valid());
+
+	acm::TextureConfig storageConfig;
+	storageConfig.storage = true;
+	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::Texture storageTexture = device.createTexture(acm::Format::R8G8B8A8_Unorm, extent, storageConfig);
+	acm::Texture depth = device.createTexture(acm::Format::D32_Sfloat, extent);
+	acm::Sampler sampler = device.createSampler();
+	acm::Buffer uniform = device.createBuffer(256, acm::BufferUsage::Uniform);
+	acm::Buffer storage = device.createBuffer(256, acm::BufferUsage::Storage);
+	acm::Texture otherTexture = other.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::Sampler otherSampler = other.createSampler();
+	acm::Buffer otherBuffer = other.createBuffer(256, acm::BufferUsage::Uniform);
+	REQUIRE(texture.valid());
+	REQUIRE(storageTexture.valid());
+	REQUIRE(depth.valid());
+	REQUIRE(sampler.valid());
+	REQUIRE(uniform.valid());
+	REQUIRE(storage.valid());
+	REQUIRE(otherTexture.valid());
+	REQUIRE(otherSampler.valid());
+	REQUIRE(otherBuffer.valid());
+
+	auto requireError = [](const acm::Error& error, const char* expected)
+	{
+		REQUIRE(error);
+		CHECK_THAT(error.message(), Catch::Matchers::ContainsSubstring(expected));
+	};
+
+	// A binding missing from the layout, an element past the array, and calls that don't
+	// match the binding's type.
+	requireError(set.setTexture(9, texture, sampler), "binding 9");
+	requireError(set.setBuffer(9, uniform), "binding 9");
+	requireError(set.setTexture(0, texture, sampler, 2), "array element 2");
+	requireError(set.setBuffer(1, uniform, 1), "array element 1");
+	requireError(set.setTexture(1, texture, sampler), "UniformBuffer");
+	requireError(set.setBuffer(0, uniform), "CombinedImageSampler");
+	requireError(set.setBuffer(2, uniform), "UniformBufferDynamic");
+	requireError(set.setDynamicBuffer(1, uniform, 16), "UniformBuffer");
+	requireError(set.setStorageImage(4, storageTexture), "SampledImage");
+	requireError(set.setSampledImage(3, texture), "StorageImage");
+
+	// Invalid, unusable and other-device resources.
+	requireError(set.setTexture(0, acm::Texture{}, sampler), "texture");
+	requireError(set.setTexture(0, texture, acm::Sampler{}), "sampler");
+	requireError(set.setBuffer(1, acm::Buffer{}), "buffer");
+	requireError(set.setDynamicBuffer(2, acm::Buffer{}, 16), "buffer");
+	requireError(set.setStorageImage(3, acm::Texture{}), "texture");
+	requireError(set.setSampledImage(4, acm::Texture{}), "texture");
+	requireError(set.setTexture(0, depth, sampler), "depth");
+	requireError(set.setSampledImage(4, depth), "depth");
+	requireError(set.setDynamicBuffer(2, uniform, 0), "size");
+	requireError(set.setDynamicBuffer(2, uniform, 257), "size");
+	requireError(set.setTexture(0, otherTexture, sampler), "another device");
+	requireError(set.setTexture(0, texture, otherSampler), "another device");
+	requireError(set.setBuffer(1, otherBuffer), "another device");
+	requireError(acm::DescriptorSet{}.setBuffer(1, uniform), "descriptor set");
+
+	// Every call with a matching binding, element and resource succeeds.
+	REQUIRE_FALSE(set.setTexture(0, texture, sampler, 0));
+	REQUIRE_FALSE(set.setTexture(0, texture, sampler, 1));
+	REQUIRE_FALSE(set.setBuffer(1, uniform));
+	REQUIRE_FALSE(set.setDynamicBuffer(2, uniform, 16));
+	REQUIRE_FALSE(set.setStorageImage(3, storageTexture));
+	REQUIRE_FALSE(set.setSampledImage(4, texture));
+	REQUIRE_FALSE(set.setBuffer(5, storage));
+}
+
+TEST_CASE("a descriptor set keeps the resources written into it alive", "[acm][gpu]")
+{
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acmtest::requireInstance(instance);
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+
+	const acm::Extent2D extent{kSize, kSize};
+	acm::DescriptorSetLayout layout = device.createDescriptorSetLayout({
+		{0, acm::DescriptorType::CombinedImageSampler, acm::ShaderStage::Fragment},
+		{1, acm::DescriptorType::UniformBuffer, acm::ShaderStage::Fragment},
+	});
+	REQUIRE(layout.valid());
+	acm::DescriptorSet set = device.createDescriptorSet(layout);
+	REQUIRE(set.valid());
+
+	// Write a green texture, its sampler and a uniform that adds blue, then drop every
+	// wrapper the test holds for them: only the set still references them.
+	{
+		acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+		const auto green = solid(kSize, 0, 255, 0);
+		REQUIRE_FALSE(texture.upload(green.data(), green.size()));
+		acm::Sampler sampler = device.createSampler();
+		const float addBlue[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+		acm::Buffer tint = device.createBuffer(sizeof(addBlue), acm::BufferUsage::Uniform);
+		REQUIRE_FALSE(tint.write(addBlue, sizeof(addBlue)));
+		set.setTexture(0, texture, sampler);
+		set.setBuffer(1, tint);
+	}
+
+	// A completed submission collects garbage, destroying anything nothing references;
+	// decoys of the same shape then reuse whatever memory that freed.
+	REQUIRE_FALSE(device.submitSync([](acm::CommandBuffer&) {}));
+	acm::Texture decoyTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	const auto red = solid(kSize, 0, 0, 255);
+	REQUIRE_FALSE(decoyTexture.upload(red.data(), red.size()));
+	const float addRed[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+	acm::Buffer decoyTint = device.createBuffer(sizeof(addRed), acm::BufferUsage::Uniform);
+	REQUIRE_FALSE(decoyTint.write(addRed, sizeof(addRed)));
+
+	acm::Texture out = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	acm::RenderTarget target = device.createRenderTarget(out, acm::RenderTargetConfig{acm::RenderTargetFinish::CopySrc});
+	acm::PipelineShaders shaders;
+	shaders.vertex = device.createShader(acmtest::fullscreenVertSpirv());
+	shaders.fragment = device.createShader(acmtest::textureTintFragSpirv());
+	acm::PipelineConfig config;
+	config.descriptorLayout = layout;
+	acm::Pipeline pipeline = device.createPipeline(shaders, target, config);
+	REQUIRE(pipeline.valid());
+
+	acm::Buffer readback = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::TransferDst);
+	acm::CommandPool pool = device.createCommandPool();
+	acm::CommandBuffer cmd = pool.allocate();
+	REQUIRE_FALSE(cmd.begin());
+	REQUIRE_FALSE(cmd.beginRendering(target));
+	cmd.setViewportAndScissor(extent);
+	REQUIRE_FALSE(cmd.bindPipeline(pipeline));
+	cmd.bindDescriptorSet(pipeline, set);
+	REQUIRE_FALSE(cmd.draw(3));
+	cmd.endRendering();
+	cmd.copyTextureToBuffer(out, readback);
+	REQUIRE_FALSE(cmd.error());
+	REQUIRE_FALSE(cmd.end());
+	submitAndWait(device, cmd);
+
+	// Green from the retained texture plus blue from the retained uniform: cyan, with no
+	// red from the decoys.
+	const auto* px = static_cast<const uint8_t*>(readback.map());
+	const size_t center = (size_t(kSize / 2) * kSize + kSize / 2) * 4;
+	const uint8_t b = px[center + 0], g = px[center + 1], r = px[center + 2];
+	readback.unmap();
+	REQUIRE(g > 200);
+	REQUIRE(b > 200);
+	REQUIRE(r < 60);
 }
