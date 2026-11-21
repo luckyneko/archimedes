@@ -35,6 +35,8 @@ namespace acm::vulkan
 		bool valid() const { return m_instance != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 		VkInstance vulkanInstance() const { return m_instance; }
+		// Whether VK_LAYER_KHRONOS_validation is enabled on this instance.
+		bool validationEnabled() const { return m_validation; }
 
 		// Enumeration
 		const std::vector<acm::DeviceInfo>& devices() const { return m_devices; }
@@ -63,6 +65,7 @@ namespace acm::vulkan
 		VkInstance m_instance{VK_NULL_HANDLE};
 		VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 		std::vector<const char*> m_layerNames;
+		bool m_validation{false};
 		std::vector<acm::DeviceInfo> m_devices;
 		std::vector<VkPhysicalDevice> m_physicalDevices;
 		acm::ResourcePool<acm::vulkan::Surface> m_surfaces;

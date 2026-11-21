@@ -18,6 +18,7 @@ option(ARCHIMEDES_BUILD_TESTING "Build the unit/integration tests" ${NOT_SUBPROJ
 option(ARCHIMEDES_BUILD_BENCHMARK "Build the benchmark executable" ${NOT_SUBPROJECT})
 option(ARCHIMEDES_FORMAT "Provide clang-format format / format-check targets" ${NOT_SUBPROJECT})
 set(ARCHIMEDES_MOLTENVK_LOG_LEVEL "1" CACHE STRING "MoltenVK MVK_CONFIG_LOG_LEVEL default for Archimedes-run executables: 0 none, 1 errors, 2 warnings, 3 info, 4 debug")
+set(ARCHIMEDES_SANITIZE "" CACHE STRING "Sanitizers for the library, tests and benchmarks (not vendored deps), Clang/GCC: empty, or a comma list of thread, address, undefined, leak")
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -42,6 +43,9 @@ endif()
 include(acmVulkan)
 acm_require_vulkan_headers()
 
+# acm_sanitize(<target>) applies ARCHIMEDES_SANITIZE to archimedes' own targets only.
+include(acmSanitize)
+
 set(SOURCE_FILES
     src/acmBuffer.cpp
     src/acmCommandBuffer.cpp
@@ -51,6 +55,7 @@ set(SOURCE_FILES
     src/acmDescriptorSetLayout.cpp
     src/acmDevice.cpp
     src/acmInstance.cpp
+    src/acmLog.cpp
     src/acmPipeline.cpp
     src/acmRenderer.cpp
     src/acmRenderTarget.cpp
@@ -99,6 +104,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE private)
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES} ACM_MOLTENVK_LOG_LEVEL="${ARCHIMEDES_MOLTENVK_LOG_LEVEL}")
+acm_sanitize(${PROJECT_NAME})
 
 if(ARCHIMEDES_BUILD_TESTBED)
     add_subdirectory(testbed)

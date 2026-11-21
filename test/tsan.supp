@@ -1,0 +1,19 @@
+# ThreadSanitizer suppressions for the test suite (ARCHIMEDES_SANITIZE=thread). The test
+# binary reads this file itself (test/main.cpp defines __tsan_default_options), so ctest,
+# Catch2's test discovery and direct runs all apply it.
+#
+# The SwiftShader CPU driver is a prebuilt, uninstrumented library: TSan cannot see the
+# ordering inside it (its fiber scheduler, its own atomics, its JIT-compiled shaders), but
+# it still records the calls it makes through intercepted functions (memcpy/memset into
+# mapped and staging memory, its allocations, its pthread use). Those look unordered
+# against everything else, so reports with a frame in the driver's module are suppressed.
+# Every entry is scoped to that module. Never suppress acm:: symbols here: a report in
+# Archimedes code is a finding to fix, not noise.
+#
+# Not called_from_lib: TSan aborts the process when a library it matched is unloaded, and
+# acm::Instance unloads the directly loaded driver when it is destroyed.
+
+race:libvk_swiftshader.so
+deadlock:libvk_swiftshader.so
+mutex:libvk_swiftshader.so
+thread:libvk_swiftshader.so
