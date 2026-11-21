@@ -24,6 +24,10 @@ namespace acm
 {
 	// Unique owning root for device resources. Factories allocate children in stable
 	// typed resource pools; every child wrapper must be reset before the Device.
+	// An invalid Device (default-constructed, moved-from, reset, or failed creation) is
+	// safe to call: factories return invalid children, capability queries return neutral
+	// values (empty DeviceInfo, no features, SampleCount::One, alignment 1, no memory
+	// blocks), waitIdle() does nothing, and submitSync returns an error.
 	class Device
 	{
 	public:

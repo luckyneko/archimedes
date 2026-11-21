@@ -188,34 +188,39 @@ namespace acm
 	// Capabilities
 	// -----------------------------------------------------------------------------
 
+	// An invalid (default, moved-from or reset) Device answers neutral values: an empty
+	// DeviceInfo, no features, one sample, no alignment constraint, no memory blocks.
+
 	const DeviceInfo& Device::deviceInfo() const
 	{
-		return m->deviceInfo();
+		static const DeviceInfo none;
+		return m ? m->deviceInfo() : none;
 	}
 
 	uint32_t Device::queueFamily() const
 	{
-		return m->queueFamily();
+		return m ? m->queueFamily() : 0;
 	}
 
 	const DeviceFeatures& Device::enabledFeatures() const
 	{
-		return m->enabledFeatures();
+		static const DeviceFeatures none;
+		return m ? m->enabledFeatures() : none;
 	}
 
 	SampleCount Device::maxSampleCount() const
 	{
-		return m->maxSampleCount();
+		return m ? m->maxSampleCount() : SampleCount::One;
 	}
 
 	size_t Device::minUniformBufferOffsetAlignment() const
 	{
-		return m->minUniformBufferOffsetAlignment();
+		return m ? m->minUniformBufferOffsetAlignment() : 1;
 	}
 
 	size_t Device::memoryBlockCount() const
 	{
-		return m->memoryBlockCount();
+		return m ? m->memoryBlockCount() : 0;
 	}
 
 	// -----------------------------------------------------------------------------
@@ -224,11 +229,16 @@ namespace acm
 
 	void Device::waitIdle()
 	{
-		m->waitIdle();
+		if (m)
+			m->waitIdle();
 	}
 
 	Error Device::submitSync(const std::function<void(CommandBuffer&)>& record)
 	{
+		if (!m)
+			return Error("submitSync: invalid device");
+		if (!record)
+			return Error("submitSync: missing record callback");
 		CommandPool pool = createCommandPool();
 		CommandBuffer commandBuffer = pool.allocate();
 		if (!commandBuffer.valid())
@@ -254,9 +264,9 @@ namespace acm
 
 	Device::Device(std::unique_ptr<backend::Device> device)
 	{
-		if (!device->valid())
+		if (!device || !device->valid())
 		{
-			m_error = device->error();
+			m_error = device ? device->error() : Error("invalid device");
 			return;
 		}
 		m = std::move(device);
