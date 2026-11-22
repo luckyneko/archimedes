@@ -9,10 +9,12 @@
 #include "archimedes/vulkan/RenderTarget.h"
 
 #include "archimedes/acmTexture.h"
+#include "archimedes/Log.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/Texture.h"
 
+#include <string>
 #include <utility>
 
 namespace acm::vulkan
@@ -85,6 +87,8 @@ namespace acm::vulkan
 		m_depth = depth;
 		m_depthFormat = depth ? toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
 		m_samples = owner.sampleCount(samples);
+		if (uint32_t(m_samples) < sampleCountValue(samples))
+			acm::logWarning("render target: " + std::to_string(sampleCountValue(samples)) + "x MSAA is not supported by this device; using " + std::to_string(uint32_t(m_samples)) + "x");
 		if (finish == acm::RenderTargetFinish::Sampled)
 		{
 			m_finalColorLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

@@ -126,6 +126,61 @@ namespace acm::vulkan
 		return 0;
 	}
 
+	const char* formatName(acm::Format format)
+	{
+		switch (format)
+		{
+			case acm::Format::Undefined:
+				return "Undefined";
+			case acm::Format::R8G8B8A8_Unorm:
+				return "R8G8B8A8_Unorm";
+			case acm::Format::R8G8B8A8_Srgb:
+				return "R8G8B8A8_Srgb";
+			case acm::Format::B8G8R8A8_Unorm:
+				return "B8G8R8A8_Unorm";
+			case acm::Format::B8G8R8A8_Srgb:
+				return "B8G8R8A8_Srgb";
+			case acm::Format::A2B10G10R10_Unorm_Pack32:
+				return "A2B10G10R10_Unorm_Pack32";
+			case acm::Format::R16G16B16A16_Sfloat:
+				return "R16G16B16A16_Sfloat";
+			case acm::Format::D32_Sfloat:
+				return "D32_Sfloat";
+			case acm::Format::D24_Unorm_S8_Uint:
+				return "D24_Unorm_S8_Uint";
+			case acm::Format::R32_Sfloat:
+				return "R32_Sfloat";
+			case acm::Format::R32G32_Sfloat:
+				return "R32G32_Sfloat";
+			case acm::Format::R32G32B32_Sfloat:
+				return "R32G32B32_Sfloat";
+			case acm::Format::R32G32B32A32_Sfloat:
+				return "R32G32B32A32_Sfloat";
+		}
+		return "an unknown format";
+	}
+
+	// -----------------------------------------------------------------------------
+	// Multisampling
+	// -----------------------------------------------------------------------------
+
+	uint32_t sampleCountValue(acm::SampleCount count)
+	{
+		switch (count)
+		{
+			case acm::SampleCount::One:
+				return 1;
+			case acm::SampleCount::Two:
+				return 2;
+			case acm::SampleCount::Four:
+				return 4;
+			case acm::SampleCount::Eight:
+				return 8;
+		}
+		assert(false && "acm::vulkan::sampleCountValue: invalid acm::SampleCount");
+		return 1;
+	}
+
 	// -----------------------------------------------------------------------------
 	// Surface Presentation
 	// -----------------------------------------------------------------------------
@@ -239,6 +294,26 @@ namespace acm::vulkan
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::BufferUsage");
 		return 0;
+	}
+
+	const char* bufferUsageName(acm::BufferUsage usage)
+	{
+		switch (usage)
+		{
+			case acm::BufferUsage::Vertex:
+				return "Vertex";
+			case acm::BufferUsage::Index:
+				return "Index";
+			case acm::BufferUsage::Uniform:
+				return "Uniform";
+			case acm::BufferUsage::TransferDst:
+				return "TransferDst";
+			case acm::BufferUsage::Staging:
+				return "Staging";
+			case acm::BufferUsage::Storage:
+				return "Storage";
+		}
+		return "an unknown usage";
 	}
 
 	// -----------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "archimedes/vulkan/Texture.h"
 
 #include "archimedes/acmBuffer.h"
+#include "archimedes/Log.h"
 #include "archimedes/vulkan/Buffer.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
@@ -40,7 +41,17 @@ namespace acm::vulkan
 		// Mip-generation fallback: upload() builds the chain with linear blits, so a
 		// format that cannot be blitted (or linearly filtered) gets a single level here
 		// rather than levels that upload() could never fill. mipLevels() reports it.
-		m_mipLevels = (mipmapped && !depth && supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat)) ? computeMipLevels(extent) : 1;
+		m_mipLevels = 1;
+		if (mipmapped)
+		{
+			const uint32_t requestedLevels = computeMipLevels(extent);
+			if (depth)
+				acm::logWarning(std::string("texture: mipmapped was requested for depth format ") + formatName(format) + ", which upload() cannot fill; creating 1 mip level instead of " + std::to_string(requestedLevels));
+			else if (!supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat))
+				acm::logWarning(std::string("texture: mipmapped was requested, but this device cannot blit format ") + formatName(format) + " with linear filtering to generate mips; creating 1 mip level instead of " + std::to_string(requestedLevels));
+			else
+				m_mipLevels = requestedLevels;
+		}
 
 		VkImageCreateInfo imageInfo = {};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;

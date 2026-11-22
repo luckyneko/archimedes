@@ -70,7 +70,8 @@ namespace acm
 		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, const acm::TextureConfig& config = {});
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
 		// maxAnisotropy > 1 enables anisotropic filtering (needs the samplerAnisotropy
-		// feature; clamped to the device limit, disabled with a warning if unsupported).
+		// feature; clamped to the device limit; without the feature the sampler is
+		// isotropic and a warning is logged through the log hook, acmLog.h).
 		acm::Sampler createSampler(float maxAnisotropy = 1.0f);
 		// Convenience: N fragment-stage combined-image-samplers (bindings 0..n-1).
 		acm::DescriptorSetLayout createDescriptorSetLayout(uint32_t samplerCount);
@@ -84,7 +85,8 @@ namespace acm
 		// using, e.g., wireframe.
 		const acm::DeviceFeatures& enabledFeatures() const;
 		// The highest MSAA sample count usable for color+depth rendering targets here. A
-		// SampleCount request beyond this is clamped down to it.
+		// SampleCount the device does not support is clamped down to the highest supported
+		// count below it, and the render target or swapchain asking for it logs a warning.
 		acm::SampleCount maxSampleCount() const;
 		// Required alignment (bytes) for a dynamic uniform buffer offset — size each
 		// per-object slice packed into one buffer to a multiple of this.

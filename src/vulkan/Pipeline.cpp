@@ -9,6 +9,7 @@
 #include "archimedes/vulkan/Pipeline.h"
 
 #include "archimedes/acmPipeline.h"
+#include "archimedes/Log.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/DescriptorSet.h"
 #include "archimedes/vulkan/DescriptorSetLayout.h"
@@ -17,11 +18,23 @@
 #include "archimedes/vulkan/Shader.h"
 
 #include <algorithm>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace acm::vulkan
 {
+	namespace
+	{
+		// A float as a caller would write it ("4", "0.5"), for messages.
+		std::string formatFloat(float value)
+		{
+			std::ostringstream out;
+			out << value;
+			return out.str();
+		}
+	} // namespace
 
 	// -----------------------------------------------------------------------------
 	// Lifetime
@@ -110,12 +123,19 @@ namespace acm::vulkan
 		dynamicState.dynamicStateCount = 2;
 		dynamicState.pDynamicStates = dynamicStates;
 
+		// Feature-gated state degrades with a warning rather than failing creation.
 		acm::PolygonMode polygonMode = config.polygonMode;
 		if (polygonMode == acm::PolygonMode::Line && !owner.enabledFeatures().fillModeNonSolid)
+		{
+			acm::logWarning("pipeline: PolygonMode::Line needs the fillModeNonSolid feature, which is not enabled on this device; falling back to PolygonMode::Fill");
 			polygonMode = acm::PolygonMode::Fill;
+		}
 		float lineWidth = config.lineWidth;
 		if (lineWidth != 1.0f && !owner.enabledFeatures().wideLines)
+		{
+			acm::logWarning("pipeline: lineWidth " + formatFloat(lineWidth) + " needs the wideLines feature, which is not enabled on this device; falling back to lineWidth 1");
 			lineWidth = 1.0f;
+		}
 		VkPipelineRasterizationStateCreateInfo rasterizer = {};
 		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizer.polygonMode = toVk(polygonMode);
@@ -126,7 +146,9 @@ namespace acm::vulkan
 		VkPipelineMultisampleStateCreateInfo multisampling = {};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.rasterizationSamples = target.backend()->sampleCount();
-		if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
+		if (config.minSampleShading > 0.0f && !owner.enabledFeatures().sampleRateShading)
+			acm::logWarning("pipeline: minSampleShading " + formatFloat(config.minSampleShading) + " needs the sampleRateShading feature, which is not enabled on this device; it is ignored (shading runs once per pixel)");
+		else if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT)
 		{
 			multisampling.sampleShadingEnable = VK_TRUE;
 			multisampling.minSampleShading = std::min(config.minSampleShading, 1.0f);

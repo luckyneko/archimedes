@@ -13,6 +13,7 @@
 
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -82,6 +83,32 @@ namespace acmtest
 		std::lock_guard<std::mutex> lock(capture.mutex);
 		return std::exchange(capture.errors, {});
 	}
+
+	// For its scope, offers every message to `consume`; what it declines (returns false) goes
+	// on to the handler it replaced — the harness's — so an unrelated validation error still
+	// fails the test. Install and restore from the test thread only.
+	class ScopedLogHandler
+	{
+	public:
+		explicit ScopedLogHandler(std::function<bool(const acm::LogMessage&)> consume)
+		{
+			// Two steps, so the new handler holds the old one; nothing else logs meanwhile.
+			m_previous = acm::setLogHandler({});
+			acm::setLogHandler([consume = std::move(consume), previous = m_previous](const acm::LogMessage& message)
+							   {
+				if (!consume(message) && previous)
+					previous(message); });
+		}
+		ScopedLogHandler(const ScopedLogHandler&) = delete;
+		ScopedLogHandler& operator=(const ScopedLogHandler&) = delete;
+		~ScopedLogHandler() { acm::setLogHandler(std::move(m_previous)); }
+
+		// The handler this scope replaced.
+		const acm::LogHandler& previous() const { return m_previous; }
+
+	private:
+		acm::LogHandler m_previous;
+	};
 
 	// The device the running test selected (empty until a helper selects one).
 	inline void noteDevice(std::string device)
