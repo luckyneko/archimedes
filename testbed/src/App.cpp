@@ -8,6 +8,7 @@
 
 #include "App.h"
 
+#include "archimedes/Platform.h"
 #include "Example.h"
 #include "RenderContext.h"
 #include "RenderWorker.h"
@@ -20,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -160,8 +162,8 @@ int App::run(Example& example, DeviceChoice deviceChoice)
 				workers.push_back(std::make_unique<RenderWorker>(&example, i));
 
 		// Optional frame cap for scripted/CI smoke runs (verify N frames then exit cleanly).
-		const char* capEnv = std::getenv("TESTBED_FRAME_CAP");
-		int frameCap = capEnv ? std::atoi(capEnv) : -1;
+		const std::optional<std::string> capEnv = acm::environmentVariable("TESTBED_FRAME_CAP");
+		int frameCap = capEnv ? std::atoi(capEnv->c_str()) : -1;
 
 		float time = 0.0f;
 		while (!anyWindowClosing(windows))

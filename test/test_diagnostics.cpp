@@ -7,6 +7,7 @@
  */
 
 #include "archimedes/Log.h"
+#include "archimedes/Platform.h"
 #include "vk_test_helpers.h"
 
 #include <archimedes/acmLog.h>
@@ -21,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -344,8 +346,7 @@ TEST_CASE("The suite validates every instance whenever the layer is available", 
 #ifdef ACM_TEST_VALIDATION_OFF
 	SKIP("ARCHIMEDES_TEST_VALIDATION=OFF");
 #endif
-	const char* forced = std::getenv("ACM_VALIDATION");
-	if (forced && std::strcmp(forced, "0") == 0)
+	if (acm::environmentVariable("ACM_VALIDATION") == std::optional<std::string>("0"))
 		SKIP("ACM_VALIDATION=0 opts this run out");
 	CHECK(instance.validationEnabled());
 }

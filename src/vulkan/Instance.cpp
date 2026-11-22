@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -46,8 +47,8 @@ namespace acm::vulkan
 		// shipped binary can be validated without a rebuild.
 		bool validationForcedByEnvironment()
 		{
-			const char* value = std::getenv("ACM_VALIDATION");
-			return value && *value && std::strcmp(value, "0") != 0;
+			const std::optional<std::string> value = acm::environmentVariable("ACM_VALIDATION");
+			return value && !value->empty() && *value != "0";
 		}
 
 		acm::LogSeverity logSeverityOf(VkDebugUtilsMessageSeverityFlagBitsEXT severity)
@@ -381,13 +382,13 @@ namespace acm::vulkan
 			device.queues.resize(queueFamilyCount);
 			for (size_t queueIndex = 0; queueIndex < queues.size(); ++queueIndex)
 			{
-				const VkQueueFamilyProperties& properties = queues[queueIndex].queueFamilyProperties;
+				const VkQueueFamilyProperties& family = queues[queueIndex].queueFamilyProperties;
 				acm::QueueInfo& queue = device.queues[queueIndex];
 				queue.family = uint32_t(queueIndex);
-				queue.count = properties.queueCount;
-				queue.graphics = (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
-				queue.compute = (properties.queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
-				queue.transfer = (properties.queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
+				queue.count = family.queueCount;
+				queue.graphics = (family.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+				queue.compute = (family.queueFlags & VK_QUEUE_COMPUTE_BIT) != 0;
+				queue.transfer = (family.queueFlags & VK_QUEUE_TRANSFER_BIT) != 0;
 			}
 		}
 

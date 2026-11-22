@@ -47,6 +47,7 @@ target_include_directories(test-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/pr
 target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2)
 acm_stage_vulkan_runtime(test-${PROJECT_NAME})
 
+acm_warnings(test-${PROJECT_NAME})
 # The tests link the vendored Vulkan loader, which on Windows is a DLL (vulkan-1.dll)
 # built into its own directory rather than next to the test executable. On a machine
 # with no system Vulkan runtime (e.g. a clean CI image) that DLL is otherwise

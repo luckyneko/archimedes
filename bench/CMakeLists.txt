@@ -16,6 +16,7 @@ target_compile_features(bench-${PROJECT_NAME} PRIVATE cxx_std_17)
 target_include_directories(bench-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/private ${PROJECT_SOURCE_DIR}/test)
 target_link_libraries(bench-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2)
 set_target_properties(bench-${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+acm_warnings(bench-${PROJECT_NAME})
 acm_sanitize(bench-${PROJECT_NAME})
 
 acm_stage_vulkan_runtime(bench-${PROJECT_NAME})

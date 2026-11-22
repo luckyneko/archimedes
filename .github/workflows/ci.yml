@@ -47,27 +47,34 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # warnings_as_errors turns ARCHIMEDES_WARNINGS_AS_ERRORS on (/WX, -Werror) for
+      # archimedes' own targets. Only the MSVC lane has been verified clean so far; the
+      # GCC and Clang lanes build with -Wall -Wextra but do not fail on warnings yet.
       matrix:
         include:
           - name: Linux Release
             os: ubuntu-24.04
             build_type: Release
             install_linux_deps: true
+            warnings_as_errors: "OFF"
 
           - name: Linux Debug
             os: ubuntu-24.04
             build_type: Debug
             install_linux_deps: true
+            warnings_as_errors: "OFF"
 
           - name: macOS Release
             os: macos-15
             build_type: Release
             install_linux_deps: false
+            warnings_as_errors: "OFF"
 
           - name: Windows Release
             os: windows-2022
             build_type: Release
             install_linux_deps: false
+            warnings_as_errors: "ON"
 
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +98,7 @@ jobs:
           cmake -S . -B build-lib
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DARCHIMEDES_FORMAT=OFF
+          -DARCHIMEDES_WARNINGS_AS_ERRORS=${{ matrix.warnings_as_errors }}
           -DARCHIMEDES_BUILD_TESTBED=OFF
           -DARCHIMEDES_BUILD_TESTING=OFF
           -DARCHIMEDES_BUILD_BENCHMARK=OFF
@@ -103,6 +111,7 @@ jobs:
           cmake -S . -B build-full
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DARCHIMEDES_FORMAT=OFF
+          -DARCHIMEDES_WARNINGS_AS_ERRORS=${{ matrix.warnings_as_errors }}
 
       - name: Build full graph
         run: cmake --build build-full --parallel --config ${{ matrix.build_type }}
