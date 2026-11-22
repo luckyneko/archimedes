@@ -163,8 +163,10 @@ through `acm_sanitize(<target>)`. Undefined behaviour aborts, so a test that hit
   Windows Release (Windows Server 2022, MSVC). Each builds the library alone, then the full
   graph, then runs `ctest`. The runners have no GPU, so the `[gpu]` tests run on the staged
   CPU device. The Windows lane builds with `ARCHIMEDES_WARNINGS_AS_ERRORS=ON`.
-- **Linux validation**: builds the Khronos validation layer from the same SDK tag as the
-  loader (cached), configures with `ARCHIMEDES_TEST_VALIDATION=REQUIRE`, and runs the suite;
+- **Linux validation**: fetches the prebuilt Khronos validation layer from the LunarG SDK
+  release matching `ARCHIMEDES_VULKAN_SDK` (checked against a SHA-256 pinned in the workflow,
+  which must be updated with the SDK pin; cached), configures with
+  `ARCHIMEDES_TEST_VALIDATION=REQUIRE`, and runs the suite;
   a second, informational pass adds synchronization validation and never fails the job.
 - **Linux TSan**: Clang, RelWithDebInfo, `ARCHIMEDES_SANITIZE=thread`, no testbed, the suite
   on the CPU device with `SWIFTSHADER_THREAD_COUNT=4`.
