@@ -149,8 +149,10 @@ handles.
   `--target format-check` (the CI gate); the file set is
   [.clang-format-include](.clang-format-include).
 - **Warnings:** our own targets build with `/W4` or `-Wall -Wextra`
-  (`acm_warnings()` in [cmake/acmWarnings.cmake](cmake/acmWarnings.cmake)); a change that adds
-  a warning in our code is not done.
+  (`acm_warnings()` in [cmake/acmWarnings.cmake](cmake/acmWarnings.cmake)), and warnings are
+  errors by default in a top-level build (`ARCHIMEDES_WARNINGS_AS_ERRORS`), locally and in
+  every CI lane. GCC and Clang warn where MSVC does not (a partly initialized aggregate, an
+  unneeded lambda capture), so CI is what proves a change clean there.
 - **Shaders:** testbed GLSL in [testbed/shaders/](testbed/shaders/), compiled by
   `vk_target_shaders()` for the Vulkan 1.3 target environment. Tests embed SPIR-V
   ([test/test_spirv.h](test/test_spirv.h)) and need no compiler.

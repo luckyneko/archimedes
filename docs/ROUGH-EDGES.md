@@ -89,10 +89,10 @@ order, is in [WORK.md](../WORK.md). Remove an entry in the change that fixes it.
   lack the extension, cannot present to the resulting surface. The
   frame-loop, swapchain and two-thread renderer tests therefore run only on the CPU device
   there, and the testbed covers the hardware path.
-- **The validation and ThreadSanitizer CI lanes have never run.** A machine without a
-  validation layer runs the suite unvalidated (unless `ARCHIMEDES_TEST_VALIDATION=REQUIRE`),
-  benchmarks are validated only with `ACM_VALIDATION=1`, and the synchronization-validation
-  pass is informational.
-- **Warnings are errors only in the Windows CI lane**, until the Linux and macOS lanes have
-  had a clean run with `ARCHIMEDES_WARNINGS_AS_ERRORS=ON`.
+- **Validation runs only where the layer is installed.** The `Linux validation` CI lane
+  validates the suite on the CPU device; a machine without a validation layer runs it
+  unvalidated (unless `ARCHIMEDES_TEST_VALIDATION=REQUIRE`), and benchmarks are validated
+  only with `ACM_VALIDATION=1`.
+- **Synchronization validation is unproven.** The lane's second pass asks for it and is
+  informational; it has reported nothing, and nothing confirms the setting takes effect.
 - **Sanitizers need Clang or GCC**; `ARCHIMEDES_SANITIZE` is refused with MSVC.

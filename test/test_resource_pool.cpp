@@ -135,11 +135,12 @@ TEST_CASE("ResourcePool refs are safe across wrapper copies", "[acm][unit]")
 	auto resource = acmtest::emplaceValue(pool, owner, 7);
 
 	constexpr uint32_t ThreadCount = 8;
-	constexpr uint32_t Iterations = 10000;
+	// Static, so the thread lambda uses it without a capture on every compiler.
+	static constexpr uint32_t Iterations = 10000;
 	std::atomic<bool> failed{false};
 	std::vector<std::thread> threads;
 	for (uint32_t thread = 0; thread < ThreadCount; ++thread)
-		threads.emplace_back([resource, &failed, Iterations]
+		threads.emplace_back([resource, &failed]
 							 {
 							 for (uint32_t iteration = 0; iteration < Iterations; ++iteration)
 							 {

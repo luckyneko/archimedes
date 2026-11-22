@@ -9,13 +9,13 @@ don't build down this list speculatively.
 
 ## Current suggested next work
 
-### 1. First runs of the validation and ThreadSanitizer lanes
+### 1. Make synchronization validation trustworthy
 
-The `Linux validation` and `Linux TSan` CI lanes have never run. Run them, fix or triage
-what they report (sync validation is informational and may report write-after-read hazards
-on re-rendered offscreen targets), then decide whether sync validation should gate. Once
-the Linux and macOS lanes have had a clean run with `ARCHIMEDES_WARNINGS_AS_ERRORS=ON`, turn
-it on there too; today only the Windows lane sets it.
+The `Linux validation` and `Linux TSan` CI lanes run and pass. The validation lane's second,
+informational pass asks for synchronization validation through
+`VK_KHRONOS_VALIDATION_VALIDATE_SYNC`, and has reported nothing so far, but nothing confirms
+the setting takes effect. Prove it with a test that provokes a known hazard, triage what a
+working pass reports, then decide whether it should gate.
 
 ### 2. Command-buffer resource retention
 
@@ -145,7 +145,7 @@ under real memory pressure this renderer doesn't generate. **Don't build specula
   stderr), `ACM_VALIDATION` validates any binary, and the suite fails on validation errors,
   with new validation and ThreadSanitizer CI lanes.
 - **Warnings and usage checks** — `cmake/acmWarnings.cmake` (`/W4`, `-Wall -Wextra`,
-  `ARCHIMEDES_WARNINGS_AS_ERRORS`, on in the Windows lane); feature, sample-count and
+  `ARCHIMEDES_WARNINGS_AS_ERRORS`, on by default for a top-level build); feature, sample-count and
   mip-chain fallbacks log a warning; buffer binds, buffer and storage-image descriptor
   writes and readback copies check usage; compute descriptor binds check layout
   compatibility.

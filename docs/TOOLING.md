@@ -136,7 +136,7 @@ find the CPU device.
 | `ARCHIMEDES_TEST_VALIDATION` | `AUTO` | validation in the tests: `AUTO`, `REQUIRE`, `OFF` |
 | `ARCHIMEDES_TEST_SYNC_VALIDATION` | OFF | also turn on the layer's synchronization validation in the tests |
 | `ARCHIMEDES_SANITIZE` | empty | sanitizers for the library, tests and benchmarks |
-| `ARCHIMEDES_WARNINGS_AS_ERRORS` | OFF | treat compiler warnings in Archimedes' own targets as errors |
+| `ARCHIMEDES_WARNINGS_AS_ERRORS` | ON top-level, OFF as a subproject | treat compiler warnings in Archimedes' own targets as errors |
 
 The build is out-of-source only; the top-level `CMakeLists.txt` refuses an in-source
 configure. Validation layers and the debug messenger are runtime choices
@@ -145,8 +145,10 @@ configure. Validation layers and the debug messenger are runtime choices
 **Compiler warnings.** [acmWarnings.cmake](../cmake/acmWarnings.cmake) provides
 `acm_warnings(<target>)`, applied to the library, the tests, the benchmarks and the testbed
 but never to vendored dependencies: `/W4` on MSVC, `-Wall -Wextra` on GCC and Clang, plus
-`/WX` or `-Werror` with `ARCHIMEDES_WARNINGS_AS_ERRORS`. The options are `PRIVATE`, so a
-consumer's own sources keep their own flags.
+`/WX` or `-Werror` with `ARCHIMEDES_WARNINGS_AS_ERRORS`. That option is on by default for a
+top-level build, locally and in every CI lane, and off when Archimedes is a subproject, so a
+consumer with a different compiler is not broken by a warning in our code. The options are
+`PRIVATE`, so a consumer's own sources keep their own flags.
 
 **Sanitizers.** [acmSanitize.cmake](../cmake/acmSanitize.cmake) applies
 `ARCHIMEDES_SANITIZE` (a comma list of `thread`, `address`, `undefined`, `leak`; Clang or GCC
@@ -162,7 +164,7 @@ through `acm_sanitize(<target>)`. Undefined behaviour aborts, so a test that hit
 - **Build matrix**: Linux Release, Linux Debug (Ubuntu 24.04), macOS Release (macOS 15) and
   Windows Release (Windows Server 2022, MSVC). Each builds the library alone, then the full
   graph, then runs `ctest`. The runners have no GPU, so the `[gpu]` tests run on the staged
-  CPU device. The Windows lane builds with `ARCHIMEDES_WARNINGS_AS_ERRORS=ON`.
+  CPU device. Every lane builds with warnings as errors, the top-level default.
 - **Linux validation**: fetches the prebuilt Khronos validation layer from the LunarG SDK
   release matching `ARCHIMEDES_VULKAN_SDK` (checked against a SHA-256 pinned in the workflow,
   which must be updated with the SDK pin; cached), configures with

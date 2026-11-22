@@ -5,7 +5,7 @@
 # The options are PRIVATE, so they cover only the sources of the target passed in: a
 # project consuming the library through add_subdirectory compiles its own code with its
 # own flags. ARCHIMEDES_WARNINGS_AS_ERRORS (root CMakeLists.txt) turns every warning into
-# an error.
+# an error; it defaults to ON for a top-level build and OFF when archimedes is a subproject.
 
 include_guard(GLOBAL)
 

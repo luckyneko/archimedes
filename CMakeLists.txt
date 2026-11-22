@@ -19,7 +19,7 @@ option(ARCHIMEDES_BUILD_BENCHMARK "Build the benchmark executable" ${NOT_SUBPROJ
 option(ARCHIMEDES_FORMAT "Provide clang-format format / format-check targets" ${NOT_SUBPROJECT})
 set(ARCHIMEDES_MOLTENVK_LOG_LEVEL "1" CACHE STRING "MoltenVK MVK_CONFIG_LOG_LEVEL default for Archimedes-run executables: 0 none, 1 errors, 2 warnings, 3 info, 4 debug")
 set(ARCHIMEDES_SANITIZE "" CACHE STRING "Sanitizers for the library, tests and benchmarks (not vendored deps), Clang/GCC: empty, or a comma list of thread, address, undefined, leak")
-option(ARCHIMEDES_WARNINGS_AS_ERRORS "Treat compiler warnings in archimedes' own targets (not vendored deps) as errors" OFF)
+option(ARCHIMEDES_WARNINGS_AS_ERRORS "Treat compiler warnings in archimedes' own targets (not vendored deps) as errors (/WX, -Werror)" ${NOT_SUBPROJECT})
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)

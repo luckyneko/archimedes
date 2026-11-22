@@ -17,10 +17,23 @@
 #include "archimedes/acmShader.h"
 #include "archimedes/acmTypes.h"
 
+#include <utility>
+
 namespace acm
 {
+	// The shader stages of a graphics pipeline. `vertex` and `fragment` are required;
+	// `geometry` is reserved and rejected until the backend supports it. The two-stage
+	// constructor lets a caller write PipelineShaders{vertex, fragment} without naming the
+	// empty geometry stage.
 	struct PipelineShaders
 	{
+		PipelineShaders() = default;
+		PipelineShaders(acm::Shader vertexShader, acm::Shader fragmentShader)
+			: vertex(std::move(vertexShader))
+			, fragment(std::move(fragmentShader))
+		{
+		}
+
 		acm::Shader vertex;
 		acm::Shader fragment;
 		acm::Shader geometry;
