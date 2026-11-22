@@ -29,10 +29,13 @@ Capability gaps (no 4x MSAA, no `fillModeNonSolid`, and so on) always skip.
 
 **Helpers.** [vk_test_helpers.h](../test/vk_test_helpers.h) holds the shared scaffolding:
 `requireInstance`, per-kind selection (`selectGraphicsOption`, `selectGraphicsDevice`,
-`selectSurfaceOption`), `topRankedKind` for the benchmarks, the validation capture, and
-`buildHeadlessStack()`, which builds instance, headless surface, device and swapchain and
-skips with a specific reason at any missing layer. It is backend-neutral: no raw Vulkan or
-platform headers. Reuse it; do not re-roll it. Pipelines use SPIR-V embedded in
+`selectSurfaceOption`), `topRankedKind` for the benchmarks, the validation capture,
+`ScopedLogHandler` (captures log messages for one scope and passes on what it declines, so
+an unrelated validation error still fails the test), and `buildHeadlessStack()`, which
+builds instance, headless surface, device and swapchain and skips with a specific reason at
+any missing layer. It is backend-neutral: no raw Vulkan or platform headers. The one
+exception in the suite is [main.cpp](../test/main.cpp), which asks the loader directly
+whether the validation layer is installed. Reuse the helpers; do not re-roll them. Pipelines use SPIR-V embedded in
 [test_spirv.h](../test/test_spirv.h) and [test_spirv_api_errors.h](../test/test_spirv_api_errors.h),
 so the tests need no shader compiler; regenerate an entry from the GLSL in its comment with
 `glslangValidator -V --target-env vulkan1.3 -x`.
@@ -56,7 +59,7 @@ descriptors, ...) run anywhere with a graphics queue.
 | Resources | `test_buffer.cpp` (heap by usage, write validation), `test_allocator.cpp` (block sharing, buffer/texture separation), `test_texture_upload.cpp` (upload and its validation), `test_mipmap.cpp` (generated top mip, levels limited to what upload can generate), `test_sampler.cpp`, `test_anisotropy.cpp` |
 | Descriptors | `test_vertexbuffer.cpp`, `test_uniform.cpp`, `test_dynamic_uniform.cpp`, `test_descriptors.cpp` (storage buffer, multi-stage uniform, arrays, sampled image, write validation, retention after the caller drops its wrappers), `test_storage_image.cpp` |
 | Compute | `test_compute.cpp` (a dispatch fills a storage buffer; a barrier carries a compute write into a fragment read in one command buffer) |
-| Diagnostics | `test_diagnostics.cpp` (the log hook, the missing-layer warning, the validation harness) |
+| Diagnostics | `test_diagnostics.cpp` (the log hook, the missing-layer warning, the validation harness), `test_fallback_warnings.cpp` (one warning per fallback: wireframe, line width, sample shading, anisotropy, mipmapped depth, clamped sample count) |
 
 ctest reports a Catch2 SKIP as passed. Run the binary directly to see which assertions ran.
 
