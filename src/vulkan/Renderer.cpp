@@ -235,8 +235,16 @@ namespace acm::vulkan
 				record(commandBuffer, frameIndex);
 			error = commandBuffer.error();
 		}
-		// Closes the frame's rendering scope, or one a failing callback left open.
-		commandBuffer.endRendering();
+		// Close the open scope: the frame's, or one a callback left open after closing the
+		// frame's itself. None is open when the pre-pass failed or beginRendering did. A
+		// failure closing it (its target retired mid-frame) is the frame's error unless an
+		// earlier one came first.
+		if (renderingActive(commandBuffer))
+		{
+			const acm::Error endRenderingError = commandBuffer.endRendering();
+			if (!error)
+				error = endRenderingError;
+		}
 		const acm::Error endError = commandBuffer.end();
 		return error ? error : endError;
 	}
@@ -247,9 +255,16 @@ namespace acm::vulkan
 		// in its present layout.
 		if (!target.valid() || commandBuffer.begin())
 			return false;
-		const bool cleared = !commandBuffer.beginRendering(target);
-		commandBuffer.endRendering();
+		bool cleared = !commandBuffer.beginRendering(target);
+		if (cleared)
+			cleared = !commandBuffer.endRendering();
 		return !commandBuffer.end() && cleared;
+	}
+
+	bool Renderer::renderingActive(const acm::CommandBuffer& commandBuffer)
+	{
+		const CommandBuffer* backend = commandBuffer.backend();
+		return backend && backend->renderingActive();
 	}
 
 } // namespace acm::vulkan

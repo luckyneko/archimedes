@@ -65,6 +65,7 @@ namespace acm::vulkan
 		acm::Error rebuildPresentSemaphores(const acm::vulkan::SwapChain& swapChain);
 		static acm::Error recordFrame(acm::CommandBuffer& commandBuffer, const acm::RenderTarget& target, uint32_t frameIndex, const std::function<void(acm::CommandBuffer&, uint32_t)>& prePass, const std::function<void(acm::CommandBuffer&, uint32_t)>& record);
 		static bool recordClearFrame(acm::CommandBuffer& commandBuffer, const acm::RenderTarget& target);
+		static bool renderingActive(const acm::CommandBuffer& commandBuffer);
 
 		acm::vulkan::Device* m_owner{nullptr};
 		acm::SwapChain m_swapChain;
