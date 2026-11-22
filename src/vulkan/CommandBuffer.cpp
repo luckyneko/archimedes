@@ -25,34 +25,6 @@ namespace acm::vulkan
 {
 	namespace
 	{
-		// Bytes per texel of a copyTextureToBuffer source; 0 for formats that cannot be
-		// copied out through the color aspect (depth) or have no size (Undefined).
-		size_t copyTexelSize(acm::Format format)
-		{
-			switch (format)
-			{
-				case acm::Format::R8G8B8A8_Unorm:
-				case acm::Format::R8G8B8A8_Srgb:
-				case acm::Format::B8G8R8A8_Unorm:
-				case acm::Format::B8G8R8A8_Srgb:
-				case acm::Format::A2B10G10R10_Unorm_Pack32:
-				case acm::Format::R32_Sfloat:
-					return 4;
-				case acm::Format::R16G16B16A16_Sfloat:
-				case acm::Format::R32G32_Sfloat:
-					return 8;
-				case acm::Format::R32G32B32_Sfloat:
-					return 12;
-				case acm::Format::R32G32B32A32_Sfloat:
-					return 16;
-				case acm::Format::Undefined:
-				case acm::Format::D32_Sfloat:
-				case acm::Format::D24_Unorm_S8_Uint:
-					return 0;
-			}
-			return 0;
-		}
-
 		bool isDepthFormat(acm::Format format)
 		{
 			return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
@@ -61,6 +33,12 @@ namespace acm::vulkan
 		acm::Error callError(const char* call, const char* reason)
 		{
 			return acm::Error(std::string(call) + ": " + reason);
+		}
+
+		// The error for a buffer whose usage lacks what `call` needs; `needs` says what.
+		acm::Error usageError(const char* call, const Buffer& buffer, const char* needs)
+		{
+			return acm::Error(std::string(call) + ": a BufferUsage::" + bufferUsageName(buffer.usage()) + " buffer cannot be used as " + needs);
 		}
 	} // namespace
 
@@ -326,6 +304,8 @@ namespace acm::vulkan
 			return fail(callError(call, "invalid vertex buffer"));
 		if (&owner() != &buffer->owner())
 			return fail(callError(call, "vertex buffer is owned by another device"));
+		if (!(buffer->vkUsage() & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT))
+			return fail(usageError(call, *buffer, "a vertex buffer; create it with BufferUsage::Vertex"));
 		const VkBuffer vkBuffer = buffer->vkBuffer();
 		const VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(m_commandBuffer, 0, 1, &vkBuffer, &offset);
@@ -341,6 +321,8 @@ namespace acm::vulkan
 			return fail(callError(call, "invalid index buffer"));
 		if (&owner() != &buffer->owner())
 			return fail(callError(call, "index buffer is owned by another device"));
+		if (!(buffer->vkUsage() & VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+			return fail(usageError(call, *buffer, "an index buffer; create it with BufferUsage::Index"));
 		vkCmdBindIndexBuffer(m_commandBuffer, buffer->vkBuffer(), 0, VK_INDEX_TYPE_UINT32);
 		return {};
 	}
@@ -374,9 +356,12 @@ namespace acm::vulkan
 			return fail(callError(call, "texture is owned by another device"));
 		if (&owner() != &buffer->owner())
 			return fail(callError(call, "buffer is owned by another device"));
-		const size_t texelSize = copyTexelSize(texture->format());
+		// Copies go through the color aspect, so depth formats (and Undefined) are out.
+		const size_t texelSize = isDepthFormat(texture->format()) ? 0 : bytesPerPixel(texture->format());
 		if (texelSize == 0)
 			return fail(callError(call, "only color textures can be copied to a buffer"));
+		if (!(buffer->vkUsage() & VK_BUFFER_USAGE_TRANSFER_DST_BIT))
+			return fail(usageError(call, *buffer, "a transfer destination; create it with BufferUsage::TransferDst"));
 		const acm::Extent2D extent = texture->extent();
 		const size_t required = size_t(extent.width) * extent.height * texelSize;
 		if (buffer->size() < required)
@@ -422,6 +407,10 @@ namespace acm::vulkan
 			return fail(callError(call, "compute pipeline is owned by another device"));
 		if (&owner() != &set->owner())
 			return fail(callError(call, "descriptor set is owned by another device"));
+		if (!pipeline->hasDescriptorLayout())
+			return fail(callError(call, "the compute pipeline was created without a descriptor layout"));
+		if (!pipeline->acceptsDescriptorSet(*set))
+			return fail(callError(call, "the descriptor set's layout does not match the compute pipeline's descriptor layout"));
 		if (set->dynamicDescriptorCount() != 0)
 			return fail(callError(call, "the set has UniformBufferDynamic descriptors, which a compute bind gives no offset"));
 		const VkDescriptorSet descriptorSet = set->vkDescriptorSet();

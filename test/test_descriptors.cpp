@@ -384,6 +384,18 @@ TEST_CASE("descriptor writes reject bad bindings, elements, types and resources"
 	requireError(set.setBuffer(1, otherBuffer), "another device");
 	requireError(acm::DescriptorSet{}.setBuffer(1, uniform), "descriptor set");
 
+	// A resource whose usage does not fit the descriptor, judged by the Vulkan usage each
+	// BufferUsage maps to: uniform and dynamic uniform descriptors need a Uniform buffer,
+	// a storage buffer descriptor a Storage one, and a storage image a texture created with
+	// TextureConfig::storage.
+	acm::Buffer vertex = device.createBuffer(256, acm::BufferUsage::Vertex);
+	REQUIRE(vertex.valid());
+	requireError(set.setBuffer(1, storage), "BufferUsage::Uniform");
+	requireError(set.setBuffer(1, vertex), "BufferUsage::Vertex");
+	requireError(set.setBuffer(5, uniform), "BufferUsage::Storage");
+	requireError(set.setDynamicBuffer(2, storage, 16), "BufferUsage::Uniform");
+	requireError(set.setStorageImage(3, texture), "TextureConfig::storage");
+
 	// Every call with a matching binding, element and resource succeeds.
 	REQUIRE_FALSE(set.setTexture(0, texture, sampler, 0));
 	REQUIRE_FALSE(set.setTexture(0, texture, sampler, 1));

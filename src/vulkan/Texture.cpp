@@ -64,7 +64,8 @@ namespace acm::vulkan
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageInfo.usage = depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
 								: (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-		if (storage && !depth)
+		m_storage = storage && !depth;
+		if (m_storage)
 			imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -119,6 +120,7 @@ namespace acm::vulkan
 		m_format = std::exchange(other.m_format, acm::Format::Undefined);
 		m_extent = std::exchange(other.m_extent, {});
 		m_mipLevels = std::exchange(other.m_mipLevels, 1);
+		m_storage = std::exchange(other.m_storage, false);
 		m_image = std::exchange(other.m_image, VK_NULL_HANDLE);
 		m_allocation = std::exchange(other.m_allocation, {});
 		m_imageView = std::exchange(other.m_imageView, VK_NULL_HANDLE);
@@ -273,6 +275,7 @@ namespace acm::vulkan
 		m_format = acm::Format::Undefined;
 		m_extent = {};
 		m_mipLevels = 1;
+		m_storage = false;
 		if (!owner)
 			return;
 		if (imageView)
