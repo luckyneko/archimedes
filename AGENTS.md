@@ -1,6 +1,6 @@
 # Global rules
 
-This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currently a static library; MoltenVK on macOS). The rules below are general working discipline that applies to every change here. Project-specific architecture — the stable typed-resource slot pattern, the object graph and ownership rules, the MoltenVK/portability requirements, the vendored-dependency model, and build commands & naming/style conventions — lives in **[CLAUDE.md](CLAUDE.md)** — that file is authoritative; read it first and defer to it wherever it is more specific than this one.
+This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currently a static library; MoltenVK on macOS). The rules below are general working discipline that applies to every change here. Project-specific rules — the stable typed-resource slot pattern, ownership and teardown, threading, the MoltenVK/portability requirements, and build commands & naming/style conventions — live in **[CLAUDE.md](CLAUDE.md)**, with the mechanisms behind them (object graph, frame loop, vendored-dependency model, tests) in **[docs/](docs/)**. CLAUDE.md is authoritative; read it first and defer to it wherever it is more specific than this one.
 
 ## Top 10 non-negotiables
 
@@ -43,7 +43,7 @@ If overlapping code exists, modify, move, or delete it. Do not create another pa
 
 ## Testing and integration
 
-- Verification today: the library compiles cleanly, the **Catch2 suite** (`ctest`) passes, and the **testbed** runs/renders against the live MoltenVK driver. Do not claim rendering behavior works without having run it.
+- Verification today: the library compiles cleanly, the **Catch2 suite** (`ctest`) passes, and the **testbed** runs/renders against a live driver (MoltenVK, a hardware driver, or the CPU device). Do not claim rendering behavior works without having run it.
 - Exercise the production implementation through the closest practical real caller — test behavior real callers depend on, not scaffolding or implementation details — and add or update coverage for every change. The lib is a thin `vk*` wrapper, so most meaningful coverage is integration-level (`[gpu]` tests needing a live driver); keep those `SKIP`-aware so a GPU-less CI stays green.
 - Do not edit a failing test just to pass. If the test is genuinely wrong, say why before changing it.
 - Do not leave features, prototypes, or test-only implementations disconnected from the system they were built for. If a demo or prototype helped develop the code, integrate it into the production path or delete it so it cannot be mistaken for the real thing.
@@ -52,8 +52,8 @@ If overlapping code exists, modify, move, or delete it. Do not create another pa
 ## Build & verify
 
 - **Build out-of-source only.** The top-level `CMakeLists.txt` hard-errors on in-source builds; use a separate `build/` dir. (Exact commands and CMake options live in CLAUDE.md.)
-- **No new warnings in Archimedes' own code** on any supported compiler — a change that makes our sources warn is not done. (Third-party warnings from the vendored `spdlog`/fmt build are out of scope.)
-- **Keep the docs honest.** When you change a documented contract (the `acm::` handle pattern or its all-or-nothing construction rule, the public API surface, the MoltenVK/portability extension handling, the vendored-dependency model in `cmake/`, or the build/layout), update CLAUDE.md in the same change.
+- **No new warnings in Archimedes' own code** on any supported compiler — a change that makes our sources warn is not done. (Warnings from the vendored dependencies' own builds are out of scope.)
+- **Keep the docs honest.** When you change a documented contract (the `acm::` handle pattern or its all-or-nothing construction rule, the public API surface, the MoltenVK/portability extension handling, the vendored-dependency model in `cmake/`, or the build/layout), update CLAUDE.md and the matching `docs/` file in the same change.
 - **Verify, don't assume.** "Should work" doesn't count. Run the test, read the file, grep the symbol, trace the production path.
 
 ## Craft and discipline

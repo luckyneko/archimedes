@@ -11,7 +11,11 @@ device** (SwiftShader, a CPU implementation of Vulkan) can be staged beside ever
 target, so the same rendering and compute code runs where no GPU driver works, or on the
 CPU by choice.
 
-The detailed architecture and contributor notes live in [CLAUDE.md](CLAUDE.md).
+The architecture is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); build and
+CI details are in [docs/TOOLING.md](docs/TOOLING.md), tests and benchmarks in
+[docs/TESTING.md](docs/TESTING.md), and known limitations in
+[docs/ROUGH-EDGES.md](docs/ROUGH-EDGES.md). Contributor rules are in [CLAUDE.md](CLAUDE.md)
+and [AGENTS.md](AGENTS.md).
 
 ## Build / Integrate
 
@@ -95,9 +99,10 @@ Continuously built and tested on:
 - Windows Server 2022 (MSVC, Release)
 
 The hosted CI runs formatting, library-only builds, full builds, an `add_subdirectory`
-consumer smoke, and `ctest`. The runners have no GPU, so the GPU tests run there on the
-staged CPU device (SwiftShader); hardware-GPU coverage comes from local runs (Apple Silicon
-so far). A GPU test skips only for a capability its device lacks.
+consumer smoke, and `ctest`, plus a Linux lane that runs the suite under the Khronos
+validation layer and one under ThreadSanitizer. The runners have no GPU, so the GPU tests
+run there on the staged CPU device (SwiftShader); hardware-GPU coverage comes from local
+runs (Apple Silicon and Windows). A GPU test skips only for a capability its device lacks.
 
 ## Features
 
@@ -119,6 +124,10 @@ so far). A GPU test skips only for a capability its device lacks.
   submissions.
 - Device preferences that rank hardware devices first and the CPU device last, or the CPU
   device first on request.
+- Errors as values: factories return invalid handles with an `error()`, and recording and
+  descriptor calls return `acm::Error`.
+- A process-wide log hook for library warnings and Vulkan debug messages, and
+  `ACM_VALIDATION=1` to run any binary under the validation layer.
 - Testbed examples that drive the API against live windows and real driver behavior, on a
   hardware device or the CPU device.
 
@@ -156,6 +165,9 @@ Pass `--device cpu` to run an example on the CPU device instead of the GPU:
 ```sh
 ./build/run_testbed.sh --device cpu compute-texture
 ```
+
+The `run_*.sh` launchers are generated off Windows. On Windows run the binary directly,
+for example `build\testbed\testbed.exe --list`; it finds its staged drivers itself.
 
 ## API Start
 
@@ -202,25 +214,39 @@ std::vector<char> fragSpirv = loadSpirv("triangle.frag.spv");
 acm::Shader vert = device.createShader(vertSpirv);
 acm::Shader frag = device.createShader(fragSpirv);
 acm::Pipeline pipeline = device.createPipeline({vert, frag}, swapChain.renderTarget(0));
+if (!pipeline.valid())
+	std::fprintf(stderr, "pipeline: %s\n", pipeline.error().message().c_str());
 
-renderer.render([&](acm::CommandBuffer& cmd, uint32_t frameIndex)
-				{
+acm::Error error = renderer.render([&](acm::CommandBuffer& cmd, uint32_t frameIndex)
+{
 	(void)frameIndex;
 	cmd.bindPipeline(pipeline);
-	cmd.draw(3); });
+	cmd.draw(3);
+});
+if (error)
+	std::fprintf(stderr, "frame: %s\n", error.message().c_str());
 ```
+
+Every recording call returns an `acm::Error`, and a rejected call (an invalid or stale
+handle, a pipeline that does not match the target, a copy inside a rendering scope, ...)
+records nothing. The command buffer also keeps the first rejection as `cmd.error()`, so a
+callback can record without checking each call: `render()` returns that error after
+presenting a cleared frame, and the next frame renders normally. Keep the resources a
+callback records alive until `render()` returns; command buffers do not retain them.
 
 For texture sampling, upload CPU pixels once, bind the texture and sampler through a
 descriptor set, and build the pipeline with that descriptor layout:
 
 ```cpp
 acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, {512, 512});
-texture.upload(pixels.data(), pixels.size());
+if (acm::Error error = texture.upload(pixels.data(), pixels.size()))
+	return fail(error); // a depth texture, null pixels, or the wrong size
 
 acm::Sampler sampler = device.createSampler();
 acm::DescriptorSetLayout layout = device.createDescriptorSetLayout(1);
 acm::DescriptorSet descriptors = device.createDescriptorSet(layout);
-descriptors.setTexture(0, texture, sampler);
+if (acm::Error error = descriptors.setTexture(0, texture, sampler))
+	return fail(error); // wrong binding, element or descriptor type, or an unusable resource
 
 acm::PipelineConfig config;
 config.descriptorLayout = layout;
@@ -228,11 +254,14 @@ acm::RenderTarget target = swapChain.renderTarget(0);
 acm::Pipeline textured = device.createPipeline({fullscreenVert, sampleFrag}, target, config);
 ```
 
+A descriptor set keeps the texture, sampler or buffer written into it alive until that
+slot is rewritten or the set is destroyed, so the caller may drop its own handles.
+
 For compute that feeds the same frame, use the renderer pre-pass. Record compute,
 barriers, and image transitions before dynamic rendering begins:
 
 ```cpp
-renderer.render(
+acm::Error error = renderer.render(
 	[&](acm::CommandBuffer& cmd, uint32_t frameIndex)
 	{
 		(void)frameIndex;
@@ -249,6 +278,42 @@ renderer.render(
 	});
 ```
 
+One-shot work outside the frame loop goes through `device.submitSync(record)`, which
+returns the first rejected call and then submits nothing.
+
+### Diagnostics
+
+Archimedes reports through one process-wide log hook: its own warnings (a requested
+validation layer that is missing, or a feature the device lacks, so a pipeline or sampler
+falls back) and, on an instance created with
+`InstanceConfig::debug`, every Vulkan debug-messenger message. The default handler writes
+warnings and errors to stderr. Install your own to route them elsewhere; it may be called
+from several threads at once:
+
+```cpp
+#include <archimedes/acmLog.h>
+
+acm::setLogHandler([](const acm::LogMessage& message)
+{
+	if (message.severity >= acm::LogSeverity::Warning)
+		myLog(acm::logCategoryName(message.category), message.id, message.text);
+});
+```
+
+Set `ACM_VALIDATION=1` in the environment to run any binary with the Khronos validation
+layer and the debug messenger on, whatever its `InstanceConfig` says;
+`instance.validationEnabled()` reports whether the layer was found.
+
+### Upgrading from earlier versions
+
+`CommandBuffer` recording calls and the `DescriptorSet::set*` writes used to ignore invalid
+input silently, and most returned `void`. They now return `acm::Error` and, when the input
+is invalid, record or write nothing; code that ignores the result still compiles.
+`Renderer::render` and `Device::submitSync(record)` return the first rejected call, and
+`submitSync` then submits nothing. `Buffer::write` returns an error for an oversized write
+instead of truncating it, and `Texture::upload` rejects a size that does not match the
+texture.
+
 The testbed examples in [testbed/src/examples/](testbed/src/examples/) are the best
 working references for complete setup code.
 
@@ -257,10 +322,12 @@ working references for complete setup code.
 The Catch2 suite covers handle semantics, resource pools, Vulkan instance/device/surface
 plumbing, swapchains, renderer frames, offscreen rendering/readback, textures, samplers,
 vertex/index/uniform/dynamic-uniform buffers, descriptors, depth, MSAA, wireframe,
-compute, storage images, and multipass rendering. Each GPU test runs on every device kind
-present, and one test checks that the same compute shader gives identical results on a
-hardware device and the CPU device. With the CPU driver staged, a missing CPU device fails
-the suite rather than letting it skip green.
+compute, storage images, multipass rendering, recording and descriptor errors, the log
+hook and multi-threaded rendering. Each GPU test runs on every device kind present, and one
+test checks that the same compute shader gives identical results on a hardware device and
+the CPU device. With the CPU driver staged, a missing CPU device fails the suite rather
+than letting it skip green. When the loader finds the validation layer, the suite runs
+every instance validated and fails the test that caused a validation error.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -290,4 +357,4 @@ Benchmarks run on the top-ranked device. `bench/report.py` records its name and 
 each JSON run, and `--compare` only compares runs from the same kind of device.
 
 `bench/report.py` can write JSON, append to a history file, and compare against previous
-runs. See [CLAUDE.md](CLAUDE.md#build--verify) for the detailed benchmark workflow.
+runs. See [docs/TESTING.md](docs/TESTING.md#benchmarks) for the detailed benchmark workflow.
