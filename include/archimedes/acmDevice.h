@@ -95,24 +95,29 @@ namespace acm
 		size_t memoryBlockCount() const; // live native memory blocks in the pool
 
 		// Synchronization
-		// Blocks until the device is idle (all queues drained). Like the queue, host
-		// access must be externally synchronized — call it only when no other thread
-		// is submitting (e.g. the testbed's fork-join calls it on the main thread while
-		// both render threads are parked, to fence a shared-resource update against
-		// in-flight reads).
+		// Blocks until the device is idle (all queues drained), then collects garbage:
+		// resources whose last wrapper was dropped are destroyed once the GPU finished the
+		// submissions made before the wait. Safe to call while other threads submit (a
+		// Renderer::render on another thread, another submitSync): it holds the device's
+		// queue mutex for the wait, so those threads stall until it returns. Use it to fence
+		// a shared-resource update against in-flight reads. Never call it from inside
+		// acm::interop::withQueue, which already holds that mutex: it would deadlock.
 		void waitIdle();
 
 		// Records `record` into a transient command buffer, submits it to the queue, and
 		// waits the queue idle before returning — synchronous one-shot GPU work (a compute
-		// dispatch, a transfer). It stalls the queue, so it is a load-time / per-frame-at-
-		// most tool, not a hot path, and is externally synchronized like waitIdle (locks
-		// the device mutex around submit + wait; don't call it while another thread
-		// submits). The callback records into an already-begun command buffer. If any of
-		// its recording calls was rejected, nothing is submitted and the first rejection
-		// (CommandBuffer::error()) is returned.
+		// dispatch, a transfer) — then collects garbage like waitIdle. It stalls the queue,
+		// so it is a load-time / per-frame-at-most tool, not a hot path. Safe to call while
+		// other threads submit: the queue mutex is held around submit + wait, so they stall
+		// until it returns. Never call it from inside acm::interop::withQueue (deadlock).
+		// The callback records into an already-begun command buffer. If any of its
+		// recording calls was rejected, nothing is submitted and the first rejection
+		// (CommandBuffer::error()) is returned. Resources the callback records must stay
+		// alive until submitSync returns (see acmCommandBuffer.h, Lifetime).
 		acm::Error submitSync(const std::function<void(acm::CommandBuffer& cmd)>& record);
-		// Submits an ended command buffer as recorded; a rejected recording call is not in
-		// it, so check commandBuffer.error() first when that matters.
+		// Submits an ended command buffer as recorded, with the same waiting, locking and
+		// garbage collection as above; a rejected recording call is not in it, so check
+		// commandBuffer.error() first when that matters.
 		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:

@@ -34,6 +34,15 @@ namespace acm
 	// Renderer::render and Device::submitSync(record) check it and do not submit a failed
 	// recording; Device::submitSync(commandBuffer) submits what was recorded, so check
 	// error() first when partial work must not run.
+	//
+	// Lifetime. A command buffer does not retain the resources recorded into it (buffers,
+	// textures, pipelines, descriptor sets, render targets). Destroying a dropped resource
+	// is deferred only past submissions already made, so a resource whose last wrapper is
+	// dropped after it was recorded but before that recording is submitted can be
+	// destroyed (by any garbage collection, on any thread) before the GPU uses it. Keep
+	// every recorded resource alive until Renderer::render() or Device::submitSync()
+	// returns. What is written into a DescriptorSet is the exception: the set retains it,
+	// so keeping the set alive is enough.
 	class CommandBuffer
 	{
 	public:
