@@ -93,6 +93,7 @@ namespace acm::vulkan
 		deviceFeatures.features.wideLines = m_enabledFeatures.wideLines ? VK_TRUE : VK_FALSE;
 		deviceFeatures.features.samplerAnisotropy = m_enabledFeatures.samplerAnisotropy ? VK_TRUE : VK_FALSE;
 		deviceFeatures.features.sampleRateShading = m_enabledFeatures.sampleRateShading ? VK_TRUE : VK_FALSE;
+		deviceFeatures.features.fragmentStoresAndAtomics = m_enabledFeatures.fragmentStoresAndAtomics ? VK_TRUE : VK_FALSE;
 
 		VkDeviceCreateInfo deviceCreateInfo = {};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -158,6 +159,8 @@ namespace acm::vulkan
 			return "samplerAnisotropy";
 		if (required.sampleRateShading && !available.sampleRateShading)
 			return "sampleRateShading";
+		if (required.fragmentStoresAndAtomics && !available.fragmentStoresAndAtomics)
+			return "fragmentStoresAndAtomics";
 		return nullptr;
 	}
 
@@ -168,6 +171,7 @@ namespace acm::vulkan
 		features.wideLines = available.wideLines && (config.requiredFeatures.wideLines || config.optionalFeatures.wideLines);
 		features.samplerAnisotropy = available.samplerAnisotropy && (config.requiredFeatures.samplerAnisotropy || config.optionalFeatures.samplerAnisotropy);
 		features.sampleRateShading = available.sampleRateShading && (config.requiredFeatures.sampleRateShading || config.optionalFeatures.sampleRateShading);
+		features.fragmentStoresAndAtomics = available.fragmentStoresAndAtomics && (config.requiredFeatures.fragmentStoresAndAtomics || config.optionalFeatures.fragmentStoresAndAtomics);
 		return features;
 	}
 

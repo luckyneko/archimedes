@@ -54,6 +54,9 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
 	acm::Device device = instance.createDevice(*gpu, queueIndex);
 	REQUIRE(device.valid());
+	// A fragment-stage store is only valid Vulkan with this feature enabled.
+	if (!device.enabledFeatures().fragmentStoresAndAtomics)
+		SKIP("device does not support fragmentStoresAndAtomics");
 
 	const acm::Extent2D extent{kSize, kSize};
 

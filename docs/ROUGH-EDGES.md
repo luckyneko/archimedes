@@ -50,8 +50,11 @@ order, is in [WORK.md](../WORK.md). Remove an entry in the change that fixes it.
 - **Fixed-function state is partial.** `BlendMode` is a two-way preset (opaque or
   src-alpha over), not arbitrary factors, and there is no depth bias or stencil state.
 - **Device features are a curated bool set** (`fillModeNonSolid`, `wideLines`,
-  `samplerAnisotropy`, `sampleRateShading`). Extension and limit-style capabilities may
-  want an enum or request model once they become part of negotiation.
+  `samplerAnisotropy`, `sampleRateShading`, `fragmentStoresAndAtomics`). Extension and
+  limit-style capabilities may want an enum or request model once they become part of
+  negotiation. Shader-dependent features are not checked against the SPIR-V: a fragment
+  shader that writes storage without `fragmentStoresAndAtomics`, or a vertex shader that
+  does (there is no `vertexPipelineStoresAndAtomics`), is caught only by validation.
 - **Depth is shallow.** The format is always `D32_Sfloat` (no stencil, no capability query
   or fallback), `DepthState` covers only test, write and compare, and the depth buffer is
   cleared and discarded (`storeOp` `DONT_CARE`), so it cannot be sampled or read back.

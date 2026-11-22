@@ -219,7 +219,9 @@ that wants hardware encoding passes `HardwareSrgb()` or its own preferences.
 
 **Device features.** `DeviceFeatures` ([acmDeviceInfo.h](../include/archimedes/acmDeviceInfo.h))
 is the curated set of optional features the renderer uses: `fillModeNonSolid` (wireframe),
-`wideLines`, `samplerAnisotropy` and `sampleRateShading`. Enumeration reports each physical
+`wideLines`, `samplerAnisotropy`, `sampleRateShading` and `fragmentStoresAndAtomics` (a
+fragment shader writing a storage buffer or image; without it those must be declared
+read-only in the fragment stage). Enumeration reports each physical
 device's support in `DeviceInfo::features`. `DeviceConfig` carries `requiredFeatures` and
 `optionalFeatures` (default `DeviceFeatures::AllKnown()`, enabling every supported curated
 feature). Creation fails with an `acm::Error` when a required feature is missing, and

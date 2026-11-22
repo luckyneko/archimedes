@@ -37,6 +37,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	REQUIRE(device.enabledFeatures().wideLines == chosen.features.wideLines);
 	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen.features.samplerAnisotropy);
 	REQUIRE(device.enabledFeatures().sampleRateShading == chosen.features.sampleRateShading);
+	REQUIRE(device.enabledFeatures().fragmentStoresAndAtomics == chosen.features.fragmentStoresAndAtomics);
 
 	VkQueue queue = acm::interop::queue(device);
 	REQUIRE(queue != VK_NULL_HANDLE);
@@ -62,6 +63,7 @@ TEST_CASE("Device feature config controls optional and required features", "[acm
 	REQUIRE_FALSE(device.enabledFeatures().wideLines);
 	REQUIRE_FALSE(device.enabledFeatures().samplerAnisotropy);
 	REQUIRE_FALSE(device.enabledFeatures().sampleRateShading);
+	REQUIRE_FALSE(device.enabledFeatures().fragmentStoresAndAtomics);
 
 	acm::DeviceConfig requiredOnly;
 	requiredOnly.optionalFeatures = {};
@@ -157,6 +159,7 @@ namespace
 		REQUIRE_FALSE(features.wideLines);
 		REQUIRE_FALSE(features.samplerAnisotropy);
 		REQUIRE_FALSE(features.sampleRateShading);
+		REQUIRE_FALSE(features.fragmentStoresAndAtomics);
 		REQUIRE(device.maxSampleCount() == acm::SampleCount::One);
 		REQUIRE(device.minUniformBufferOffsetAlignment() == 1);
 		REQUIRE(device.memoryBlockCount() == 0);

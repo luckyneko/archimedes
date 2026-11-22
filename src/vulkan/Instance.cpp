@@ -372,6 +372,7 @@ namespace acm::vulkan
 			device.features.wideLines = features.features.wideLines == VK_TRUE;
 			device.features.samplerAnisotropy = features.features.samplerAnisotropy == VK_TRUE;
 			device.features.sampleRateShading = features.features.sampleRateShading == VK_TRUE;
+			device.features.fragmentStoresAndAtomics = features.features.fragmentStoresAndAtomics == VK_TRUE;
 
 			uint32_t queueFamilyCount = 0;
 			vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
