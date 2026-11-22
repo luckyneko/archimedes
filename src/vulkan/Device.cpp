@@ -22,6 +22,7 @@
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmSwapChain.h"
 #include "archimedes/acmTexture.h"
+#include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Instance.h"
 
 #include <cstring>
@@ -172,23 +173,7 @@ namespace acm::vulkan
 
 	VkSampleCountFlagBits Device::sampleCount(acm::SampleCount requested) const
 	{
-		uint32_t wanted = 1;
-		switch (requested)
-		{
-			case acm::SampleCount::One:
-				wanted = 1;
-				break;
-			case acm::SampleCount::Two:
-				wanted = 2;
-				break;
-			case acm::SampleCount::Four:
-				wanted = 4;
-				break;
-			case acm::SampleCount::Eight:
-				wanted = 8;
-				break;
-		}
-
+		const uint32_t wanted = sampleCountValue(requested);
 		const VkSampleCountFlags supported = properties().limits.framebufferColorSampleCounts & properties().limits.framebufferDepthSampleCounts;
 		for (uint32_t samples = wanted; samples >= 2; samples >>= 1)
 			if (supported & samples)

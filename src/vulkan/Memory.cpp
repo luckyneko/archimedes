@@ -28,19 +28,19 @@ namespace acm::vulkan
 		};
 		std::vector<Region> freeRegions;
 
-		// First-fit: find a free region with room for `size` at `alignment`, carve
+		// First-fit: find a free region with room for `requestSize` at `alignment`, carve
 		// it out, and return its offset. False if nothing fits.
-		bool tryAllocate(VkDeviceSize size, VkDeviceSize alignment, VkDeviceSize& outOffset)
+		bool tryAllocate(VkDeviceSize requestSize, VkDeviceSize alignment, VkDeviceSize& outOffset)
 		{
 			for (size_t i = 0; i < freeRegions.size(); ++i)
 			{
 				const VkDeviceSize regionEnd = freeRegions[i].offset + freeRegions[i].size;
 				const VkDeviceSize aligned = MemoryAllocator::alignUp(freeRegions[i].offset, alignment);
-				if (aligned + size > regionEnd)
+				if (aligned + requestSize > regionEnd)
 					continue;
 
 				const VkDeviceSize before = freeRegions[i].offset;
-				const VkDeviceSize allocEnd = aligned + size;
+				const VkDeviceSize allocEnd = aligned + requestSize;
 				freeRegions.erase(freeRegions.begin() + i);
 				// Re-insert the leftovers (alignment gap before, tail after), keeping
 				// the list sorted by offset.
@@ -54,13 +54,13 @@ namespace acm::vulkan
 			return false;
 		}
 
-		void freeRange(VkDeviceSize offset, VkDeviceSize size)
+		void freeRange(VkDeviceSize offset, VkDeviceSize rangeSize)
 		{
 			// Insert sorted by offset, then merge with any touching neighbours.
 			size_t i = 0;
 			while (i < freeRegions.size() && freeRegions[i].offset < offset)
 				++i;
-			freeRegions.insert(freeRegions.begin() + i, {offset, size});
+			freeRegions.insert(freeRegions.begin() + i, {offset, rangeSize});
 
 			// Coalesce with previous, then with next.
 			if (i > 0 && freeRegions[i - 1].offset + freeRegions[i - 1].size == freeRegions[i].offset)

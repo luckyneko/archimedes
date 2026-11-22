@@ -13,6 +13,7 @@
 
 #include <catch2/catch_all.hpp>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -83,6 +84,32 @@ namespace acmtest
 		return std::exchange(capture.errors, {});
 	}
 
+	// For its scope, offers every message to `consume`; what it declines (returns false) goes
+	// on to the handler it replaced — the harness's — so an unrelated validation error still
+	// fails the test. Install and restore from the test thread only.
+	class ScopedLogHandler
+	{
+	public:
+		explicit ScopedLogHandler(std::function<bool(const acm::LogMessage&)> consume)
+		{
+			// Two steps, so the new handler holds the old one; nothing else logs meanwhile.
+			m_previous = acm::setLogHandler({});
+			acm::setLogHandler([consume = std::move(consume), previous = m_previous](const acm::LogMessage& message)
+							   {
+				if (!consume(message) && previous)
+					previous(message); });
+		}
+		ScopedLogHandler(const ScopedLogHandler&) = delete;
+		ScopedLogHandler& operator=(const ScopedLogHandler&) = delete;
+		~ScopedLogHandler() { acm::setLogHandler(std::move(m_previous)); }
+
+		// The handler this scope replaced.
+		const acm::LogHandler& previous() const { return m_previous; }
+
+	private:
+		acm::LogHandler m_previous;
+	};
+
 	// The device the running test selected (empty until a helper selects one).
 	inline void noteDevice(std::string device)
 	{
@@ -122,8 +149,9 @@ namespace acmtest
 		{
 #ifdef ACM_EXPECT_CPU_DEVICE
 			FAIL("the CPU driver is staged but no Vulkan instance was created");
-#endif
+#else
 			SKIP("no Vulkan driver available");
+#endif
 		}
 #ifdef ACM_REQUIRE_VALIDATION
 		if (!instance.validationEnabled())
@@ -180,7 +208,6 @@ namespace acmtest
 			}
 		}
 		FAIL("no " << deviceKindName(kind) << " device"); // unreachable for a kind deviceKind() found
-		return {};
 	}
 
 	// The best graphics option of this run's device kind (see deviceKind()).
@@ -213,7 +240,6 @@ namespace acmtest
 			}
 		}
 		SKIP("the " << deviceKindName(kind) << " device cannot present to a headless surface");
-		return {};
 	}
 
 	// The best option for `surface` on this run's device kind (see deviceKind()).
@@ -232,8 +258,8 @@ namespace acmtest
 
 	// The full headless stack (instance -> surface -> device -> swapchain) that
 	// the pipeline/render-loop tests build on. On any missing layer it SKIPs (with
-	// a specific reason) and returns false, so a caller's `if (!build...) return;`
-	// leaves a GPU-less run green.
+	// a specific reason), which ends the test case, so it returns only when the stack
+	// is complete; callers keep `if (!build...) return;` as the documented guard.
 	struct HeadlessStack
 	{
 		acm::Instance instance;
@@ -249,10 +275,7 @@ namespace acmtest
 
 		out.surface = out.instance.createHeadlessSurface(acm::Extent2D{800, 600});
 		if (!out.surface.valid())
-		{
 			SKIP("headless surface unavailable");
-			return false;
-		}
 
 		const DeviceKind kind = policy == KindPolicy::TopRanked ? topRankedKind(out.instance) : deviceKind(out.instance);
 		const acm::SurfaceOption option = selectSurfaceOption(out.instance, out.surface, kind);
@@ -262,10 +285,7 @@ namespace acmtest
 
 		out.swapChain = out.device.createSwapChain(out.surface, option, acm::SwapChainConfig{acm::Extent2D{800, 600}});
 		if (!out.swapChain.valid())
-		{
 			SKIP("driver does not support a headless swapchain");
-			return false;
-		}
 		return true;
 	}
 } // namespace acmtest

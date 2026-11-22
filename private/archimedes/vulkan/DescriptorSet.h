@@ -85,6 +85,9 @@ namespace acm::vulkan
 		acm::Error locate(const char* call, uint32_t binding, uint32_t arrayElement, size_t& slot, acm::DescriptorType& type) const;
 		acm::Error checkImage(const char* call, const acm::Texture& texture) const;
 		acm::Error checkBuffer(const char* call, const acm::Buffer& buffer) const;
+		// After checkBuffer: whether the buffer's Vulkan usage has `required` for a `type`
+		// descriptor at `binding`; `usage` names the BufferUsage that would.
+		static acm::Error checkBufferUsage(const char* call, const acm::Buffer& buffer, VkBufferUsageFlags required, uint32_t binding, acm::DescriptorType type, const char* usage);
 		void writeImage(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkImageView view, VkSampler sampler, VkImageLayout layout) const;
 		void writeBuffer(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkBuffer buffer, VkDeviceSize range) const;
 		static acm::Error fail(const char* call, const std::string& reason);

@@ -188,9 +188,11 @@ TEST_CASE("recording calls reject invalid arguments with a sticky error", "[acm]
 						{ c.copyTextureToBuffer(acm::Texture{}, s.readback); });
 		requireRejected(s, cmd, false, "buffer", [&](acm::CommandBuffer& c)
 						{ c.copyTextureToBuffer(s.color, acm::Buffer{}); });
-		// 32x32 BGRA8 needs 4096 bytes; the uniform holds 16.
+		// 32x32 BGRA8 needs 4096 bytes.
+		acm::Buffer small = device.createBuffer(16, acm::BufferUsage::TransferDst);
+		REQUIRE(small.valid());
 		requireRejected(s, cmd, false, "too small", [&](acm::CommandBuffer& c)
-						{ c.copyTextureToBuffer(s.color, s.uniform); });
+						{ c.copyTextureToBuffer(s.color, small); });
 		requireRejected(s, cmd, false, "buffer", [&](acm::CommandBuffer& c)
 						{ c.bufferBarrier(acm::Buffer{}, acm::ShaderStage::Compute, acm::ShaderStage::Vertex); });
 		requireRejected(s, cmd, false, "stage", [&](acm::CommandBuffer& c)
@@ -199,6 +201,38 @@ TEST_CASE("recording calls reject invalid arguments with a sticky error", "[acm]
 						{ c.transitionImage(acm::Texture{}, acm::ImageLayout::Undefined, acm::ImageLayout::General); });
 		requireRejected(s, cmd, false, "Undefined", [&](acm::CommandBuffer& c)
 						{ c.transitionImage(s.color, acm::ImageLayout::General, acm::ImageLayout::Undefined); });
+	}
+
+	SECTION("buffer usage")
+	{
+		// Judged by the Vulkan usage flags each BufferUsage maps to.
+		requireRejected(s, cmd, true, "BufferUsage::Vertex", [&](acm::CommandBuffer& c)
+						{ c.bindVertexBuffer(s.uniform); });
+		requireRejected(s, cmd, true, "BufferUsage::Index", [&](acm::CommandBuffer& c)
+						{ c.bindIndexBuffer(s.storage); });
+		requireRejected(s, cmd, true, "BufferUsage::Index", [&](acm::CommandBuffer& c)
+						{ c.bindIndexBuffer(s.readback); });
+		// Storage (and Uniform) buffers are not transfer destinations; 4096 bytes of Storage
+		// would be large enough, so the usage is what fails.
+		acm::Buffer bigStorage = device.createBuffer(size_t(kSize) * kSize * 4, acm::BufferUsage::Storage);
+		REQUIRE(bigStorage.valid());
+		requireRejected(s, cmd, false, "transfer destination", [&](acm::CommandBuffer& c)
+						{ c.copyTextureToBuffer(s.color, bigStorage); });
+
+		// What a usage does map to is accepted: vertex and index buffers are transfer
+		// destinations too, since their writes are staged.
+		const size_t bytes = size_t(kSize) * kSize * 4;
+		acm::Buffer vertices = device.createBuffer(bytes, acm::BufferUsage::Vertex);
+		acm::Buffer indices = device.createBuffer(bytes, acm::BufferUsage::Index);
+		REQUIRE(vertices.valid());
+		REQUIRE(indices.valid());
+		REQUIRE_FALSE(cmd.begin());
+		REQUIRE_FALSE(cmd.bindVertexBuffer(vertices));
+		REQUIRE_FALSE(cmd.bindIndexBuffer(indices));
+		REQUIRE_FALSE(cmd.copyTextureToBuffer(s.color, vertices));
+		REQUIRE_FALSE(cmd.copyTextureToBuffer(s.color, indices));
+		REQUIRE_FALSE(cmd.error());
+		REQUIRE_FALSE(cmd.end());
 	}
 
 	SECTION("compute")
@@ -211,6 +245,32 @@ TEST_CASE("recording calls reject invalid arguments with a sticky error", "[acm]
 						{ c.bindComputeDescriptorSet(s.compute, acm::DescriptorSet{}); });
 		requireRejected(s, cmd, false, "compute pipeline", [&](acm::CommandBuffer& c)
 						{ c.dispatch(1); });
+	}
+
+	SECTION("compute descriptor layout")
+	{
+		// The set must come from the pipeline's layout or one with identical bindings:
+		// a different type, or the same type for another stage, does not match.
+		requireRejected(s, cmd, false, "descriptor layout", [&](acm::CommandBuffer& c)
+						{ c.bindComputeDescriptorSet(s.compute, s.set); });
+		acm::DescriptorSetLayout fragmentLayout = device.createDescriptorSetLayout({{0, acm::DescriptorType::StorageBuffer, acm::ShaderStage::Fragment}});
+		acm::DescriptorSet fragmentSet = device.createDescriptorSet(fragmentLayout);
+		REQUIRE(fragmentSet.valid());
+		REQUIRE_FALSE(fragmentSet.setBuffer(0, s.storage));
+		requireRejected(s, cmd, false, "descriptor layout", [&](acm::CommandBuffer& c)
+						{ c.bindComputeDescriptorSet(s.compute, fragmentSet); });
+
+		// An identically defined layout is compatible.
+		acm::DescriptorSetLayout twinLayout = device.createDescriptorSetLayout({{0, acm::DescriptorType::StorageBuffer, acm::ShaderStage::Compute}});
+		acm::DescriptorSet twinSet = device.createDescriptorSet(twinLayout);
+		REQUIRE(twinSet.valid());
+		REQUIRE_FALSE(twinSet.setBuffer(0, s.storage));
+		REQUIRE_FALSE(cmd.begin());
+		REQUIRE_FALSE(cmd.bindComputePipeline(s.compute));
+		REQUIRE_FALSE(cmd.bindComputeDescriptorSet(s.compute, twinSet));
+		REQUIRE_FALSE(cmd.bindComputeDescriptorSet(s.compute, s.computeSet));
+		REQUIRE_FALSE(cmd.error());
+		REQUIRE_FALSE(cmd.end());
 	}
 
 	SECTION("recording outside begin/end")

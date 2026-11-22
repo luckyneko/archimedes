@@ -43,7 +43,10 @@ namespace acm
 		// Frames
 		// record runs inside dynamic rendering for the current swapchain image. prePass
 		// runs first, outside any rendering scope, for compute/transitions/barriers that
-		// feed the draw pass.
+		// feed the draw pass. The command buffer does not retain what the callbacks record:
+		// keep every recorded resource alive until render() returns (dropping one inside a
+		// callback can destroy it before the frame is submitted; see acmCommandBuffer.h,
+		// Lifetime). A DescriptorSet retains what is written into it.
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& record);
 		acm::Error render(const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& prePass,
 						  const std::function<void(acm::CommandBuffer& cmd, uint32_t frameIndex)>& record);

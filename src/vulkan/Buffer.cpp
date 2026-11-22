@@ -31,12 +31,14 @@ namespace acm::vulkan
 		}
 		m_owner = &owner;
 		m_size = size;
+		m_usage = usage;
+		m_vkUsage = toVk(usage);
 		m_hostVisible = isHostVisible(usage);
 
 		VkBufferCreateInfo bufferInfo = {};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.size = size;
-		bufferInfo.usage = toVk(usage);
+		bufferInfo.usage = m_vkUsage;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		if (vkCreateBuffer(owner.vkDevice(), &bufferInfo, nullptr, &m_buffer) != VK_SUCCESS)
 		{
@@ -76,6 +78,8 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_size = std::exchange(other.m_size, 0);
+		m_usage = std::exchange(other.m_usage, acm::BufferUsage::Uniform);
+		m_vkUsage = std::exchange(other.m_vkUsage, VkBufferUsageFlags(0));
 		m_hostVisible = std::exchange(other.m_hostVisible, true);
 		m_buffer = std::exchange(other.m_buffer, VK_NULL_HANDLE);
 		m_allocation = std::exchange(other.m_allocation, {});

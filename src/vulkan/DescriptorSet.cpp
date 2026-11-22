@@ -243,6 +243,9 @@ namespace acm::vulkan
 			return fail(call, typeMismatch(binding, type, "UniformBuffer or StorageBuffer"));
 		if (acm::Error error = checkBuffer(call, buffer))
 			return error;
+		const bool uniform = type == acm::DescriptorType::UniformBuffer;
+		if (acm::Error error = checkBufferUsage(call, buffer, uniform ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, binding, type, uniform ? "Uniform" : "Storage"))
+			return error;
 		const size_t size = buffer.backend()->size();
 		const VkPhysicalDeviceLimits& limits = m_owner->properties().limits;
 		if (type == acm::DescriptorType::UniformBuffer && size > limits.maxUniformBufferRange)
@@ -265,6 +268,8 @@ namespace acm::vulkan
 		if (type != acm::DescriptorType::UniformBufferDynamic)
 			return fail(call, typeMismatch(binding, type, "UniformBufferDynamic"));
 		if (acm::Error error = checkBuffer(call, buffer))
+			return error;
+		if (acm::Error error = checkBufferUsage(call, buffer, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, binding, type, "Uniform"))
 			return error;
 		const size_t size = buffer.backend()->size();
 		const uint32_t maxRange = m_owner->properties().limits.maxUniformBufferRange;
@@ -291,6 +296,8 @@ namespace acm::vulkan
 			return fail(call, typeMismatch(binding, type, "StorageImage"));
 		if (acm::Error error = checkImage(call, texture))
 			return error;
+		if (!texture.backend()->storage())
+			return fail(call, "binding " + std::to_string(binding) + " is StorageImage, but the texture was not created with TextureConfig::storage");
 
 		writeImage(binding, arrayElement, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, texture.backend()->vkImageView(), VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
 		m_written[slot] = Written{texture, acm::Sampler{}, acm::Buffer{}, 0, 0};
@@ -371,6 +378,14 @@ namespace acm::vulkan
 		if (&backendBuffer->owner() != m_owner)
 			return fail(call, "buffer is owned by another device");
 		return {};
+	}
+
+	acm::Error DescriptorSet::checkBufferUsage(const char* call, const acm::Buffer& buffer, VkBufferUsageFlags required, uint32_t binding, acm::DescriptorType type, const char* usage)
+	{
+		const Buffer* backendBuffer = buffer.backend();
+		if (backendBuffer->vkUsage() & required)
+			return {};
+		return fail(call, "binding " + std::to_string(binding) + " is " + typeName(type) + ", which a BufferUsage::" + bufferUsageName(backendBuffer->usage()) + " buffer cannot back; create it with BufferUsage::" + usage);
 	}
 
 	void DescriptorSet::writeImage(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkImageView view, VkSampler sampler, VkImageLayout layout) const

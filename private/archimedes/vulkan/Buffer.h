@@ -39,6 +39,13 @@ namespace acm::vulkan
 		bool valid() const { return m_owner && m_buffer != VK_NULL_HANDLE && m_error.ok(); }
 		acm::Error error() const { return m_error; }
 
+		// Properties
+		// The usage the buffer was created with, and the Vulkan usage flags it maps to
+		// (Vertex and Index buffers are also transfer destinations, for staged writes).
+		// Usage checks test the flags, so they accept exactly what Vulkan accepts.
+		acm::BufferUsage usage() const { return m_usage; }
+		VkBufferUsageFlags vkUsage() const { return m_vkUsage; }
+
 		// Memory
 		size_t size() const;
 		void* map();
@@ -52,6 +59,8 @@ namespace acm::vulkan
 
 		acm::vulkan::Device* m_owner{nullptr};
 		size_t m_size{0};
+		acm::BufferUsage m_usage{acm::BufferUsage::Uniform};
+		VkBufferUsageFlags m_vkUsage{0};
 		bool m_hostVisible{true};
 		VkBuffer m_buffer{VK_NULL_HANDLE};
 		acm::vulkan::Allocation m_allocation;

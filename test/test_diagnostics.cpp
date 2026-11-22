@@ -7,6 +7,7 @@
  */
 
 #include "archimedes/Log.h"
+#include "archimedes/Platform.h"
 #include "vk_test_helpers.h"
 
 #include <archimedes/acmLog.h>
@@ -21,6 +22,7 @@
 #include <cstring>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -46,31 +48,7 @@ namespace
 		return {message.severity, message.category, message.id, message.text};
 	}
 
-	// For its scope, offers every message to `consume`; what it declines (returns false) goes
-	// on to the handler it replaced — the harness's — so an unrelated validation error still
-	// fails the test. Install and restore from the test thread only.
-	class ScopedLogHandler
-	{
-	public:
-		explicit ScopedLogHandler(std::function<bool(const acm::LogMessage&)> consume)
-		{
-			// Two steps, so the new handler holds the old one; nothing else logs meanwhile.
-			m_previous = acm::setLogHandler({});
-			acm::setLogHandler([consume = std::move(consume), previous = m_previous](const acm::LogMessage& message)
-							   {
-				if (!consume(message) && previous)
-					previous(message); });
-		}
-		ScopedLogHandler(const ScopedLogHandler&) = delete;
-		ScopedLogHandler& operator=(const ScopedLogHandler&) = delete;
-		~ScopedLogHandler() { acm::setLogHandler(std::move(m_previous)); }
-
-		// The handler this scope replaced.
-		const acm::LogHandler& previous() const { return m_previous; }
-
-	private:
-		acm::LogHandler m_previous;
-	};
+	using acmtest::ScopedLogHandler;
 
 	bool hasId(const acm::LogMessage& message, const char* id)
 	{
@@ -344,8 +322,7 @@ TEST_CASE("The suite validates every instance whenever the layer is available", 
 #ifdef ACM_TEST_VALIDATION_OFF
 	SKIP("ARCHIMEDES_TEST_VALIDATION=OFF");
 #endif
-	const char* forced = std::getenv("ACM_VALIDATION");
-	if (forced && std::strcmp(forced, "0") == 0)
+	if (acm::environmentVariable("ACM_VALIDATION") == std::optional<std::string>("0"))
 		SKIP("ACM_VALIDATION=0 opts this run out");
 	CHECK(instance.validationEnabled());
 }

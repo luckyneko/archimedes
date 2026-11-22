@@ -9,6 +9,7 @@
 #include "archimedes/vulkan/Texture.h"
 
 #include "archimedes/acmBuffer.h"
+#include "archimedes/Log.h"
 #include "archimedes/vulkan/Buffer.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
@@ -40,7 +41,17 @@ namespace acm::vulkan
 		// Mip-generation fallback: upload() builds the chain with linear blits, so a
 		// format that cannot be blitted (or linearly filtered) gets a single level here
 		// rather than levels that upload() could never fill. mipLevels() reports it.
-		m_mipLevels = (mipmapped && !depth && supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat)) ? computeMipLevels(extent) : 1;
+		m_mipLevels = 1;
+		if (mipmapped)
+		{
+			const uint32_t requestedLevels = computeMipLevels(extent);
+			if (depth)
+				acm::logWarning(std::string("texture: mipmapped was requested for depth format ") + formatName(format) + ", which upload() cannot fill; creating 1 mip level instead of " + std::to_string(requestedLevels));
+			else if (!supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat))
+				acm::logWarning(std::string("texture: mipmapped was requested, but this device cannot blit format ") + formatName(format) + " with linear filtering to generate mips; creating 1 mip level instead of " + std::to_string(requestedLevels));
+			else
+				m_mipLevels = requestedLevels;
+		}
 
 		VkImageCreateInfo imageInfo = {};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -53,7 +64,8 @@ namespace acm::vulkan
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageInfo.usage = depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
 								: (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-		if (storage && !depth)
+		m_storage = storage && !depth;
+		if (m_storage)
 			imageInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -108,6 +120,7 @@ namespace acm::vulkan
 		m_format = std::exchange(other.m_format, acm::Format::Undefined);
 		m_extent = std::exchange(other.m_extent, {});
 		m_mipLevels = std::exchange(other.m_mipLevels, 1);
+		m_storage = std::exchange(other.m_storage, false);
 		m_image = std::exchange(other.m_image, VK_NULL_HANDLE);
 		m_allocation = std::exchange(other.m_allocation, {});
 		m_imageView = std::exchange(other.m_imageView, VK_NULL_HANDLE);
@@ -262,6 +275,7 @@ namespace acm::vulkan
 		m_format = acm::Format::Undefined;
 		m_extent = {};
 		m_mipLevels = 1;
+		m_storage = false;
 		if (!owner)
 			return;
 		if (imageView)

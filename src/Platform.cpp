@@ -25,6 +25,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <system_error>
 
 namespace acm
@@ -66,9 +67,26 @@ namespace acm
 		return executable.parent_path();
 	}
 
+	std::optional<std::string> environmentVariable(const char* name)
+	{
+#ifdef _WIN32
+		char* buffer = nullptr;
+		size_t length = 0;
+		if (_dupenv_s(&buffer, &length, name) != 0 || !buffer)
+			return std::nullopt;
+		const std::unique_ptr<char, decltype(&std::free)> owned(buffer, &std::free);
+		return std::string(owned.get());
+#else
+		const char* value = std::getenv(name);
+		if (!value)
+			return std::nullopt;
+		return std::string(value);
+#endif
+	}
+
 	void setEnvDefault(const char* name, const std::string& value)
 	{
-		if (std::getenv(name))
+		if (environmentVariable(name))
 			return;
 #ifdef _WIN32
 		_putenv_s(name, value.c_str());

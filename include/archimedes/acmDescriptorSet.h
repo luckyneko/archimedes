@@ -29,7 +29,9 @@ namespace acm
 	// is not in the layout, `arrayElement` is past the binding's count, the binding's
 	// DescriptorType does not match the call, or a resource is invalid, owned by another
 	// Device, or unusable there (a depth texture, a buffer larger than the device's range
-	// limit). A successful write retains the texture / sampler / buffer it points at until
+	// limit, a buffer whose usage does not match the descriptor — Uniform for uniform and
+	// dynamic uniform descriptors, Storage for storage buffers — or, for a storage image,
+	// a texture not created with TextureConfig::storage). A successful write retains the texture / sampler / buffer it points at until
 	// that element is rewritten or the set is destroyed, so callers may drop their own
 	// wrappers once written. Copies of a DescriptorSet share one native set; writing it
 	// is caller-synchronized, and must not happen while a submitted command still uses it.

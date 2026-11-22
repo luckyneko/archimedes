@@ -34,6 +34,15 @@ namespace acm
 	// Renderer::render and Device::submitSync(record) check it and do not submit a failed
 	// recording; Device::submitSync(commandBuffer) submits what was recorded, so check
 	// error() first when partial work must not run.
+	//
+	// Lifetime. A command buffer does not retain the resources recorded into it (buffers,
+	// textures, pipelines, descriptor sets, render targets). Destroying a dropped resource
+	// is deferred only past submissions already made, so a resource whose last wrapper is
+	// dropped after it was recorded but before that recording is submitted can be
+	// destroyed (by any garbage collection, on any thread) before the GPU uses it. Keep
+	// every recorded resource alive until Renderer::render() or Device::submitSync()
+	// returns. What is written into a DescriptorSet is the exception: the set retains it,
+	// so keeping the set alive is enough.
 	class CommandBuffer
 	{
 	public:
@@ -74,13 +83,15 @@ namespace acm
 		acm::Error bindDescriptorSet(const acm::Pipeline& pipeline, const acm::DescriptorSet& set);
 		acm::Error bindDescriptorSet(const acm::Pipeline& pipeline, const acm::DescriptorSet& set, uint32_t dynamicOffset);
 		acm::Error draw(uint32_t vertexCount, uint32_t instanceCount = 1, uint32_t firstVertex = 0, uint32_t firstInstance = 0);
+		// The buffer must have been created with BufferUsage::Vertex / BufferUsage::Index.
 		acm::Error bindVertexBuffer(const acm::Buffer& buffer);
 		acm::Error bindIndexBuffer(const acm::Buffer& buffer);
 		acm::Error drawIndexed(uint32_t indexCount, uint32_t instanceCount = 1, uint32_t firstIndex = 0, int32_t vertexOffset = 0, uint32_t firstInstance = 0);
 
 		// Transfer
 		// Records, outside a rendering scope, a copy from a color texture currently in
-		// TransferSrc layout to a readback or transfer-destination buffer of at least
+		// TransferSrc layout to a buffer that can be a transfer destination
+		// (BufferUsage::TransferDst, or the staged Vertex / Index) of at least
 		// width x height x texel-size bytes. For offscreen rendering, create the target with
 		// RenderTargetFinish::CopySrc so endRendering leaves the texture ready to copy.
 		acm::Error copyTextureToBuffer(const acm::Texture& texture, const acm::Buffer& buffer);
@@ -88,7 +99,9 @@ namespace acm
 		// Compute
 		// Compute commands are recorded outside a rendering scope, or in a renderer
 		// pre-pass before dynamic rendering begins. dispatch needs a bound compute
-		// pipeline; a compute descriptor set takes no dynamic offset.
+		// pipeline. bindComputeDescriptorSet needs a pipeline built with a descriptor layout
+		// and a set allocated from that layout or one with identical bindings; a compute
+		// descriptor set takes no dynamic offset.
 		acm::Error bindComputePipeline(const acm::ComputePipeline& pipeline);
 		acm::Error bindComputeDescriptorSet(const acm::ComputePipeline& pipeline, const acm::DescriptorSet& set);
 		acm::Error dispatch(uint32_t groupsX, uint32_t groupsY = 1, uint32_t groupsZ = 1);

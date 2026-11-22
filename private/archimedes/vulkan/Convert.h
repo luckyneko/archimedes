@@ -29,6 +29,11 @@ namespace acm::vulkan
 	// Bytes one tightly packed texel of `format` occupies (0 for Undefined). For
 	// D24_Unorm_S8_Uint this is the packed 32-bit texel, not a per-aspect copy size.
 	uint32_t bytesPerPixel(acm::Format format);
+	// The enumerator's name (e.g. "R8G8B8A8_Unorm"), for messages.
+	const char* formatName(acm::Format format);
+
+	// The number of samples per pixel (1, 2, 4 or 8).
+	uint32_t sampleCountValue(acm::SampleCount count);
 
 	VkColorSpaceKHR toVk(acm::ColorSpace colorSpace);
 	bool tryFromVk(VkColorSpaceKHR colorSpace, acm::ColorSpace& out);
@@ -39,6 +44,8 @@ namespace acm::vulkan
 	acm::PhysicalDeviceType fromVk(VkPhysicalDeviceType type);
 
 	VkBufferUsageFlags toVk(acm::BufferUsage usage);
+	// The enumerator's name (e.g. "Uniform"), for messages.
+	const char* bufferUsageName(acm::BufferUsage usage);
 
 	VkDescriptorType toVk(acm::DescriptorType type);
 	VkShaderStageFlags toVk(acm::ShaderStage stage);

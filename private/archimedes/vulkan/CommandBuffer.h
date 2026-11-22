@@ -54,6 +54,8 @@ namespace acm::vulkan
 		// The first rejected recording call since begin().
 		acm::Error recordingError() const { return m_recordingError; }
 		bool recording() const { return m_recording; }
+		// Whether a beginRendering() scope is open.
+		bool renderingActive() const { return m_renderingActive; }
 		VkCommandBuffer vkCommandBuffer() const;
 
 		// Recording

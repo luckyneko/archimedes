@@ -17,6 +17,7 @@
 #include "archimedes/acmDevice.h"
 #include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmInstance.h"
+#include "archimedes/acmLog.h"
 #include "archimedes/acmPipeline.h"
 #include "archimedes/acmRenderer.h"
 #include "archimedes/acmRenderTarget.h"

@@ -40,12 +40,14 @@ add_executable(test-${PROJECT_NAME}
     test_cpu_device.cpp
     test_recording_errors.cpp
     test_diagnostics.cpp
+    test_fallback_warnings.cpp
 )
 
 target_compile_features(test-${PROJECT_NAME} PRIVATE cxx_std_17)
 target_include_directories(test-${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/private)
 target_link_libraries(test-${PROJECT_NAME} PRIVATE ${PROJECT_NAME} Vulkan::Loader Catch2::Catch2)
 acm_stage_vulkan_runtime(test-${PROJECT_NAME})
+acm_warnings(test-${PROJECT_NAME})
 
 # The tests link the vendored Vulkan loader, which on Windows is a DLL (vulkan-1.dll)
 # built into its own directory rather than next to the test executable. On a machine

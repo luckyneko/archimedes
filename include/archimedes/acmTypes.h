@@ -91,7 +91,8 @@ namespace acm
 	};
 
 	// Multisample anti-aliasing sample count. A request is clamped to what the device
-	// supports (so `Eight` may resolve to fewer). `One` is plain, single-sampled.
+	// supports (so `Eight` may resolve to fewer), with a warning from the render target or
+	// swapchain that asked. `One` is plain, single-sampled.
 	enum class SampleCount
 	{
 		One,
@@ -158,7 +159,8 @@ namespace acm
 	};
 
 	// How polygons are rasterized. `Line` (wireframe) needs the device's
-	// `fillModeNonSolid` feature — a pipeline falls back to `Fill` without it.
+	// `fillModeNonSolid` feature — a pipeline falls back to `Fill` without it, with a
+	// warning.
 	enum class PolygonMode
 	{
 		Fill,

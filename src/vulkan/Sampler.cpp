@@ -8,9 +8,12 @@
 
 #include "archimedes/vulkan/Sampler.h"
 
+#include "archimedes/Log.h"
 #include "archimedes/vulkan/Device.h"
 
 #include <algorithm>
+#include <sstream>
+#include <string>
 #include <utility>
 
 namespace acm::vulkan
@@ -24,6 +27,12 @@ namespace acm::vulkan
 	{
 		m_owner = &owner;
 		const bool anisotropic = maxAnisotropy > 1.0f && owner.enabledFeatures().samplerAnisotropy;
+		if (maxAnisotropy > 1.0f && !anisotropic)
+		{
+			std::ostringstream message;
+			message << "sampler: maxAnisotropy " << maxAnisotropy << " needs the samplerAnisotropy feature, which is not enabled on this device; falling back to isotropic filtering";
+			acm::logWarning(message.str());
+		}
 		float anisotropy = 1.0f;
 		if (anisotropic)
 			anisotropy = std::min(maxAnisotropy, owner.properties().limits.maxSamplerAnisotropy);

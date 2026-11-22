@@ -15,10 +15,11 @@
 
 namespace acm
 {
-	// Owns a native sampler. Linear min/mag filtering, clamp-to-edge addressing, nearest
-	// mipmap mode; optional anisotropic filtering (createSampler's maxAnisotropy > 1,
-	// gated on the samplerAnisotropy device feature and clamped to its limit). One
-	// sampler is reusable across many textures/descriptor sets.
+	// Owns a native sampler. Linear min/mag filtering, clamp-to-edge addressing, linear
+	// mipmap mode over the full LOD range (trilinear); optional anisotropic filtering
+	// (createSampler's maxAnisotropy > 1, gated on the samplerAnisotropy device feature,
+	// isotropic with a warning without it, and clamped to its limit). One sampler is
+	// reusable across many textures/descriptor sets.
 	class Sampler
 	{
 	public:
