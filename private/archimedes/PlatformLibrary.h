@@ -9,6 +9,7 @@
 #pragma once
 
 #include <filesystem>
+#include <string>
 #include <utility>
 
 namespace acm
@@ -39,6 +40,10 @@ namespace acm
 		}
 		PlatformLibrary(const PlatformLibrary&) = delete;
 		PlatformLibrary& operator=(const PlatformLibrary&) = delete;
+
+		// The platform's file name for the shared library `name`: "name.dll" on Windows,
+		// "libname.dylib" on macOS, "libname.so" elsewhere.
+		static std::string fileName(const std::string& name);
 
 		// Unloads the library; a no-op when empty.
 		void reset();

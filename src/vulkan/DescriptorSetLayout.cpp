@@ -79,6 +79,25 @@ namespace acm::vulkan
 		return &m_bindings;
 	}
 
+	bool DescriptorSetLayout::sameBindings(const std::vector<acm::DescriptorBinding>& a, const std::vector<acm::DescriptorBinding>& b)
+	{
+		if (a.size() != b.size())
+			return false;
+		for (const acm::DescriptorBinding& left : a)
+		{
+			bool matched = false;
+			for (const acm::DescriptorBinding& right : b)
+				if (left.binding == right.binding)
+				{
+					matched = left.type == right.type && left.stage == right.stage && left.count == right.count;
+					break;
+				}
+			if (!matched)
+				return false;
+		}
+		return true;
+	}
+
 	VkDescriptorSetLayout DescriptorSetLayout::vkLayout() const
 	{
 		return m_layout;

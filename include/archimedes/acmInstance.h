@@ -12,6 +12,7 @@
 #include "archimedes/acmDeviceInfo.h"
 #include "archimedes/acmError.h"
 #include "archimedes/acmForward.h"
+#include "archimedes/acmLog.h"
 #include "archimedes/acmVersion.h"
 
 #include <memory>
@@ -30,13 +31,18 @@ namespace acm
 		// Enumerate portability drivers such as MoltenVK when the extension is available.
 		bool portability{true};
 		// Enable VK_LAYER_KHRONOS_validation when the loader finds it. When it is missing the
-		// instance is created without it and a Library warning is logged (acmLog.h);
-		// Instance::validationEnabled() reports the outcome. Its reports reach the log hook
+		// instance is created without it and `logHandler` receives a Library warning;
+		// Instance::validationEnabled() reports the outcome. Its reports reach `logHandler`
 		// only with `debug` on too.
 		bool validation{false};
 		// Enable VK_EXT_debug_utils and relay every debug-messenger message (validation,
-		// performance, loader/driver) to the log hook (acmLog.h) with its own severity.
+		// performance, loader/driver) to `logHandler` with its own severity.
 		bool debug{false};
+		// Receives this instance's messages (acmLog.h): the library's warnings about it and
+		// its devices (a missing layer, a feature fallback), and with `debug` the Vulkan
+		// debug messenger's. The default writes warnings and errors to stderr; an empty
+		// handler discards every message. Fixed for the instance's lifetime.
+		acm::LogHandler logHandler{acm::defaultLogHandler};
 		// Load the CPU driver staged beside the executable (<exe dir>/vulkan/) directly, so a
 		// CPU device is available without driver environment variables or registration —
 		// including in an elevated Windows process, where the loader ignores them. Needs a

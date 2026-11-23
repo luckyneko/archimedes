@@ -92,7 +92,7 @@ TEST_CASE("Pipeline is invalid when a shader is", "[acm][gpu]")
 
 TEST_CASE("Command buffer refuses a pipeline incompatible with the active render target", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

@@ -82,6 +82,8 @@ namespace acm::vulkan
 
 		// Internals
 		void release();
+		// "binding N is <actual>, not <expected>", for a write that does not fit its binding.
+		static std::string typeMismatch(uint32_t binding, acm::DescriptorType actual, const char* expected);
 		acm::Error locate(const char* call, uint32_t binding, uint32_t arrayElement, size_t& slot, acm::DescriptorType& type) const;
 		acm::Error checkImage(const char* call, const acm::Texture& texture) const;
 		acm::Error checkBuffer(const char* call, const acm::Buffer& buffer) const;

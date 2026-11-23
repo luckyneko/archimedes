@@ -96,7 +96,7 @@ namespace
 
 TEST_CASE("uploaded texture pixels can be sampled", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -126,7 +126,7 @@ TEST_CASE("uploaded texture pixels can be sampled", "[acm][gpu]")
 // untouched, so a correct upload afterwards still lands and samples back.
 TEST_CASE("Texture::upload rejects bad input and leaves the texture usable", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

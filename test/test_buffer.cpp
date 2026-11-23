@@ -21,7 +21,7 @@
 
 TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -63,7 +63,7 @@ TEST_CASE("Buffer picks its heap by usage", "[acm][gpu]")
 // a host-visible buffer (checked through its mapping) and a device-local one (staged).
 TEST_CASE("Buffer::write rejects oversize and null writes", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

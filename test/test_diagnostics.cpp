@@ -6,7 +6,6 @@
  *  (See accompanying file LICENSE)
  */
 
-#include "archimedes/Log.h"
 #include "archimedes/Platform.h"
 #include "vk_test_helpers.h"
 
@@ -18,64 +17,27 @@
 #include <algorithm>
 #include <atomic>
 #include <catch2/catch_all.hpp>
-#include <cstdlib>
 #include <cstring>
-#include <functional>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
-// The log hook (acmLog.h) and the suite's validation harness (test/main.cpp,
-// vk_test_helpers.h). The [gpu][validation] cases that need VK_LAYER_KHRONOS_validation
-// SKIP without it; the rest run everywhere.
+// An instance's log handler (InstanceConfig::logHandler, acmLog.h) and the suite's
+// validation harness (test/main.cpp, vk_test_helpers.h). A sampler asked for anisotropy on
+// a device created without that feature is the library warning these tests provoke: it
+// fires on every device. The [validation] cases that need VK_LAYER_KHRONOS_validation SKIP
+// without it; the rest run everywhere.
 
 namespace
 {
-	struct Captured
-	{
-		acm::LogSeverity severity;
-		acm::LogCategory category;
-		std::string id;
-		std::string text;
-	};
-
-	Captured capture(const acm::LogMessage& message)
-	{
-		return {message.severity, message.category, message.id, message.text};
-	}
-
-	using acmtest::ScopedLogHandler;
-
-	bool hasId(const acm::LogMessage& message, const char* id)
-	{
-		return std::strcmp(message.id, id) == 0;
-	}
-
-	// An instance whose "validation layer missing" warning, if any, is kept off stderr.
-	acm::Instance quietInstance(const acm::InstanceConfig& config)
-	{
-		ScopedLogHandler quiet([](const acm::LogMessage& message)
-							   { return message.category == acm::LogCategory::Library && message.severity == acm::LogSeverity::Warning; });
-		return acm::Instance("acm-tests", acm::Version{0, 1, 0}, config);
-	}
-
-	// A device of this run's kind with no optional feature enabled, so samplerAnisotropy is off.
-	acm::Device deviceWithoutAnisotropy(acm::Instance& instance)
-	{
-		acm::DeviceConfig config;
-		config.optionalFeatures = acm::DeviceFeatures{};
-		acm::Device device = instance.createDevice(acmtest::selectGraphicsOption(instance), config);
-		REQUIRE(device.valid());
-		REQUIRE_FALSE(device.enabledFeatures().samplerAnisotropy);
-		return device;
-	}
-
-	// Breaks VUID-VkSamplerCreateInfo-anisotropyEnable-01070 (anisotropic filtering without the
+	// Used by the two cases that need a real validation error. Breaks
+	// VUID-VkSamplerCreateInfo-anisotropyEnable-01070 (anisotropic filtering without the
 	// samplerAnisotropy feature): a spec violation every driver tolerates.
+	constexpr const char* AnisotropyVuid = "VUID-VkSamplerCreateInfo-anisotropyEnable-01070";
+
 	void createAnisotropicSamplerWithoutFeature(const acm::Device& device)
 	{
 		VkSamplerCreateInfo info = {};
@@ -95,186 +57,143 @@ namespace
 		if (vkCreateSampler(vkDevice, &info, nullptr, &sampler) == VK_SUCCESS)
 			vkDestroySampler(vkDevice, sampler, nullptr);
 	}
-
-	constexpr const char* AnisotropyVuid = "VUID-VkSamplerCreateInfo-anisotropyEnable-01070";
 } // namespace
 
 // -----------------------------------------------------------------------------
-// The log hook
+// The instance log handler
 // -----------------------------------------------------------------------------
 
-TEST_CASE("The log handler receives library messages with their severity and category", "[acm][log]")
+TEST_CASE("InstanceConfig starts with the default log handler", "[acm][log]")
 {
-	std::vector<Captured> captured;
-	{
-		ScopedLogHandler scope([&captured](const acm::LogMessage& message)
-							   {
-			if (std::strncmp(message.id, "acm-test", 8) != 0)
-				return false;
-			captured.push_back(capture(message));
-			return true; });
-
-		acm::logMessage(acm::LogSeverity::Verbose, acm::LogCategory::Library, "verbose text", "acm-test-1");
-		acm::logMessage(acm::LogSeverity::Info, acm::LogCategory::Library, std::string("info text"), std::string("acm-test-2"));
-		acm::logMessage(acm::LogSeverity::Warning, acm::LogCategory::Library, "warning text", "acm-test-3");
-		acm::logMessage(acm::LogSeverity::Error, acm::LogCategory::Library, "error text", "acm-test-4");
-		acm::logMessage(acm::LogSeverity::Warning, acm::LogCategory::Performance, "performance text", "acm-test-5");
-		acm::logMessage(acm::LogSeverity::Info, acm::LogCategory::Vulkan, nullptr, "acm-test-6");
-	}
-
-	REQUIRE(captured.size() == 6);
-	CHECK(captured[0].severity == acm::LogSeverity::Verbose);
-	CHECK(captured[1].severity == acm::LogSeverity::Info);
-	CHECK(captured[2].severity == acm::LogSeverity::Warning);
-	CHECK(captured[3].severity == acm::LogSeverity::Error);
-	for (size_t index = 0; index < 4; ++index)
-		CHECK(captured[index].category == acm::LogCategory::Library);
-	CHECK(captured[0].text == "verbose text");
-	CHECK(captured[1].text == "info text");
-	CHECK(captured[1].id == "acm-test-2");
-	CHECK(captured[4].category == acm::LogCategory::Performance);
-	CHECK(captured[5].category == acm::LogCategory::Vulkan);
-	CHECK(captured[5].text.empty()); // a null text arrives empty, not null
+	const acm::InstanceConfig config;
+	REQUIRE(config.logHandler);
+	using Function = void (*)(const acm::LogMessage&);
+	const Function* target = config.logHandler.target<Function>();
+	REQUIRE(target != nullptr);
+	CHECK(*target == &acm::defaultLogHandler);
 
 	CHECK(std::string(acm::logSeverityName(acm::LogSeverity::Warning)) == "warning");
 	CHECK(std::string(acm::logCategoryName(acm::LogCategory::Validation)) == "validation");
 }
 
-TEST_CASE("The category helpers log as the library", "[acm][log]")
+TEST_CASE("An instance's log handler receives only that instance's messages", "[acm][gpu][log]")
 {
-	std::vector<Captured> captured;
+	struct Received
 	{
-		// The helpers carry no id, so this scope claims every Library message while it lasts.
-		ScopedLogHandler scope([&captured](const acm::LogMessage& message)
-							   {
-			if (message.category != acm::LogCategory::Library)
-				return false;
-			captured.push_back(capture(message));
-			return true; });
-		acm::logVerbose("v");
-		acm::logInfo("i");
-		acm::logWarning(std::string("w"));
-		acm::logError("e");
-	}
-
-	REQUIRE(captured.size() == 4);
-	const acm::LogSeverity expected[] = {acm::LogSeverity::Verbose, acm::LogSeverity::Info, acm::LogSeverity::Warning, acm::LogSeverity::Error};
-	for (size_t index = 0; index < 4; ++index)
+		std::mutex mutex;
+		std::vector<std::string> warnings; // Library warnings, the only kind this test provokes
+	};
+	const auto handlerFor = [](Received& received)
 	{
-		CHECK(captured[index].severity == expected[index]);
-		CHECK(captured[index].id.empty());
+		return [&received](const acm::LogMessage& message)
+		{
+			if (message.category == acm::LogCategory::Library && message.severity == acm::LogSeverity::Warning)
+			{
+				std::lock_guard<std::mutex> lock(received.mutex);
+				received.warnings.emplace_back(message.text);
+			}
+			else
+				acmtest::logHandler(message); // a validation error still fails the test
+		};
+	};
+
+	// Declared before the instances, which may call their handlers until they are destroyed.
+	Received first;
+	Received second;
+	acm::InstanceConfig firstConfig;
+	firstConfig.logHandler = handlerFor(first);
+	acm::InstanceConfig secondConfig;
+	secondConfig.logHandler = handlerFor(second);
+	acm::Instance firstInstance("acm-tests", acm::Version{0, 1, 0}, firstConfig);
+	acm::Instance secondInstance("acm-tests", acm::Version{0, 1, 0}, secondConfig);
+	acmtest::requireInstance(firstInstance);
+	acmtest::requireInstance(secondInstance);
+	acm::Device firstDevice = acmtest::createDeviceWithoutOptionalFeatures(firstInstance);
+	acm::Device secondDevice = acmtest::createDeviceWithoutOptionalFeatures(secondInstance);
+
+	// A fallback on the first instance's device reaches the first handler alone.
+	acm::Sampler sampler = firstDevice.createSampler(4.0f);
+	REQUIRE(sampler.valid());
+	REQUIRE(first.warnings.size() == 1);
+	CHECK_THAT(first.warnings.front(), Catch::Matchers::ContainsSubstring("sampler"));
+	CHECK_THAT(first.warnings.front(), Catch::Matchers::ContainsSubstring("maxAnisotropy 4"));
+	CHECK(second.warnings.empty());
+
+	sampler = secondDevice.createSampler(8.0f);
+	REQUIRE(sampler.valid());
+	CHECK(first.warnings.size() == 1);
+	REQUIRE(second.warnings.size() == 1);
+	CHECK_THAT(second.warnings.front(), Catch::Matchers::ContainsSubstring("maxAnisotropy 8"));
+}
+
+TEST_CASE("An empty or throwing log handler does not disturb the call that logged", "[acm][gpu][log]")
+{
+	acm::InstanceConfig config;
+	SECTION("an empty handler discards every message")
+	{
+		config.logHandler = nullptr;
 	}
-	CHECK(captured[2].text == "w");
+	SECTION("a throwing handler does not escape")
+	{
+		config.logHandler = [](const acm::LogMessage&)
+		{ throw std::runtime_error("handler failure"); };
+	}
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
+	acmtest::requireInstance(instance);
+	acm::Device device = acmtest::createDeviceWithoutOptionalFeatures(instance);
+
+	acm::Sampler sampler;
+	CHECK_NOTHROW(sampler = device.createSampler(4.0f));
+	CHECK(sampler.valid());
 }
 
-TEST_CASE("setLogHandler returns the handler it replaces, so it can be restored", "[acm][log]")
-{
-	int outer = 0;
-	int inner = 0;
-	ScopedLogHandler scope([&outer](const acm::LogMessage& message)
-						   {
-		if (!hasId(message, "acm-test-restore"))
-			return false;
-		++outer;
-		return true; });
-	const auto send = []
-	{ acm::logMessage(acm::LogSeverity::Info, acm::LogCategory::Library, "restore", "acm-test-restore"); };
-
-	acm::LogHandler replaced = acm::setLogHandler([&inner](const acm::LogMessage& message)
-												  {
-		if (hasId(message, "acm-test-restore"))
-			++inner; });
-	REQUIRE(replaced); // the scope's handler
-	send();
-	CHECK(inner == 1);
-	CHECK(outer == 0);
-
-	acm::LogHandler installed = acm::setLogHandler(std::move(replaced));
-	REQUIRE(installed); // the inner handler comes back
-	send();
-	CHECK(inner == 1);
-	CHECK(outer == 1);
-
-	// An empty handler discards everything until the previous one is restored.
-	acm::LogHandler restored = acm::setLogHandler({});
-	send();
-	CHECK(outer == 1);
-	acm::setLogHandler(std::move(restored));
-	send();
-	CHECK(outer == 2);
-}
-
-TEST_CASE("A throwing log handler does not escape logMessage", "[acm][log]")
-{
-	acm::LogHandler previous = acm::setLogHandler([](const acm::LogMessage&)
-												  { throw std::runtime_error("handler failure"); });
-	CHECK_NOTHROW(acm::logMessage(acm::LogSeverity::Info, acm::LogCategory::Library, "thrown away", "acm-test-throw"));
-	acm::setLogHandler(std::move(previous));
-}
-
-TEST_CASE("Concurrent logging delivers every message while the handler is swapped", "[acm][log]")
+TEST_CASE("An instance's log handler is called from every thread that logs", "[acm][gpu][log]")
 {
 	static constexpr int Threads = 8;
-	static constexpr int MessagesPerThread = 2000;
-	static constexpr int Swaps = 2000;
+	static constexpr int SamplersPerThread = 50;
 
-	std::atomic<int> delivered{0};
-	ScopedLogHandler scope([](const acm::LogMessage&)
-						   { return false; });
-	const acm::LogHandler harness = scope.previous();
-	// Every handler installed below counts this test's messages and forwards the rest.
-	const auto counting = [&delivered, harness](const acm::LogMessage& message)
+	std::atomic<int> warnings{0};
+	acm::InstanceConfig config;
+	config.logHandler = [&warnings](const acm::LogMessage& message)
 	{
-		if (hasId(message, "acm-test-concurrent"))
-			delivered.fetch_add(1, std::memory_order_relaxed);
-		else if (harness)
-			harness(message);
+		if (message.category == acm::LogCategory::Library && message.severity == acm::LogSeverity::Warning)
+			warnings.fetch_add(1, std::memory_order_relaxed);
+		else
+			acmtest::logHandler(message);
 	};
-	acm::setLogHandler(counting);
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
+	acmtest::requireInstance(instance);
+	acm::Device device = acmtest::createDeviceWithoutOptionalFeatures(instance);
 
-	std::atomic<bool> start{false};
-	std::vector<std::thread> loggers;
+	std::atomic<int> invalid{0};
+	std::vector<std::thread> threads;
 	for (int thread = 0; thread < Threads; ++thread)
-		loggers.emplace_back([&start]
+		threads.emplace_back([&device, &invalid]
 							 {
-			while (!start.load())
-				std::this_thread::yield();
-			for (int message = 0; message < MessagesPerThread; ++message)
-				acm::logMessage(acm::LogSeverity::Verbose, acm::LogCategory::Library, "concurrent", "acm-test-concurrent"); });
-	std::thread swapper([&start, &counting]
-						{
-		while (!start.load())
-			std::this_thread::yield();
-		for (int swap = 0; swap < Swaps; ++swap)
-			acm::setLogHandler(counting); });
+			for (int index = 0; index < SamplersPerThread; ++index)
+				if (!device.createSampler(4.0f).valid())
+					invalid.fetch_add(1, std::memory_order_relaxed); });
+	for (std::thread& thread : threads)
+		thread.join();
 
-	start.store(true);
-	for (std::thread& logger : loggers)
-		logger.join();
-	swapper.join();
-
-	CHECK(delivered.load() == Threads * MessagesPerThread);
+	CHECK(invalid.load() == 0);
+	CHECK(warnings.load() == Threads * SamplersPerThread);
 }
 
 TEST_CASE("Instance warns when validation is requested but the layer is missing", "[acm][gpu][log]")
 {
-	std::mutex mutex;
 	std::vector<std::string> warnings;
 	acm::InstanceConfig config;
 	config.validation = true;
-	acm::Instance instance;
+	config.logHandler = [&warnings](const acm::LogMessage& message)
 	{
-		// Observe only; every message still reaches the harness.
-		ScopedLogHandler scope([&](const acm::LogMessage& message)
-							   {
-			if (message.category == acm::LogCategory::Library && message.severity == acm::LogSeverity::Warning)
-			{
-				std::lock_guard<std::mutex> lock(mutex);
-				warnings.emplace_back(message.text);
-			}
-			return false; });
-		instance = acm::Instance("acm-tests", acm::Version{0, 1, 0}, config);
-	}
+		// Creation logs on this thread; the rest goes to the harness as usual.
+		if (message.category == acm::LogCategory::Library && message.severity == acm::LogSeverity::Warning)
+			warnings.emplace_back(message.text);
+		else
+			acmtest::logHandler(message);
+	};
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
 	acmtest::requireInstance(instance);
 
 	const bool warned = std::any_of(warnings.begin(), warnings.end(), [](const std::string& text)
@@ -288,10 +207,10 @@ TEST_CASE("Instance warns when validation is requested but the layer is missing"
 
 TEST_CASE("The harness records validation errors for its listener", "[acm][log][validation]")
 {
-	// Deliberate: printed to stderr by the harness like any other message.
-	acm::logMessage(acm::LogSeverity::Error, acm::LogCategory::Validation, "deliberate error (harness self-test, recorded)", "VUID-acm-harness-recorded");
-	acm::logMessage(acm::LogSeverity::Warning, acm::LogCategory::Validation, "deliberate warning (harness self-test, not recorded)", "VUID-acm-harness-warning");
-	acm::logMessage(acm::LogSeverity::Error, acm::LogCategory::Library, "deliberate library error (harness self-test, not recorded)", "acm-harness-library");
+	// Deliberate: handed straight to the suite's handler, which prints them like any other.
+	acmtest::logHandler({acm::LogSeverity::Error, acm::LogCategory::Validation, "VUID-acm-harness-recorded", "deliberate error (harness self-test, recorded)"});
+	acmtest::logHandler({acm::LogSeverity::Warning, acm::LogCategory::Validation, "VUID-acm-harness-warning", "deliberate warning (harness self-test, not recorded)"});
+	acmtest::logHandler({acm::LogSeverity::Error, acm::LogCategory::Library, "acm-harness-library", "deliberate library error (harness self-test, not recorded)"});
 
 	// Claimed here, so the listener does not fail this test.
 	const std::vector<acmtest::LoggedError> errors = acmtest::takeValidationErrors();
@@ -305,18 +224,20 @@ TEST_CASE("A validation error logged during a test case fails it", "[acm][log][v
 {
 	// The harness's listener fails this test case when it ends; [!shouldfail] makes that the
 	// passing outcome, and a pass (the listener missed it) the failing one.
-	acm::logMessage(acm::LogSeverity::Error, acm::LogCategory::Validation, "deliberate error (harness self-test, must fail this test)", "VUID-acm-harness-listener");
+	acmtest::logHandler({acm::LogSeverity::Error, acm::LogCategory::Validation, "VUID-acm-harness-listener", "deliberate error (harness self-test, must fail this test)"});
 }
 
 TEST_CASE("The suite validates every instance whenever the layer is available", "[acm][gpu][validation]")
 {
 	// A default config: only the harness (ACM_VALIDATION) can turn validation on here.
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance); // FAILs without the layer when validation is required
 
-	acm::InstanceConfig config;
-	config.validation = true;
-	if (!quietInstance(config).validationEnabled())
+	// Asks for the layer outright, quietly, to learn whether it is installed.
+	acm::InstanceConfig probeConfig;
+	probeConfig.validation = true;
+	probeConfig.logHandler = nullptr;
+	if (!acm::Instance("acm-tests", acm::Version{0, 1, 0}, probeConfig).validationEnabled())
 		SKIP("VK_LAYER_KHRONOS_validation is not installed: the suite runs unvalidated "
 			 "(ARCHIMEDES_TEST_VALIDATION=REQUIRE makes that a failure)");
 #ifdef ACM_TEST_VALIDATION_OFF
@@ -327,35 +248,41 @@ TEST_CASE("The suite validates every instance whenever the layer is available", 
 	CHECK(instance.validationEnabled());
 }
 
-TEST_CASE("Validation-layer errors reach the log hook as validation errors", "[acm][gpu][validation]")
+TEST_CASE("Validation-layer errors reach the instance's log handler", "[acm][gpu][validation]")
 {
+	struct Provoked
+	{
+		std::mutex mutex;
+		std::vector<acm::LogSeverity> severities;
+		std::vector<acm::LogCategory> categories;
+	} provoked;
 	acm::InstanceConfig config;
 	config.validation = true;
 	config.debug = true;
-	acm::Instance instance = quietInstance(config);
+	config.logHandler = [&provoked](const acm::LogMessage& message)
+	{
+		// Claims only the provoked VUID; anything else still fails the test, and a missing
+		// layer's warning stays off stderr.
+		if (std::strcmp(message.id, AnisotropyVuid) == 0)
+		{
+			std::lock_guard<std::mutex> lock(provoked.mutex);
+			provoked.severities.push_back(message.severity);
+			provoked.categories.push_back(message.category);
+		}
+		else if (message.category != acm::LogCategory::Library)
+			acmtest::logHandler(message);
+	};
+	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
 	acmtest::requireInstance(instance);
 	if (!instance.validationEnabled())
 		SKIP("VK_LAYER_KHRONOS_validation is not installed");
-	acm::Device device = deviceWithoutAnisotropy(instance);
+	acm::Device device = acmtest::createDeviceWithoutOptionalFeatures(instance);
 
-	std::mutex mutex;
-	std::vector<Captured> captured;
-	{
-		// Claims only the provoked VUID; anything else still fails the test.
-		ScopedLogHandler scope([&](const acm::LogMessage& message)
-							   {
-			if (!hasId(message, AnisotropyVuid))
-				return false;
-			std::lock_guard<std::mutex> lock(mutex);
-			captured.push_back(capture(message));
-			return true; });
-		createAnisotropicSamplerWithoutFeature(device);
-	}
+	createAnisotropicSamplerWithoutFeature(device);
 
-	REQUIRE_FALSE(captured.empty());
-	CHECK(captured.front().severity == acm::LogSeverity::Error);
-	CHECK(captured.front().category == acm::LogCategory::Validation);
-	CHECK_FALSE(captured.front().text.empty());
+	REQUIRE_FALSE(provoked.severities.empty());
+	CHECK(provoked.severities.front() == acm::LogSeverity::Error);
+	CHECK(provoked.categories.front() == acm::LogCategory::Validation);
 }
 
 TEST_CASE("A validation-layer error fails the test case that caused it", "[acm][gpu][validation][!shouldfail]")
@@ -365,7 +292,7 @@ TEST_CASE("A validation-layer error fails the test case that caused it", "[acm][
 	acm::InstanceConfig config;
 	config.validation = true;
 	config.debug = true;
-	acm::Instance instance = quietInstance(config);
+	acm::Instance instance = acmtest::createInstance(config);
 	if (!instance.valid() || !instance.validationEnabled())
 		SKIP("VK_LAYER_KHRONOS_validation is not installed");
 	acm::DeviceConfig deviceConfig;

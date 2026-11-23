@@ -138,7 +138,7 @@ namespace
 
 TEST_CASE("recording calls reject invalid arguments with a sticky error", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -287,7 +287,7 @@ TEST_CASE("recording calls reject invalid arguments with a sticky error", "[acm]
 
 TEST_CASE("the first recording error wins and copies share it", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -333,7 +333,7 @@ TEST_CASE("the first recording error wins and copies share it", "[acm][gpu]")
 
 TEST_CASE("recording rejects resources owned by another device", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -371,7 +371,7 @@ TEST_CASE("recording rejects resources owned by another device", "[acm][gpu]")
 
 TEST_CASE("submitSync reports a failed recording and does not submit it", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);

@@ -12,7 +12,6 @@
 #include "archimedes/acmInstance.h"
 #include "archimedes/acmSurface.h"
 #include "archimedes/acmVersion.h"
-#include "archimedes/Log.h"
 #include "archimedes/Platform.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
@@ -29,54 +28,13 @@
 
 namespace acm::vulkan
 {
-	namespace
-	{
-		// The CPU driver's library, as acm_stage_vulkan_runtime stages it in <exe dir>/vulkan/.
-#if defined(_WIN32)
-		constexpr const char* CpuDriverLibrary = "vk_swiftshader.dll";
-#elif defined(__APPLE__)
-		constexpr const char* CpuDriverLibrary = "libvk_swiftshader.dylib";
-#else
-		constexpr const char* CpuDriverLibrary = "libvk_swiftshader.so";
-#endif
-
-		constexpr const char* ValidationLayer = "VK_LAYER_KHRONOS_validation";
-
-		// ACM_VALIDATION set to anything but empty or "0" turns validation and the debug
-		// messenger on for every instance, whatever its config says, so a test suite or a
-		// shipped binary can be validated without a rebuild.
-		bool validationForcedByEnvironment()
-		{
-			const std::optional<std::string> value = acm::environmentVariable("ACM_VALIDATION");
-			return value && !value->empty() && *value != "0";
-		}
-
-		acm::LogSeverity logSeverityOf(VkDebugUtilsMessageSeverityFlagBitsEXT severity)
-		{
-			if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-				return acm::LogSeverity::Error;
-			if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-				return acm::LogSeverity::Warning;
-			if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-				return acm::LogSeverity::Info;
-			return acm::LogSeverity::Verbose;
-		}
-
-		acm::LogCategory logCategoryOf(VkDebugUtilsMessageTypeFlagsEXT type)
-		{
-			if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
-				return acm::LogCategory::Validation;
-			if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
-				return acm::LogCategory::Performance;
-			return acm::LogCategory::Vulkan;
-		}
-	} // namespace
 
 	// -----------------------------------------------------------------------------
 	// Lifetime
 	// -----------------------------------------------------------------------------
 
 	Instance::Instance(const char* appName, const acm::Version& appVersion, const acm::InstanceConfig& config)
+		: m_logHandler(config.logHandler)
 	{
 		uint32_t loaderVersion = VK_API_VERSION_1_0;
 		auto enumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
@@ -128,7 +86,7 @@ namespace acm::vulkan
 		if (debugUtils)
 			extensionNames.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		else if (debugRequested)
-			acm::logWarning("instance: debug messages requested but " VK_EXT_DEBUG_UTILS_EXTENSION_NAME " is not available; continuing without them");
+			warn("instance: debug messages requested but " VK_EXT_DEBUG_UTILS_EXTENSION_NAME " is not available; continuing without them");
 
 		if (cpuDriverProcAddr)
 			extensionNames.push_back(VK_LUNARG_DIRECT_DRIVER_LOADING_EXTENSION_NAME);
@@ -138,11 +96,11 @@ namespace acm::vulkan
 		std::vector<VkLayerProperties> availableLayers(layerCount);
 		vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 		const bool validationRequested = config.validation || forced;
-		m_validation = validationRequested && layerAvailable(availableLayers, ValidationLayer);
+		m_validation = validationRequested && layerAvailable(availableLayers, ValidationLayerName);
 		if (m_validation)
-			m_layerNames.push_back(ValidationLayer);
+			m_layerNames.push_back(ValidationLayerName);
 		else if (validationRequested)
-			acm::logWarning(std::string("instance: validation requested but ") + ValidationLayer + " is not available; continuing without it");
+			warn(std::string("instance: validation requested but ") + ValidationLayerName + " is not available; continuing without it");
 
 		VkInstanceCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -161,6 +119,7 @@ namespace acm::vulkan
 			debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 			debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 			debugCreateInfo.pfnUserCallback = validationCallback;
+			debugCreateInfo.pUserData = this;
 			createInfo.pNext = &debugCreateInfo;
 		}
 
@@ -207,6 +166,34 @@ namespace acm::vulkan
 			destroyDebugMessenger(m_instance, m_debugMessenger);
 		if (m_instance)
 			vkDestroyInstance(m_instance, nullptr);
+	}
+
+	// -----------------------------------------------------------------------------
+	// Messages
+	// -----------------------------------------------------------------------------
+
+	void Instance::log(acm::LogSeverity severity, acm::LogCategory category, const char* text, const char* id) const noexcept
+	{
+		if (!m_logHandler)
+			return;
+		try
+		{
+			acm::LogMessage message;
+			message.severity = severity;
+			message.category = category;
+			message.id = id ? id : "";
+			message.text = text ? text : "";
+			m_logHandler(message);
+		}
+		catch (...)
+		{
+			// A handler must not throw; the caller may be a Vulkan callback.
+		}
+	}
+
+	void Instance::warn(const std::string& text) const noexcept
+	{
+		log(acm::LogSeverity::Warning, acm::LogCategory::Library, text.c_str());
 	}
 
 	// -----------------------------------------------------------------------------
@@ -257,6 +244,12 @@ namespace acm::vulkan
 	// Internals
 	// -----------------------------------------------------------------------------
 
+	bool Instance::validationForcedByEnvironment()
+	{
+		const std::optional<std::string> value = acm::environmentVariable("ACM_VALIDATION");
+		return value && !value->empty() && *value != "0";
+	}
+
 	const char* Instance::resultString(VkResult result)
 	{
 		switch (result)
@@ -305,12 +298,13 @@ namespace acm::vulkan
 			destroy(instance, messenger, nullptr);
 	}
 
-	VKAPI_ATTR VkBool32 VKAPI_CALL Instance::validationCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void*)
+	VKAPI_ATTR VkBool32 VKAPI_CALL Instance::validationCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
 	{
-		// Relayed with its own severity; the category says whether it is a validation report,
-		// a performance warning or a general loader/layer/driver message.
-		if (callbackData)
-			acm::logMessage(logSeverityOf(severity), logCategoryOf(type), callbackData->pMessage, callbackData->pMessageIdName);
+		// Relayed to the instance that owns the messenger, with its own severity; the category
+		// says whether it is a validation report, a performance warning or a general
+		// loader/layer/driver message.
+		if (callbackData && userData)
+			static_cast<const Instance*>(userData)->log(toLogSeverity(severity), toLogCategory(type), callbackData->pMessage, callbackData->pMessageIdName);
 		// VK_FALSE lets the call proceed, as the spec requires of an application callback.
 		return VK_FALSE;
 	}
@@ -320,7 +314,7 @@ namespace acm::vulkan
 		const std::filesystem::path directory = executableDirectory();
 		if (directory.empty())
 			return nullptr;
-		PlatformLibrary library(directory / "vulkan" / CpuDriverLibrary);
+		PlatformLibrary library(directory / "vulkan" / PlatformLibrary::fileName(CpuDriverLibraryName));
 		auto procAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(library.symbol("vk_icdGetInstanceProcAddr"));
 		auto enumerate = procAddr ? reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(procAddr(VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties")) : nullptr;
 		uint32_t count = 0;

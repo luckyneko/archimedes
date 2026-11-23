@@ -90,7 +90,7 @@ namespace
 	}
 
 	// Fails the running test case when a Vulkan validation error was logged during it, with
-	// the messages. A message reaches validationLogHandler() synchronously on whichever thread
+	// the messages. A message reaches logHandler() synchronously on whichever thread
 	// made the offending Vulkan call (a render thread, say), so the error is only recorded
 	// there and reported here, on the test thread. Listeners see sectionEnded before the
 	// reporters do and before Catch2 totals the test case, so the failure counts toward
@@ -146,6 +146,5 @@ int main(int argc, char* argv[])
 	acm::setEnvDefault("VK_KHRONOS_VALIDATION_VALIDATE_SYNC", "true");
 #endif
 
-	acm::setLogHandler(acmtest::validationLogHandler);
 	return Catch::Session().run(argc, argv);
 }

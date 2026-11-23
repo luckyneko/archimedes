@@ -22,7 +22,7 @@
 
 TEST_CASE("buffers share pooled memory blocks", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -57,7 +57,7 @@ TEST_CASE("buffers share pooled memory blocks", "[acm][gpu]")
 // pool into their own kind's block rather than opening more.
 TEST_CASE("buffers and textures never share a memory block", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

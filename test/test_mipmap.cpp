@@ -24,7 +24,7 @@
 
 TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -128,7 +128,7 @@ TEST_CASE("mipmaps are generated and sampled", "[acm][gpu]")
 // fill it. Covers 8- and 16-byte texels alongside the 4-byte one above.
 TEST_CASE("mipmapped textures only allocate levels upload can generate", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

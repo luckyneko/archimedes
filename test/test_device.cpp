@@ -23,7 +23,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	acm::InstanceConfig config;
 	config.validation = true;
 	config.debug = true;
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
+	acm::Instance instance = acmtest::createInstance(config);
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -49,7 +49,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 
 TEST_CASE("Device feature config controls optional and required features", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -106,7 +106,7 @@ TEST_CASE("Device feature config controls optional and required features", "[acm
 
 TEST_CASE("Device creation fails when a required feature is unavailable", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -192,7 +192,7 @@ TEST_CASE("a default-constructed Device is safe to call", "[acm][handle]")
 
 TEST_CASE("a reset or moved-from Device is safe to call", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
 

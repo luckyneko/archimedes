@@ -9,7 +9,6 @@
 #include "archimedes/vulkan/Texture.h"
 
 #include "archimedes/acmBuffer.h"
-#include "archimedes/Log.h"
 #include "archimedes/vulkan/Buffer.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
@@ -46,9 +45,9 @@ namespace acm::vulkan
 		{
 			const uint32_t requestedLevels = computeMipLevels(extent);
 			if (depth)
-				acm::logWarning(std::string("texture: mipmapped was requested for depth format ") + formatName(format) + ", which upload() cannot fill; creating 1 mip level instead of " + std::to_string(requestedLevels));
+				owner.warn("texture: mipmapped was requested for depth format ", formatName(format), ", which upload() cannot fill; creating 1 mip level instead of ", requestedLevels);
 			else if (!supportsMipGeneration(owner.vkPhysicalDevice(), vkFormat))
-				acm::logWarning(std::string("texture: mipmapped was requested, but this device cannot blit format ") + formatName(format) + " with linear filtering to generate mips; creating 1 mip level instead of " + std::to_string(requestedLevels));
+				owner.warn("texture: mipmapped was requested, but this device cannot blit format ", formatName(format), " with linear filtering to generate mips; creating 1 mip level instead of ", requestedLevels);
 			else
 				m_mipLevels = requestedLevels;
 		}
@@ -284,11 +283,6 @@ namespace acm::vulkan
 			vkDestroyImage(owner->vkDevice(), image, nullptr);
 		if (allocation.valid())
 			owner->allocator().free(allocation);
-	}
-
-	bool Texture::isDepthFormat(acm::Format format)
-	{
-		return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
 	}
 
 	bool Texture::supportsMipGeneration(VkPhysicalDevice physicalDevice, VkFormat format)

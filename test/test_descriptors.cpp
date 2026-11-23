@@ -48,7 +48,7 @@ namespace
 
 TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -112,7 +112,7 @@ TEST_CASE("a fragment shader writes a storage buffer", "[acm][gpu]")
 
 TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -171,7 +171,7 @@ TEST_CASE("one uniform binding feeds both shader stages", "[acm][gpu]")
 
 TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -233,7 +233,7 @@ TEST_CASE("a descriptor array selects the right texture", "[acm][gpu]")
 
 TEST_CASE("a sampled image is read without a sampler", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -309,7 +309,7 @@ TEST_CASE("a sampled image is read without a sampler", "[acm][gpu]")
 
 TEST_CASE("descriptor writes reject bad bindings, elements, types and resources", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
@@ -411,7 +411,7 @@ TEST_CASE("descriptor writes reject bad bindings, elements, types and resources"
 
 TEST_CASE("a descriptor set keeps the resources written into it alive", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 	uint32_t queueIndex = 0;
 	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);

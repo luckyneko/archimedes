@@ -41,7 +41,7 @@ namespace
 
 TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -139,7 +139,7 @@ TEST_CASE("depth testing rejects farther fragments", "[acm][gpu]")
 
 TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -196,7 +196,7 @@ TEST_CASE("depth compare op controls fragment visibility", "[acm][gpu]")
 // off the later draw wins: the far red triangle covers the near green one.
 TEST_CASE("a pipeline without depth testing renders into a depth-bearing target", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

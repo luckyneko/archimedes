@@ -39,6 +39,10 @@ namespace acm::vulkan
 		acm::Error error() const { return m_error; }
 		const std::vector<acm::DescriptorBinding>* bindings() const;
 		VkDescriptorSetLayout vkLayout() const;
+		// Whether two binding lists define identical layouts (same bindings, types, stages
+		// and counts, in any order): the Vulkan rule for a set allocated from one being
+		// bindable against a pipeline layout built from the other.
+		static bool sameBindings(const std::vector<acm::DescriptorBinding>& a, const std::vector<acm::DescriptorBinding>& b);
 
 	private:
 		// Internals

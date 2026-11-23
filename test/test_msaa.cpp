@@ -39,7 +39,7 @@ namespace
 
 TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -104,7 +104,7 @@ TEST_CASE("MSAA resolves edges to intermediate coverage", "[acm][gpu]")
 // device can't do 4x or lacks sampleRateShading.
 TEST_CASE("per-sample shading pipeline renders", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

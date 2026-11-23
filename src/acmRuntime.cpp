@@ -19,18 +19,14 @@
 #	define ACM_MOLTENVK_LOG_LEVEL "1"
 #endif
 
-namespace
-{
-	// The most worker threads the CPU driver's scheduler holds (marl's MaxWorkerThreads).
-	constexpr uint32_t MaxCpuDeviceThreads = 256;
-} // namespace
-
 namespace acm
 {
 	void useStagedVulkanRuntime(const RuntimeConfig& config)
 	{
 		// Read by the staged CPU driver (luckyneko/swiftshader-prebuilt's patched SwiftShader),
 		// which acm::Instance loads directly; it needs no other environment.
+		// The most worker threads the CPU driver's scheduler holds (marl's MaxWorkerThreads).
+		constexpr uint32_t MaxCpuDeviceThreads = 256;
 		if (config.cpuDeviceThreads > 0)
 			setEnvDefault("SWIFTSHADER_THREAD_COUNT", std::to_string(std::min(config.cpuDeviceThreads, MaxCpuDeviceThreads)));
 

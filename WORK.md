@@ -140,7 +140,7 @@ under real memory pressure this renderer doesn't generate. **Don't build specula
   `waitIdle` under the queue mutex). Memory blocks are split by linear and non-linear
   kind; `Texture::upload` and `Buffer::write` validate their input; the mip count is fixed
   at creation. Every recording and descriptor call returns `acm::Error`, descriptor sets
-  retain what they point at, and an invalid `Device` is safe to call. A log hook carries
+  retain what they point at, and an invalid `Device` is safe to call. Each instance's log handler carries
   the library's warnings and the debug messenger's messages (which used to go straight to
   stderr), `ACM_VALIDATION` validates any binary, and the suite fails on validation errors,
   with new validation and ThreadSanitizer CI lanes.

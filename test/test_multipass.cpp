@@ -26,7 +26,7 @@
 
 TEST_CASE("a pipeline bound in a depth pass doesn't block a later depth-less pass", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;

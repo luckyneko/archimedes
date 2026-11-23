@@ -13,6 +13,7 @@
 // their Vulkan equivalents. Included only by library .cpp files, which already
 // pull in <vulkan/vulkan.h>.
 
+#include "archimedes/acmLog.h"
 #include "archimedes/acmTypes.h"
 
 #include <vulkan/vulkan.h>
@@ -31,6 +32,8 @@ namespace acm::vulkan
 	uint32_t bytesPerPixel(acm::Format format);
 	// The enumerator's name (e.g. "R8G8B8A8_Unorm"), for messages.
 	const char* formatName(acm::Format format);
+	// Whether `format` is a depth (or depth-stencil) format.
+	bool isDepthFormat(acm::Format format);
 
 	// The number of samples per pixel (1, 2, 4 or 8).
 	uint32_t sampleCountValue(acm::SampleCount count);
@@ -43,11 +46,17 @@ namespace acm::vulkan
 
 	acm::PhysicalDeviceType fromVk(VkPhysicalDeviceType type);
 
+	// A debug-messenger message's severity and source, as the log handler sees them.
+	acm::LogSeverity toLogSeverity(VkDebugUtilsMessageSeverityFlagBitsEXT severity);
+	acm::LogCategory toLogCategory(VkDebugUtilsMessageTypeFlagsEXT type);
+
 	VkBufferUsageFlags toVk(acm::BufferUsage usage);
 	// The enumerator's name (e.g. "Uniform"), for messages.
 	const char* bufferUsageName(acm::BufferUsage usage);
 
 	VkDescriptorType toVk(acm::DescriptorType type);
+	// The enumerator's name (e.g. "StorageBuffer"), for messages.
+	const char* descriptorTypeName(acm::DescriptorType type);
 	VkShaderStageFlags toVk(acm::ShaderStage stage);
 	VkPipelineStageFlags2 toVkPipelineStage(acm::ShaderStage stage);
 

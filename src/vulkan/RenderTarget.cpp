@@ -9,7 +9,6 @@
 #include "archimedes/vulkan/RenderTarget.h"
 
 #include "archimedes/acmTexture.h"
-#include "archimedes/Log.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/Texture.h"
@@ -74,7 +73,7 @@ namespace acm::vulkan
 		const uint32_t mipLevels = texture.backend()->mipLevels();
 		const VkImage colorImage = texture.backend()->vkImage();
 		const VkImageView colorView = texture.backend()->vkImageView();
-		if (format == acm::Format::Undefined || format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
+		if (format == acm::Format::Undefined || isDepthFormat(format) || extent.width == 0 || extent.height == 0 || mipLevels != 1 || !colorImage || !colorView)
 		{
 			m_error = acm::Error("failed to create render target from unsupported texture");
 			return;
@@ -88,7 +87,7 @@ namespace acm::vulkan
 		m_depthFormat = depth ? toVk(acm::Format::D32_Sfloat) : VK_FORMAT_UNDEFINED;
 		m_samples = owner.sampleCount(samples);
 		if (uint32_t(m_samples) < sampleCountValue(samples))
-			acm::logWarning("render target: " + std::to_string(sampleCountValue(samples)) + "x MSAA is not supported by this device; using " + std::to_string(uint32_t(m_samples)) + "x");
+			owner.warn("render target: ", sampleCountValue(samples), "x MSAA is not supported by this device; using ", uint32_t(m_samples), "x");
 		if (finish == acm::RenderTargetFinish::Sampled)
 		{
 			m_finalColorLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

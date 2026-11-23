@@ -20,58 +20,6 @@
 
 namespace acm::vulkan
 {
-	namespace
-	{
-		const char* typeName(acm::DescriptorType type)
-		{
-			switch (type)
-			{
-				case acm::DescriptorType::UniformBuffer:
-					return "UniformBuffer";
-				case acm::DescriptorType::CombinedImageSampler:
-					return "CombinedImageSampler";
-				case acm::DescriptorType::StorageBuffer:
-					return "StorageBuffer";
-				case acm::DescriptorType::UniformBufferDynamic:
-					return "UniformBufferDynamic";
-				case acm::DescriptorType::StorageImage:
-					return "StorageImage";
-				case acm::DescriptorType::SampledImage:
-					return "SampledImage";
-			}
-			return "an unknown type";
-		}
-
-		std::string typeMismatch(uint32_t binding, acm::DescriptorType actual, const char* expected)
-		{
-			return "binding " + std::to_string(binding) + " is " + typeName(actual) + ", not " + expected;
-		}
-
-		bool isDepthFormat(acm::Format format)
-		{
-			return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
-		}
-
-		bool sameBindings(const std::vector<acm::DescriptorBinding>& a, const std::vector<acm::DescriptorBinding>& b)
-		{
-			if (a.size() != b.size())
-				return false;
-			for (const acm::DescriptorBinding& left : a)
-			{
-				bool matched = false;
-				for (const acm::DescriptorBinding& right : b)
-					if (left.binding == right.binding)
-					{
-						matched = left.type == right.type && left.stage == right.stage && left.count == right.count;
-						break;
-					}
-				if (!matched)
-					return false;
-			}
-			return true;
-		}
-	} // namespace
-
 	// -----------------------------------------------------------------------------
 	// Lifetime
 	// -----------------------------------------------------------------------------
@@ -189,7 +137,7 @@ namespace acm::vulkan
 			return false;
 		if (layout == m_layoutIdentity)
 			return true;
-		return bindings && sameBindings(*bindings, m_bindings);
+		return bindings && DescriptorSetLayout::sameBindings(*bindings, m_bindings);
 	}
 
 	bool DescriptorSet::dynamicBufferExtent(size_t& range, size_t& bufferSize) const
@@ -342,6 +290,11 @@ namespace acm::vulkan
 		m_layout.reset();
 	}
 
+	std::string DescriptorSet::typeMismatch(uint32_t binding, acm::DescriptorType actual, const char* expected)
+	{
+		return "binding " + std::to_string(binding) + " is " + descriptorTypeName(actual) + ", not " + expected;
+	}
+
 	acm::Error DescriptorSet::locate(const char* call, uint32_t binding, uint32_t arrayElement, size_t& slot, acm::DescriptorType& type) const
 	{
 		for (size_t i = 0; i < m_bindings.size(); ++i)
@@ -385,7 +338,7 @@ namespace acm::vulkan
 		const Buffer* backendBuffer = buffer.backend();
 		if (backendBuffer->vkUsage() & required)
 			return {};
-		return fail(call, "binding " + std::to_string(binding) + " is " + typeName(type) + ", which a BufferUsage::" + bufferUsageName(backendBuffer->usage()) + " buffer cannot back; create it with BufferUsage::" + usage);
+		return fail(call, "binding " + std::to_string(binding) + " is " + descriptorTypeName(type) + ", which a BufferUsage::" + bufferUsageName(backendBuffer->usage()) + " buffer cannot back; create it with BufferUsage::" + usage);
 	}
 
 	void DescriptorSet::writeImage(uint32_t binding, uint32_t arrayElement, VkDescriptorType type, VkImageView view, VkSampler sampler, VkImageLayout layout) const

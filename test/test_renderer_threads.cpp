@@ -90,7 +90,7 @@ namespace
 
 TEST_CASE("Renderers on two threads share a Device through swapchain recreation", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	std::vector<acm::Surface> surfaces;

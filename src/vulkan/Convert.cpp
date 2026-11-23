@@ -160,6 +160,11 @@ namespace acm::vulkan
 		return "an unknown format";
 	}
 
+	bool isDepthFormat(acm::Format format)
+	{
+		return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
+	}
+
 	// -----------------------------------------------------------------------------
 	// Multisampling
 	// -----------------------------------------------------------------------------
@@ -270,6 +275,30 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Messages
+	// -----------------------------------------------------------------------------
+
+	acm::LogSeverity toLogSeverity(VkDebugUtilsMessageSeverityFlagBitsEXT severity)
+	{
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+			return acm::LogSeverity::Error;
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+			return acm::LogSeverity::Warning;
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+			return acm::LogSeverity::Info;
+		return acm::LogSeverity::Verbose;
+	}
+
+	acm::LogCategory toLogCategory(VkDebugUtilsMessageTypeFlagsEXT type)
+	{
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+			return acm::LogCategory::Validation;
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+			return acm::LogCategory::Performance;
+		return acm::LogCategory::Vulkan;
+	}
+
+	// -----------------------------------------------------------------------------
 	// Buffers
 	// -----------------------------------------------------------------------------
 
@@ -339,6 +368,26 @@ namespace acm::vulkan
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::DescriptorType");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	}
+
+	const char* descriptorTypeName(acm::DescriptorType type)
+	{
+		switch (type)
+		{
+			case acm::DescriptorType::UniformBuffer:
+				return "UniformBuffer";
+			case acm::DescriptorType::CombinedImageSampler:
+				return "CombinedImageSampler";
+			case acm::DescriptorType::StorageBuffer:
+				return "StorageBuffer";
+			case acm::DescriptorType::UniformBufferDynamic:
+				return "UniformBufferDynamic";
+			case acm::DescriptorType::StorageImage:
+				return "StorageImage";
+			case acm::DescriptorType::SampledImage:
+				return "SampledImage";
+		}
+		return "an unknown type";
 	}
 
 	// -----------------------------------------------------------------------------

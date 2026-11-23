@@ -126,7 +126,7 @@ runs (Apple Silicon and Windows). A GPU test skips only for a capability its dev
   device first on request.
 - Errors as values: factories return invalid handles with an `error()`, and recording and
   descriptor calls return `acm::Error`.
-- A process-wide log hook for library warnings and Vulkan debug messages, and
+- A per-instance log handler for library warnings and Vulkan debug messages, and
   `ACM_VALIDATION=1` to run any binary under the validation layer.
 - Testbed examples that drive the API against live windows and real driver behavior, on a
   hardware device or the CPU device.
@@ -283,21 +283,22 @@ returns the first rejected call and then submits nothing.
 
 ### Diagnostics
 
-Archimedes reports through one process-wide log hook: its own warnings (a requested
-validation layer that is missing, or a feature the device lacks, so a pipeline or sampler
-falls back) and, on an instance created with
-`InstanceConfig::debug`, every Vulkan debug-messenger message. The default handler writes
-warnings and errors to stderr. Install your own to route them elsewhere; it may be called
-from several threads at once:
+Each instance reports to its own log handler, `InstanceConfig::logHandler`; there is no
+process-wide state. It receives the library's warnings about that instance and its devices
+(a requested validation layer that is missing, or a feature a device lacks, so a pipeline
+or sampler falls back) and, with `InstanceConfig::debug`, every Vulkan debug-messenger
+message. Failures are not logged; they are returned as `acm::Error`. The default handler
+writes warnings and errors to stderr. Supply your own to route them elsewhere; it may be
+called from several threads at once, and an empty handler discards everything:
 
 ```cpp
-#include <archimedes/acmLog.h>
-
-acm::setLogHandler([](const acm::LogMessage& message)
+acm::InstanceConfig config;
+config.logHandler = [](const acm::LogMessage& message)
 {
 	if (message.severity >= acm::LogSeverity::Warning)
 		myLog(acm::logCategoryName(message.category), message.id, message.text);
-});
+};
+acm::Instance instance("my-app", acm::Version{1, 0, 0}, config);
 ```
 
 Set `ACM_VALIDATION=1` in the environment to run any binary with the Khronos validation

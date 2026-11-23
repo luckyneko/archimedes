@@ -11,10 +11,13 @@
 #include <cstdint>
 #include <functional>
 
-// The process-wide log hook. Archimedes reports through one handler: its own diagnostics
-// (fallbacks, degraded features) and, on an instance created with InstanceConfig::debug,
-// every message the Vulkan debug messenger delivers (validation layers, the loader, the
-// driver). Nothing is buffered and there is no dependency: a message reaches the installed
+// The messages an acm::Instance reports, and the handler type that receives them. Each
+// instance has its own handler (InstanceConfig::logHandler); there is no process-wide
+// state. It receives the library's own diagnostics for that instance and its devices
+// (a missing validation layer, a feature fallback) and, on an instance created with
+// InstanceConfig::debug, every message the Vulkan debug messenger delivers (validation
+// layers, the loader, the driver). Failures are not logged: they are returned as
+// acm::Error. Nothing is buffered and there is no dependency: a message reaches the
 // handler synchronously, on the thread that produced it.
 namespace acm
 {
@@ -49,22 +52,16 @@ namespace acm
 		const char* text{""};
 	};
 
-	// Receives every message, of every severity and category. It may be called concurrently
-	// from several threads (Vulkan reports on whichever thread made the offending call, and
-	// Renderers run on their own threads), so it must be thread-safe itself. It must not
-	// throw: an escaping exception is swallowed, since the caller may be a Vulkan callback.
-	// It may log, call Vulkan, or call setLogHandler.
+	// Receives every message of one instance, of every severity and category. It may be
+	// called concurrently from several threads (Vulkan reports on whichever thread made the
+	// offending call, and Renderers run on their own threads), so it must be thread-safe
+	// itself. It must not throw: an escaping exception is swallowed, since the caller may
+	// be a Vulkan callback. It is fixed for the instance's lifetime, so what it references
+	// must outlive the instance and every device made from it.
 	using LogHandler = std::function<void(const acm::LogMessage& message)>;
 
-	// Installs `handler` for the whole process and returns the handler it replaces, so a
-	// caller can restore it later. An empty handler discards every message. Thread-safe; a
-	// message already being delivered on another thread when this returns may still finish
-	// in the old handler, so keep what an old handler references alive until no thread can
-	// still be inside it.
-	acm::LogHandler setLogHandler(acm::LogHandler handler);
-
-	// The handler installed at startup: writes Warning and Error messages to stderr, one
-	// line each, and ignores Verbose and Info. A custom handler can forward to it.
+	// The handler an InstanceConfig starts with: writes Warning and Error messages to
+	// stderr, one line each, and ignores Verbose and Info. A custom handler can forward to it.
 	void defaultLogHandler(const acm::LogMessage& message);
 
 	// Lower-case names for formatting ("warning", "validation").

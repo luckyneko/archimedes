@@ -23,6 +23,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -75,6 +77,19 @@ namespace acm::vulkan
 
 		size_t memoryBlockCount() const { return m_allocator->blockCount(); }
 
+		// Messages
+		// One of the library's own warnings, delivered to the owning instance's log handler:
+		// a request that was degraded or ignored. The parts are streamed into one line, so a
+		// float reads as a caller wrote it ("lineWidth ", 2.0f gives "lineWidth 2"). Name the
+		// object, what was asked and what is used instead.
+		template <typename... Parts>
+		void warn(const Parts&... parts) const
+		{
+			std::ostringstream text;
+			(text << ... << parts);
+			warnText(text.str());
+		}
+
 		// Synchronization
 		// Waits the device idle under the queue mutex, then collects garbage up to the last
 		// serial submitted before the wait and returns that serial. Other threads may keep
@@ -125,6 +140,7 @@ namespace acm::vulkan
 		static const char* missingRequiredFeature(const acm::DeviceFeatures& available, const acm::DeviceFeatures& required);
 		static acm::DeviceFeatures requestedFeatures(const acm::DeviceFeatures& available, const acm::DeviceConfig& config);
 		static acm::Error constructionError(acm::Error error, const char* fallback);
+		void warnText(const std::string& text) const;
 		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial);
 		template <typename T, typename Constructor>
 		auto emplaceResource(acm::ResourcePool<T>& pool, Constructor&& construct)

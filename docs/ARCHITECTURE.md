@@ -170,7 +170,8 @@ application name and `acm::Version` ([acmVersion.h](../include/archimedes/acmVer
 `acm::VERSION` is the engine's own): `portability` (default on, see CLAUDE.md),
 `validation` (the Khronos layer, enabled as an instance layer only; device creation leaves
 the legacy layer fields empty),
-`debug` (`VK_EXT_debug_utils`, relaying debug-messenger messages to the log hook) and
+`debug` (`VK_EXT_debug_utils`, relaying debug-messenger messages to `logHandler`),
+`logHandler` (where this instance's messages go, see [Diagnostics](#diagnostics)) and
 `cpuDriver` (default on). A requested layer or extension the loader lacks is skipped with
 a logged warning; `Instance::validationEnabled()` reports the outcome. Setting
 `ACM_VALIDATION` to anything but empty or `0` turns `validation` and `debug` on for every
@@ -228,7 +229,7 @@ feature). Creation fails with an `acm::Error` when a required feature is missing
 otherwise enables `supported & (required | optional)` through the
 `VkDeviceCreateInfo::pNext` chain; `Device::enabledFeatures()` reports the result. A
 consumer that did not require a feature degrades when it is off rather than producing an
-invalid object, and logs a warning through the log hook: a pipeline falls back to fill
+invalid object, and logs a warning to its instance's log handler: a pipeline falls back to fill
 mode, line width 1 or no sample shading, and a sampler to isotropic filtering.
 
 **Surfaces.** `acm::interop::adoptSurface(instance, VkSurfaceKHR)` wraps a surface created
@@ -550,20 +551,23 @@ the testbed brackets its mesh deformation with `bufferBarrier(Vertex, Compute)` 
 
 ## Diagnostics
 
-**The log hook.** [acmLog.h](../include/archimedes/acmLog.h) is one process-wide handler
-for every message Archimedes produces, with no logging dependency. A `LogMessage` carries a
-`LogSeverity` (`Verbose`, `Info`, `Warning`, `Error`, ordered), a `LogCategory` (`Library`,
-`Vulkan`, `Validation`, `Performance`), an `id` (a validation message's VUID name, or
-empty) and the `text`. `setLogHandler(handler)` installs a handler and returns the one it
-replaced; an empty handler discards everything. The handler starts as `defaultLogHandler`,
-which writes warnings and errors to stderr, one line each. Delivery is synchronous, on the
-thread that produced the message, so a handler must be thread-safe; one that throws has the
-exception swallowed. Library code reports through the private
-[Log.h](../private/archimedes/Log.h) helpers (`logWarning` and friends): one self-contained
-line naming the object, Warning for a degraded or ignored request, Info for a notable
-expected event, Verbose for debugging detail, Error for a failure alongside the returned
-`acm::Error`. The library warns when a requested validation layer or debug extension is
-missing and for every feature, sample-count and mip-chain fallback described above.
+**Log handlers.** Each instance reports to its own handler, `InstanceConfig::logHandler`
+([acmLog.h](../include/archimedes/acmLog.h) defines the types); there is no process-wide
+log state and no logging dependency. A `LogMessage` carries a `LogSeverity` (`Verbose`,
+`Info`, `Warning`, `Error`, ordered), a `LogCategory` (`Library`, `Vulkan`, `Validation`,
+`Performance`), an `id` (a validation message's VUID name, or empty) and the `text`. The
+config starts with `defaultLogHandler`, which writes warnings and errors to stderr, one
+line each; an empty handler discards everything. The handler is fixed for the instance's
+lifetime, which is why delivery needs no lock: it is synchronous, on the thread that
+produced the message, so a handler must be thread-safe; one that throws has the exception
+swallowed. Two kinds of message arrive, neither of which a return value can carry. The
+debug messenger's (its user data is the owning `vulkan::Instance`) come with their own
+severity and category. The library's own are warnings about a request that succeeded but
+was degraded or ignored: a requested validation layer or debug extension that is missing
+(`vulkan::Instance::warn`), and every feature, sample-count and mip-chain fallback
+described above (`vulkan::Device::warn`, which streams its parts into one line naming the
+object, what was asked and what is used instead). Failures are never logged; they are
+returned as `acm::Error`.
 
 **Validation.** With `InstanceConfig::debug` (or `ACM_VALIDATION`), every debug-messenger
 message reaches the hook with its own severity: validation reports as `Validation`,

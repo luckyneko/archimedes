@@ -9,7 +9,6 @@
 #include "archimedes/vulkan/SwapChain.h"
 
 #include "archimedes/acmRenderTarget.h"
-#include "archimedes/Log.h"
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/Instance.h"
@@ -44,7 +43,7 @@ namespace acm::vulkan
 		// the clamp depends only on the device.
 		const uint32_t samples = uint32_t(owner.sampleCount(config.samples));
 		if (samples < sampleCountValue(config.samples))
-			acm::logWarning("swapchain: " + std::to_string(sampleCountValue(config.samples)) + "x MSAA is not supported by this device; its render targets use " + std::to_string(samples) + "x");
+			owner.warn("swapchain: ", sampleCountValue(config.samples), "x MSAA is not supported by this device; its render targets use ", samples, "x");
 		if (!rebuild(owner))
 			m_error = acm::Error("failed to create swapchain");
 	}

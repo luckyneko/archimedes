@@ -10,7 +10,7 @@ harness covers and how it decides to pass, skip or fail.
 is a thin layer over `vk*`, so coverage splits in two:
 
 - **Driver-free** (`[unit]`, `[handle]`, `[version]`, `[log]`, and the preset checks):
-  handle and resource-pool semantics, the deferred destroy queue, `Version`, the log hook,
+  handle and resource-pool semantics, the deferred destroy queue, `Version`, the log message types,
   `InstanceConfig`, `SurfacePreferences`, `DevicePreferences` and `PipelineConfig` presets.
 - **Integration** (`[gpu]`): everything that needs a device. The rendering and compute
   tests render offscreen or dispatch, then read the result back, so they check what the GPU
@@ -30,8 +30,12 @@ Capability gaps (no 4x MSAA, no `fillModeNonSolid`, and so on) always skip.
 **Helpers.** [vk_test_helpers.h](../test/vk_test_helpers.h) holds the shared scaffolding:
 `requireInstance`, per-kind selection (`selectGraphicsOption`, `selectGraphicsDevice`,
 `selectSurfaceOption`), `topRankedKind` for the benchmarks, the validation capture,
-`ScopedLogHandler` (captures log messages for one scope and passes on what it declines, so
-an unrelated validation error still fails the test), and `buildHeadlessStack()`, which
+`createInstance()` (every test's instance, reporting to the suite's log handler),
+`ScopedLogHandler` (offers the messages the suite's instances log to a consumer for one
+scope; what it declines is handled as usual, so an unrelated validation error still fails
+the test), `WarningCapture` (collects library warnings and asserts on them),
+`createDeviceWithoutOptionalFeatures()` (forces the feature-gated fallbacks), and
+`buildHeadlessStack()`, which
 builds instance, headless surface, device and swapchain and skips with a specific reason at
 any missing layer. It is backend-neutral: no raw Vulkan or platform headers. The one
 exception in the suite is [main.cpp](../test/main.cpp), which asks the loader directly
@@ -59,18 +63,20 @@ descriptors, ...) run anywhere with a graphics queue.
 | Resources | `test_buffer.cpp` (heap by usage, write validation), `test_allocator.cpp` (block sharing, buffer/texture separation), `test_texture_upload.cpp` (upload and its validation), `test_mipmap.cpp` (generated top mip, levels limited to what upload can generate), `test_sampler.cpp`, `test_anisotropy.cpp` |
 | Descriptors | `test_vertexbuffer.cpp`, `test_uniform.cpp`, `test_dynamic_uniform.cpp`, `test_descriptors.cpp` (storage buffer, multi-stage uniform, arrays, sampled image, write validation, retention after the caller drops its wrappers), `test_storage_image.cpp` |
 | Compute | `test_compute.cpp` (a dispatch fills a storage buffer; a barrier carries a compute write into a fragment read in one command buffer) |
-| Diagnostics | `test_diagnostics.cpp` (the log hook, the missing-layer warning, the validation harness), `test_fallback_warnings.cpp` (one warning per fallback: wireframe, line width, sample shading, anisotropy, mipmapped depth, clamped sample count) |
+| Diagnostics | `test_diagnostics.cpp` (per-instance log handlers, the missing-layer warning, the validation harness), `test_fallback_warnings.cpp` (one warning per fallback: wireframe, line width, sample shading, anisotropy, mipmapped depth, clamped sample count) |
 
 ctest reports a Catch2 SKIP as passed. Run the binary directly to see which assertions ran.
 
 ## Validation and sanitizers
 
 [test/main.cpp](../test/main.cpp) sets `ACM_VALIDATION=1` when the loader lists
-`VK_LAYER_KHRONOS_validation`, so every instance the suite creates, through the helpers or
-not, runs validated with the debug messenger on. A value already in the environment wins,
-so `ACM_VALIDATION=0` opts a run out. A Catch2 listener fails the test case during which a
-validation error was logged, on any thread, at the end of each section, grouped by message
-id and naming the device the helpers selected. A test that provokes an error on purpose
+`VK_LAYER_KHRONOS_validation`, so every instance the suite creates runs validated with the
+debug messenger on. A value already in the environment wins, so `ACM_VALIDATION=0` opts a
+run out. An instance reports to its own log handler, so every test creates its instance
+with `acmtest::createInstance()`, which gives it the suite's `acmtest::logHandler`; an
+instance built any other way is invisible to the harness. A Catch2 listener fails the test
+case during which a validation error reached that handler, on any thread, at the end of
+each section, grouped by message id and naming the device the helpers selected. A test that provokes an error on purpose
 claims it with `acmtest::takeValidationErrors()`. Two `[!shouldfail]` self-tests in
 `test_diagnostics.cpp` prove that a logged error does fail its test case.
 

@@ -14,6 +14,7 @@
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -31,12 +32,17 @@
 // on the CPU device, and reports it passed rather than skipped. When the CPU driver is
 // staged (ACM_EXPECT_CPU_DEVICE) a missing CPU device means staging is broken and FAILs.
 //
+// Messages: an instance reports through its own log handler (InstanceConfig::logHandler),
+// so every instance the suite creates comes from createInstance(), which gives it the
+// suite's logHandler(). That handler is what lets a test capture messages for a scope
+// (ScopedLogHandler, WarningCapture) and lets the harness see validation errors.
+//
 // Validation: test/main.cpp sets ACM_VALIDATION before any instance exists whenever the
-// loader finds VK_LAYER_KHRONOS_validation, so every instance the suite creates — through
-// these helpers or not — runs validated, and it installs validationLogHandler(). A Catch2
-// listener in main.cpp then fails the test case during which a validation error was logged,
-// with the messages in the failure. ARCHIMEDES_TEST_VALIDATION=REQUIRE (ACM_REQUIRE_VALIDATION)
-// makes a missing layer FAIL requireInstance(); =OFF leaves instances as their configs ask.
+// loader finds VK_LAYER_KHRONOS_validation, so every instance runs validated. A Catch2
+// listener in main.cpp then fails the test case during which a validation error reached
+// logHandler(), with the messages in the failure. ARCHIMEDES_TEST_VALIDATION=REQUIRE
+// (ACM_REQUIRE_VALIDATION) makes a missing layer FAIL requireInstance(); =OFF leaves
+// instances as their configs ask.
 namespace acmtest
 {
 	// A validation error the harness recorded.
@@ -46,32 +52,50 @@ namespace acmtest
 		std::string text;
 	};
 
-	// What the suite's log handler records for the listener. Never destroyed, so a message
-	// logged during static destruction is still safe.
-	struct ValidationCapture
+	// The suite's message state: what logHandler() records for the listener, and the scoped
+	// consumer a test installed. Never destroyed, so a message logged during static
+	// destruction is still safe.
+	struct LogCapture
 	{
 		std::mutex mutex;
 		std::vector<LoggedError> errors;
-		std::string device; // the device this test run selected, named in the failure
+		std::string device;									// the device this test run selected, named in the failure
+		std::function<bool(const acm::LogMessage&)> scoped; // an active ScopedLogHandler's consumer
 	};
 
-	inline ValidationCapture& validationCapture()
+	inline LogCapture& logCapture()
 	{
-		static ValidationCapture* capture = new ValidationCapture;
+		static LogCapture* capture = new LogCapture;
 		return *capture;
 	}
 
-	// The suite's log handler (installed by test/main.cpp): records every validation error
-	// for the listener, then prints like the default handler. Thread-safe.
-	inline void validationLogHandler(const acm::LogMessage& message)
+	// The log handler of every instance the suite creates (see createInstance): offers the
+	// message to an active ScopedLogHandler, and otherwise records a validation error for the
+	// listener and prints like the default handler. Thread-safe.
+	inline void logHandler(const acm::LogMessage& message)
 	{
+		LogCapture& capture = logCapture();
+		std::function<bool(const acm::LogMessage&)> scoped;
+		{
+			std::lock_guard<std::mutex> lock(capture.mutex);
+			scoped = capture.scoped;
+		}
+		if (scoped && scoped(message))
+			return;
 		if (message.category == acm::LogCategory::Validation && message.severity == acm::LogSeverity::Error)
 		{
-			ValidationCapture& capture = validationCapture();
 			std::lock_guard<std::mutex> lock(capture.mutex);
 			capture.errors.push_back({message.id, message.text});
 		}
 		acm::defaultLogHandler(message);
+	}
+
+	// An instance for a test, reporting to the suite's logHandler(). Every test creates its
+	// instance here, or the harness cannot see what that instance logs.
+	inline acm::Instance createInstance(acm::InstanceConfig config = {})
+	{
+		config.logHandler = logHandler;
+		return acm::Instance("acm-tests", acm::Version{0, 1, 0}, config);
 	}
 
 	// The validation errors recorded since the last call, which the listener then no longer
@@ -79,48 +103,93 @@ namespace acmtest
 	// it provoked on purpose.
 	inline std::vector<LoggedError> takeValidationErrors()
 	{
-		ValidationCapture& capture = validationCapture();
+		LogCapture& capture = logCapture();
 		std::lock_guard<std::mutex> lock(capture.mutex);
 		return std::exchange(capture.errors, {});
 	}
 
-	// For its scope, offers every message to `consume`; what it declines (returns false) goes
-	// on to the handler it replaced — the harness's — so an unrelated validation error still
-	// fails the test. Install and restore from the test thread only.
+	// For its scope, offers every message the suite's instances log to `consume`; what it
+	// declines (returns false) is handled as usual, so an unrelated validation error still
+	// fails the test. `consume` may run on any thread. Scopes do not nest.
 	class ScopedLogHandler
 	{
 	public:
 		explicit ScopedLogHandler(std::function<bool(const acm::LogMessage&)> consume)
 		{
-			// Two steps, so the new handler holds the old one; nothing else logs meanwhile.
-			m_previous = acm::setLogHandler({});
-			acm::setLogHandler([consume = std::move(consume), previous = m_previous](const acm::LogMessage& message)
-							   {
-				if (!consume(message) && previous)
-					previous(message); });
+			LogCapture& capture = logCapture();
+			std::lock_guard<std::mutex> lock(capture.mutex);
+			capture.scoped = std::move(consume);
 		}
 		ScopedLogHandler(const ScopedLogHandler&) = delete;
 		ScopedLogHandler& operator=(const ScopedLogHandler&) = delete;
-		~ScopedLogHandler() { acm::setLogHandler(std::move(m_previous)); }
+		~ScopedLogHandler()
+		{
+			LogCapture& capture = logCapture();
+			std::lock_guard<std::mutex> lock(capture.mutex);
+			capture.scoped = nullptr;
+		}
+	};
 
-		// The handler this scope replaced.
-		const acm::LogHandler& previous() const { return m_previous; }
+	// For its scope, collects Archimedes' own warnings (LogCategory::Library) instead of
+	// printing them; every other message is handled as usual.
+	class WarningCapture
+	{
+	public:
+		WarningCapture()
+			: m_scope([this](const acm::LogMessage& message)
+					  {
+				if (message.category != acm::LogCategory::Library || message.severity != acm::LogSeverity::Warning)
+					return false;
+				std::lock_guard<std::mutex> lock(m_mutex);
+				m_warnings.emplace_back(message.text);
+				return true; })
+		{
+		}
+
+		// The warnings collected since the last call.
+		std::vector<std::string> take()
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			return std::exchange(m_warnings, {});
+		}
+
+		// Requires exactly one warning since the last check, mentioning each of `parts`.
+		void requireOne(std::initializer_list<const char*> parts)
+		{
+			const std::vector<std::string> warnings = take();
+			for (const std::string& warning : warnings)
+				UNSCOPED_INFO("warning: " << warning);
+			REQUIRE(warnings.size() == 1);
+			for (const char* part : parts)
+				CHECK_THAT(warnings.front(), Catch::Matchers::ContainsSubstring(part));
+		}
+
+		// Requires no warning since the last check.
+		void requireNone()
+		{
+			const std::vector<std::string> warnings = take();
+			for (const std::string& warning : warnings)
+				UNSCOPED_INFO("warning: " << warning);
+			REQUIRE(warnings.empty());
+		}
 
 	private:
-		acm::LogHandler m_previous;
+		std::mutex m_mutex;
+		std::vector<std::string> m_warnings;
+		ScopedLogHandler m_scope; // last: installed after, and removed before, what it uses
 	};
 
 	// The device the running test selected (empty until a helper selects one).
 	inline void noteDevice(std::string device)
 	{
-		ValidationCapture& capture = validationCapture();
+		LogCapture& capture = logCapture();
 		std::lock_guard<std::mutex> lock(capture.mutex);
 		capture.device = std::move(device);
 	}
 
 	inline std::string notedDevice()
 	{
-		ValidationCapture& capture = validationCapture();
+		LogCapture& capture = logCapture();
 		std::lock_guard<std::mutex> lock(capture.mutex);
 		return capture.device;
 	}
@@ -216,6 +285,23 @@ namespace acmtest
 		return selectGraphicsOption(instance, deviceKind(instance));
 	}
 
+	// A device of this run's kind with every optional feature left off, which forces the
+	// feature-gated fallbacks on any device.
+	inline acm::Device createDeviceWithoutOptionalFeatures(acm::Instance& instance)
+	{
+		acm::DeviceConfig config;
+		config.optionalFeatures = acm::DeviceFeatures{};
+		acm::Device device = instance.createDevice(selectGraphicsOption(instance), config);
+		REQUIRE(device.valid());
+		const acm::DeviceFeatures& enabled = device.enabledFeatures();
+		REQUIRE_FALSE(enabled.fillModeNonSolid);
+		REQUIRE_FALSE(enabled.wideLines);
+		REQUIRE_FALSE(enabled.samplerAnisotropy);
+		REQUIRE_FALSE(enabled.sampleRateShading);
+		REQUIRE_FALSE(enabled.fragmentStoresAndAtomics);
+		return device;
+	}
+
 	// The device of this run's kind and its queue family index. The pointer is valid for
 	// the lifetime of the instance.
 	inline const acm::DeviceInfo* selectGraphicsDevice(const acm::Instance& instance, uint32_t& queueIndex)
@@ -270,7 +356,7 @@ namespace acmtest
 
 	inline bool buildHeadlessStack(HeadlessStack& out, KindPolicy policy = KindPolicy::EachPresent)
 	{
-		out.instance = acm::Instance("acm-tests", acm::Version{0, 1, 0});
+		out.instance = createInstance();
 		requireInstance(out.instance);
 
 		out.surface = out.instance.createHeadlessSurface(acm::Extent2D{800, 600});

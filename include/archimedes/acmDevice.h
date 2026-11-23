@@ -71,7 +71,7 @@ namespace acm
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
 		// maxAnisotropy > 1 enables anisotropic filtering (needs the samplerAnisotropy
 		// feature; clamped to the device limit; without the feature the sampler is
-		// isotropic and a warning is logged through the log hook, acmLog.h).
+		// isotropic and its instance's log handler receives a warning, acmLog.h).
 		acm::Sampler createSampler(float maxAnisotropy = 1.0f);
 		// Convenience: N fragment-stage combined-image-samplers (bindings 0..n-1).
 		acm::DescriptorSetLayout createDescriptorSetLayout(uint32_t samplerCount);

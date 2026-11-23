@@ -87,6 +87,10 @@ namespace acm::vulkan
 
 	private:
 		// Internals
+		// "<call>: <reason>", the shape of every rejected-call error.
+		static acm::Error callError(const char* call, const char* reason);
+		// The error for a buffer whose usage lacks what `call` needs; `needs` says what.
+		static acm::Error usageError(const char* call, const acm::vulkan::Buffer& buffer, const char* needs);
 		acm::Error fail(const char* message);
 		acm::Error fail(acm::Error error);
 		acm::Error requireRecording(const char* call);

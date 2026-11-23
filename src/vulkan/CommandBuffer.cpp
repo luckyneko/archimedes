@@ -23,25 +23,6 @@
 
 namespace acm::vulkan
 {
-	namespace
-	{
-		bool isDepthFormat(acm::Format format)
-		{
-			return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
-		}
-
-		acm::Error callError(const char* call, const char* reason)
-		{
-			return acm::Error(std::string(call) + ": " + reason);
-		}
-
-		// The error for a buffer whose usage lacks what `call` needs; `needs` says what.
-		acm::Error usageError(const char* call, const Buffer& buffer, const char* needs)
-		{
-			return acm::Error(std::string(call) + ": a BufferUsage::" + bufferUsageName(buffer.usage()) + " buffer cannot be used as " + needs);
-		}
-	} // namespace
-
 	// -----------------------------------------------------------------------------
 	// Lifetime
 	// -----------------------------------------------------------------------------
@@ -493,6 +474,16 @@ namespace acm::vulkan
 	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
+
+	acm::Error CommandBuffer::callError(const char* call, const char* reason)
+	{
+		return acm::Error(std::string(call) + ": " + reason);
+	}
+
+	acm::Error CommandBuffer::usageError(const char* call, const Buffer& buffer, const char* needs)
+	{
+		return acm::Error(std::string(call) + ": a BufferUsage::" + bufferUsageName(buffer.usage()) + " buffer cannot be used as " + needs);
+	}
 
 	acm::Error CommandBuffer::fail(const char* message)
 	{

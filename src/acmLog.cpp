@@ -8,46 +8,10 @@
 
 #include "archimedes/acmLog.h"
 
-#include "archimedes/Log.h"
-
 #include <cstdio>
-#include <memory>
-#include <mutex>
-#include <utility>
-
-namespace
-{
-	// The installed handler. A message copies the pointer under the mutex and calls the
-	// handler outside it, so deliveries run concurrently, a handler may log or swap the
-	// handler itself, and a replaced handler stays alive until its last call returns.
-	struct HandlerSlot
-	{
-		std::mutex mutex;
-		std::shared_ptr<const acm::LogHandler> handler{std::make_shared<const acm::LogHandler>(acm::defaultLogHandler)};
-	};
-
-	// Never destroyed, so logging stays safe during static destruction.
-	HandlerSlot& handlerSlot()
-	{
-		static HandlerSlot* slot = new HandlerSlot;
-		return *slot;
-	}
-} // namespace
 
 namespace acm
 {
-	LogHandler setLogHandler(LogHandler handler)
-	{
-		auto next = std::make_shared<const LogHandler>(std::move(handler));
-		std::shared_ptr<const LogHandler> previous;
-		{
-			HandlerSlot& slot = handlerSlot();
-			std::lock_guard<std::mutex> lock(slot.mutex);
-			previous = std::exchange(slot.handler, std::move(next));
-		}
-		return *previous;
-	}
-
 	void defaultLogHandler(const LogMessage& message)
 	{
 		if (message.severity < LogSeverity::Warning)
@@ -89,31 +53,5 @@ namespace acm
 				return "performance";
 		}
 		return "unknown";
-	}
-
-	void logMessage(LogSeverity severity, LogCategory category, const char* text, const char* id) noexcept
-	{
-		try
-		{
-			std::shared_ptr<const LogHandler> handler;
-			{
-				HandlerSlot& slot = handlerSlot();
-				std::lock_guard<std::mutex> lock(slot.mutex);
-				handler = slot.handler;
-			}
-			if (!handler || !*handler)
-				return;
-
-			LogMessage message;
-			message.severity = severity;
-			message.category = category;
-			message.id = id ? id : "";
-			message.text = text ? text : "";
-			(*handler)(message);
-		}
-		catch (...)
-		{
-			// A handler must not throw; the caller may be a Vulkan callback.
-		}
 	}
 } // namespace acm

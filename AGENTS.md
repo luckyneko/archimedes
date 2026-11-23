@@ -26,7 +26,7 @@ This repository is **Archimedes**, a C++17 Vulkan-based 2D/3D renderer (currentl
 - **Separation of concerns.** Code lives where it logically belongs. If outside code must reach into a class's internals, the method probably belongs on the class.
 - When adding a feature, refactor the nearby code it needs as part of the same change. If the refactor is large, surface the trade-off before proceeding.
 - **Implementation placement.** Non-trivial functions declared in a header must be implemented in the associated `.cpp`, not in unrelated translation units. Trivial value-returning accessors and templates may be defined inline in their headers.
-- **No floating anonymous helpers.** Do not add free functions in anonymous namespaces. Put worthwhile behavior on its owning class or in a named utility/convert module.
+- **No anonymous namespaces in library code.** Do not add free functions, constants or types in anonymous namespaces. Put worthwhile behavior on its owning class (a private static member declared in the class's header) or in a named utility module with a private header, as `private/archimedes/vulkan/Convert.h` does. In tests an anonymous namespace is tolerated only for scaffolding that is specific to that file and genuinely not reusable; anything another test could use is a shared helper (`test/vk_test_helpers.h`), not a file-local shortcut.
 - **No generic detail namespace.** Do not use a `detail` namespace unless it is genuinely required by a public-header boundary; prefer a domain namespace such as `vulkan` and mirror it in the folder structure.
 - **Avoid friendship.** Do not add `friend` access when a proper API can express the relationship. If friendship still appears necessary, check with the user first.
 

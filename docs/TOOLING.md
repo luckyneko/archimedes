@@ -27,7 +27,7 @@ download. Both directories are git-ignored.
 | Catch2 | [addcatch2.cmake](../cmake/addcatch2.cmake) | tests, benchmarks |
 | clang-format 20 | [addclangformat.cmake](../cmake/addclangformat.cmake) | `format` / `format-check` |
 
-There is no logging dependency: diagnostics go through the library's own log hook
+There is no logging dependency: diagnostics go to each instance's own log handler
 ([ARCHITECTURE.md](ARCHITECTURE.md#diagnostics)). A library-only build
 (`-DARCHIMEDES_BUILD_TESTBED=OFF -DARCHIMEDES_BUILD_TESTING=OFF -DARCHIMEDES_BUILD_BENCHMARK=OFF`)
 fetches only Vulkan-Headers (unless an SDK is found), plus clang-format when

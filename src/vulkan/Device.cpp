@@ -545,6 +545,11 @@ namespace acm::vulkan
 	// Internals
 	// -----------------------------------------------------------------------------
 
+	void Device::warnText(const std::string& text) const
+	{
+		m_instance->warn(text);
+	}
+
 	acm::Error Device::constructionError(acm::Error error, const char* fallback)
 	{
 		return error ? std::move(error) : acm::Error(fallback);

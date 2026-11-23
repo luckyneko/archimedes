@@ -15,8 +15,8 @@ compute run without a GPU driver or on the CPU by choice
 loop that survives resizes and runs on several threads, offscreen render-to-texture,
 textures (upload, mipmaps, storage), buffers, descriptor sets (uniform, dynamic uniform,
 storage, sampled images, arrays), depth, MSAA, configurable pipeline state, compute, a
-pooling memory allocator, error-returning recording and descriptor calls, and a log hook
-with Vulkan validation in the tests and CI.
+pooling memory allocator, error-returning recording and descriptor calls, and per-instance
+log handlers with Vulkan validation in the tests and CI.
 
 ## Where to read more
 
@@ -103,9 +103,10 @@ Do not break these. Each is explained in [docs/ARCHITECTURE.md](docs/ARCHITECTUR
   command buffer keeps the first rejection as its sticky `error()`.
 - An optional capability the device lacks degrades instead of failing (fill instead of
   wireframe, width 1, isotropic sampling, one mip level, a clamped sample count) and logs a
-  warning through the log hook. Library code reports only through the private
-  [Log.h](private/archimedes/Log.h) helpers; nothing but `defaultLogHandler` writes to
-  stderr.
+  warning to the owning instance's log handler (`InstanceConfig::logHandler`). There is no
+  process-wide log state: library code reports only through `vulkan::Device::warn` and
+  `vulkan::Instance::warn` / `log`, and nothing but `defaultLogHandler` writes to stderr.
+  Failures are returned, not logged.
 
 **MoltenVK and portability** (all guarded on availability, so no-ops on conformant drivers)
 
@@ -139,6 +140,11 @@ handles.
 ## Conventions
 
 - **C++17** (`target_compile_features(... cxx_std_17)`). Headers use `#pragma once`.
+- **No anonymous namespaces in library code.** A helper is a private static member of the
+  class that owns it, or lives in a named module with a private header, as
+  [vulkan/Convert.h](private/archimedes/vulkan/Convert.h) does. In tests one is tolerated only
+  for scaffolding specific to that file; anything reusable goes in
+  [test/vk_test_helpers.h](test/vk_test_helpers.h). See [AGENTS.md](AGENTS.md).
 - **Naming:** public classes are `PascalCase` in namespace `acm`, in
   `include/archimedes/acm<Name>.h` and `src/acm<Name>.cpp`. Private Vulkan owners are
   `acm::vulkan::<Name>` in `private/archimedes/vulkan/` and `src/vulkan/`. Public platform
@@ -157,6 +163,7 @@ handles.
   `vk_target_shaders()` for the Vulkan 1.3 target environment. Tests embed SPIR-V
   ([test/test_spirv.h](test/test_spirv.h)) and need no compiler.
 - **Tests:** add to the existing files and helpers ([test/vk_test_helpers.h](test/vk_test_helpers.h));
+  create every instance with `acmtest::createInstance()`, so the harness sees what it logs;
   keep `[gpu]` tests SKIP-aware for missing capabilities. Never duplicate a production path in
   a test, benchmark or example.
 - **Keep the docs honest:** a change to an invariant, a command or the public API updates
@@ -210,9 +217,9 @@ hardware device skips the swapchain-backed tests (they run on the CPU device); s
 
 ```
 include/archimedes/      public API: acm*.h, archimedes.h (umbrella), acmVulkanInterop.h (the
-                         one Vulkan seam), acmBackend.h (backend aliases), acmLog.h (log hook)
+                         one Vulkan seam), acmBackend.h (backend aliases), acmLog.h (log messages)
 src/acm*.cpp             public wrapper methods (backend-neutral)
-private/archimedes/      ResourcePool.h, DeferredDestroyQueue.h, Log.h, Platform*.h, backendAPI.h
+private/archimedes/      ResourcePool.h, DeferredDestroyQueue.h, Platform*.h, backendAPI.h
 private/archimedes/vulkan/, src/vulkan/
                          the Vulkan backend, one owner per resource; Device owns pools, queue,
                          deferred destruction and the MemoryAllocator (Memory.h)
