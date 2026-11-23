@@ -250,6 +250,9 @@ namespace acmtest
 			kinds.push_back(DeviceKind::Cpu);
 		if (kinds.empty())
 			SKIP("no graphics-capable device");
+		// Never reach this from a test that has sibling SECTIONs before it: Catch2 crashes on a
+		// single-value generator that follows them, which is what a machine with one device
+		// kind (CI) runs. Put the SECTIONs after device selection, or vary with a GENERATE.
 		return GENERATE_COPY(from_range(kinds));
 	}
 

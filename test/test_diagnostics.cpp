@@ -128,16 +128,16 @@ TEST_CASE("An instance's log handler receives only that instance's messages", "[
 
 TEST_CASE("An empty or throwing log handler does not disturb the call that logged", "[acm][gpu][log]")
 {
+	// A generator, not two SECTIONs: the device helpers below hold a generator of their own,
+	// and Catch2 crashes on a single-value generator that follows sibling sections (which is
+	// what a machine with one device kind runs).
+	const bool throwing = GENERATE(false, true);
 	acm::InstanceConfig config;
-	SECTION("an empty handler discards every message")
-	{
-		config.logHandler = nullptr;
-	}
-	SECTION("a throwing handler does not escape")
-	{
+	if (throwing)
 		config.logHandler = [](const acm::LogMessage&)
 		{ throw std::runtime_error("handler failure"); };
-	}
+	else
+		config.logHandler = nullptr; // discards every message
 	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
 	acmtest::requireInstance(instance);
 	acm::Device device = acmtest::createDeviceWithoutOptionalFeatures(instance);

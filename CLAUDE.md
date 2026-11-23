@@ -209,9 +209,10 @@ directly, so direct launches from an IDE work everywhere.
 Validation: `ACM_VALIDATION=1` turns on the Khronos layer and the debug messenger for every
 instance in any binary. The test suite turns it on by itself whenever the loader finds the
 layer, and fails the test case that logged a validation error. ctest reports a Catch2 SKIP
-as passed; run the test binary directly to see which assertions ran. On Windows the
-hardware device skips the swapchain-backed tests (they run on the CPU device); see
-[docs/ROUGH-EDGES.md](docs/ROUGH-EDGES.md).
+as passed; run the test binary directly to see which assertions ran. CI has only the CPU
+device: run the suite with `VK_LOADER_DRIVERS_DISABLE=*` to see what it sees before
+pushing. On Windows the hardware device skips the swapchain-backed tests (they run on the
+CPU device); see [docs/ROUGH-EDGES.md](docs/ROUGH-EDGES.md).
 
 ## Where things live
 

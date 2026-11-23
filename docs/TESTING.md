@@ -67,6 +67,12 @@ descriptors, ...) run anywhere with a graphics queue.
 
 ctest reports a Catch2 SKIP as passed. Run the binary directly to see which assertions ran.
 
+CI runners have only the CPU device, so a test can pass on a machine with a GPU and still
+fail there. Setting `VK_LOADER_DRIVERS_DISABLE=*` hides every driver the loader finds itself
+and leaves the directly loaded CPU driver, which runs the suite as CI does; do that before
+pushing. One trap it catches: a test with sibling `SECTION`s ahead of device selection
+crashes Catch2 when the device-kind generator has a single value.
+
 ## Validation and sanitizers
 
 [test/main.cpp](../test/main.cpp) sets `ACM_VALIDATION=1` when the loader lists
