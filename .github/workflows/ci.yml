@@ -47,6 +47,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # ARCHIMEDES_WARNINGS_AS_ERRORS defaults to ON for a top-level build, as it does
+      # locally, so every lane (these, validation and TSan) fails on a warning in
+      # archimedes' own targets: /W4 /WX with MSVC, -Wall -Wextra -Werror with GCC and Clang.
       matrix:
         include:
           - name: Linux Release
@@ -109,6 +112,163 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-full --output-on-failure -C ${{ matrix.build_type }}
+
+  # The suite under the Khronos validation layer, required: test/main.cpp turns validation
+  # on for every instance, a validation error fails the test case that caused it, and with
+  # ARCHIMEDES_TEST_VALIDATION=REQUIRE a layer the loader cannot find fails every [gpu]
+  # test instead of letting the lane test nothing.
+  validation:
+    name: Linux validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/fetch
+          key: ${{ runner.os }}-deps-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', 'test/CMakeLists.txt', 'testbed/CMakeLists.txt', 'bench/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install Linux windowing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+      # The tests link the loader built from the ARCHIMEDES_VULKAN_SDK pin, so the layer comes
+      # from the LunarG SDK release of the same version: noble's vulkan-validationlayers
+      # package is 1.3.275, far behind the pinned 1.4 headers and loader and missing the
+      # checks added since.
+      - name: Read the pinned Vulkan SDK
+        id: sdk
+        run: |
+          version=$(sed -n 's/^set(ARCHIMEDES_VULKAN_SDK "\([^"]*\)".*/\1/p' cmake/acmVulkan.cmake)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the validation layer
+        id: vvl-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/vvl
+          key: ${{ runner.os }}-vvl-prebuilt-${{ steps.sdk.outputs.version }}
+
+      # The prebuilt layer from LunarG's SDK archive, checked against a pinned SHA-256, with
+      # only the layer's library and manifest extracted. Building the layer from source
+      # instead exhausts a hosted runner: the job was killed after 50 minutes. When
+      # ARCHIMEDES_VULKAN_SDK changes, update VULKAN_SDK_SHA256 to the value LunarG publishes
+      # at https://sdk.lunarg.com/sdk/sha/<version>/linux/vulkansdk-linux-x86_64-<version>.tar.xz.txt
+      - name: Fetch the validation layer
+        if: steps.vvl-cache.outputs.cache-hit != 'true'
+        env:
+          VULKAN_SDK_VERSION: ${{ steps.sdk.outputs.version }}
+          VULKAN_SDK_SHA256: "ed66477d587a5587dc3601b1c2cdcc1fab5529c505f53a00171876cecd9b4fbe" # 1.4.341.0
+        run: |
+          archive="$RUNNER_TEMP/vulkansdk-linux-x86_64-$VULKAN_SDK_VERSION.tar.xz"
+          curl --fail --location --silent --show-error --retry 3 \
+            --output "$archive" \
+            "https://sdk.lunarg.com/sdk/download/$VULKAN_SDK_VERSION/linux/vulkansdk-linux-x86_64-$VULKAN_SDK_VERSION.tar.xz"
+          if ! echo "$VULKAN_SDK_SHA256  $archive" | sha256sum --check --quiet; then
+            echo "::error::The Vulkan SDK $VULKAN_SDK_VERSION archive does not match VULKAN_SDK_SHA256; update it in ci.yml when ARCHIMEDES_VULKAN_SDK changes."
+            exit 1
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/.cache/vvl"
+          tar --extract --xz --file "$archive" --directory "$GITHUB_WORKSPACE/.cache/vvl" \
+            --wildcards --no-anchored \
+            'libVkLayer_khronos_validation.so*' 'VkLayer_khronos_validation.json'
+          rm -f "$archive"
+
+      # The manifest names its library bare (libVkLayer_khronos_validation.so): the loader
+      # finds the manifest through VK_ADD_LAYER_PATH (added to its explicit-layer search
+      # paths), and dlopen finds the library through LD_LIBRARY_PATH.
+      - name: Expose the validation layer to the loader
+        run: |
+          manifest=$(find "$GITHUB_WORKSPACE/.cache/vvl" -name VkLayer_khronos_validation.json -print -quit)
+          library=$(find "$GITHUB_WORKSPACE/.cache/vvl" -name libVkLayer_khronos_validation.so -print -quit)
+          test -n "$manifest"
+          test -n "$library"
+          echo "VK_ADD_LAYER_PATH=$(dirname "$manifest")" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$(dirname "$library")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          grep -E '"(name|api_version|implementation_version|library_path)"' "$manifest"
+
+      - name: Configure full build
+        run: >
+          cmake -S . -B build-validation
+          -DCMAKE_BUILD_TYPE=Debug
+          -DARCHIMEDES_FORMAT=OFF
+          -DARCHIMEDES_TEST_VALIDATION=REQUIRE
+
+      - name: Build full graph
+        run: cmake --build build-validation --parallel
+
+      - name: Test with validation required
+        run: ctest --test-dir build-validation --output-on-failure
+
+      # Synchronization validation (the layer's validate_sync setting) reports hazards the
+      # core checks cannot see, such as write-after-read across frames. Informational: it
+      # runs even when the step above failed and never fails the job.
+      - name: Test with synchronization validation (informational)
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          VK_KHRONOS_VALIDATION_VALIDATE_SYNC: "1"
+        run: ctest --test-dir build-validation --output-on-failure
+
+  # The suite under ThreadSanitizer on the SwiftShader CPU device (the runner has no GPU).
+  # ARCHIMEDES_SANITIZE instruments archimedes, its tests and benchmarks but not the
+  # vendored dependencies; the uninstrumented driver is covered by test/tsan.supp, which
+  # the test binary reads itself.
+  tsan:
+    name: Linux TSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CC: clang
+      CXX: clang++
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache fetched dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/fetch
+          key: ${{ runner.os }}-deps-${{ hashFiles('CMakeLists.txt', 'cmake/*.cmake', 'test/CMakeLists.txt', 'testbed/CMakeLists.txt', 'bench/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      # The loader build needs the windowing headers.
+      - name: Install Linux windowing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+      # ubuntu-24.04 runners randomise mmap with more address bits than the ThreadSanitizer
+      # runtime of the image's Clang expects ("FATAL: ThreadSanitizer: unexpected memory
+      # mapping"). Needed before the build too: test discovery runs the instrumented binary.
+      - name: Allow ThreadSanitizer's memory layout
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-tsan
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DARCHIMEDES_FORMAT=OFF
+          -DARCHIMEDES_BUILD_TESTBED=OFF
+          -DARCHIMEDES_SANITIZE=thread
+
+      - name: Build
+        run: cmake --build build-tsan --parallel
+
+      # A race report makes the test process exit non-zero (TSan's exitcode 66), failing it.
+      - name: Test on the CPU device
+        env:
+          SWIFTSHADER_THREAD_COUNT: "4"
+          TSAN_OPTIONS: second_deadlock_stack=1
+        run: ctest --test-dir build-tsan --output-on-failure
 
   subproject:
     name: add_subdirectory smoke

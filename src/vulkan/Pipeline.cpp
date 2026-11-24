@@ -10,18 +10,19 @@
 
 #include "archimedes/acmPipeline.h"
 #include "archimedes/vulkan/Convert.h"
+#include "archimedes/vulkan/DescriptorSet.h"
 #include "archimedes/vulkan/DescriptorSetLayout.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/RenderTarget.h"
 #include "archimedes/vulkan/Shader.h"
 
 #include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace acm::vulkan
 {
-
 	// -----------------------------------------------------------------------------
 	// Lifetime
 	// -----------------------------------------------------------------------------
@@ -109,12 +110,19 @@ namespace acm::vulkan
 		dynamicState.dynamicStateCount = 2;
 		dynamicState.pDynamicStates = dynamicStates;
 
+		// Feature-gated state degrades with a warning rather than failing creation.
 		acm::PolygonMode polygonMode = config.polygonMode;
 		if (polygonMode == acm::PolygonMode::Line && !owner.enabledFeatures().fillModeNonSolid)
+		{
+			owner.warn("pipeline: PolygonMode::Line needs the fillModeNonSolid feature, which is not enabled on this device; falling back to PolygonMode::Fill");
 			polygonMode = acm::PolygonMode::Fill;
+		}
 		float lineWidth = config.lineWidth;
 		if (lineWidth != 1.0f && !owner.enabledFeatures().wideLines)
+		{
+			owner.warn("pipeline: lineWidth ", lineWidth, " needs the wideLines feature, which is not enabled on this device; falling back to lineWidth 1");
 			lineWidth = 1.0f;
+		}
 		VkPipelineRasterizationStateCreateInfo rasterizer = {};
 		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizer.polygonMode = toVk(polygonMode);
@@ -125,7 +133,9 @@ namespace acm::vulkan
 		VkPipelineMultisampleStateCreateInfo multisampling = {};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.rasterizationSamples = target.backend()->sampleCount();
-		if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT && owner.enabledFeatures().sampleRateShading)
+		if (config.minSampleShading > 0.0f && !owner.enabledFeatures().sampleRateShading)
+			owner.warn("pipeline: minSampleShading ", config.minSampleShading, " needs the sampleRateShading feature, which is not enabled on this device; it is ignored (shading runs once per pixel)");
+		else if (config.minSampleShading > 0.0f && multisampling.rasterizationSamples != VK_SAMPLE_COUNT_1_BIT)
 		{
 			multisampling.sampleShadingEnable = VK_TRUE;
 			multisampling.minSampleShading = std::min(config.minSampleShading, 1.0f);
@@ -147,6 +157,9 @@ namespace acm::vulkan
 		colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colorBlending.attachmentCount = 1;
 		colorBlending.pAttachments = &colorBlendAttachment;
+		// Always supplied: a target with depth gives the pipeline a depth attachment format,
+		// and dynamic rendering then requires a depth-stencil state even for a pipeline that
+		// neither tests nor writes depth (both flags off, as DepthState::None leaves them).
 		VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencil.depthTestEnable = config.depth.test ? VK_TRUE : VK_FALSE;
@@ -192,7 +205,7 @@ namespace acm::vulkan
 		pipelineInfo.pRasterizationState = &rasterizer;
 		pipelineInfo.pMultisampleState = &multisampling;
 		pipelineInfo.pColorBlendState = &colorBlending;
-		pipelineInfo.pDepthStencilState = usesDepth ? &depthStencil : nullptr;
+		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pDynamicState = &dynamicState;
 		pipelineInfo.layout = m_layout;
 		if (vkCreateGraphicsPipelines(owner.vkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
@@ -202,6 +215,7 @@ namespace acm::vulkan
 		}
 
 		m_descriptorLayout = config.descriptorLayout;
+		m_descriptorLayoutIdentity = m_descriptorLayout.backend();
 	}
 
 	Pipeline::~Pipeline()
@@ -221,6 +235,7 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_descriptorLayout = std::move(other.m_descriptorLayout);
+		m_descriptorLayoutIdentity = std::exchange(other.m_descriptorLayoutIdentity, nullptr);
 		m_colorFormat = std::exchange(other.m_colorFormat, VK_FORMAT_UNDEFINED);
 		m_depthFormat = std::exchange(other.m_depthFormat, VK_FORMAT_UNDEFINED);
 		m_sampleCount = std::exchange(other.m_sampleCount, VK_SAMPLE_COUNT_1_BIT);
@@ -250,6 +265,22 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Descriptors
+	// -----------------------------------------------------------------------------
+
+	bool Pipeline::acceptsDescriptorSet(const DescriptorSet& set) const
+	{
+		if (!m_descriptorLayoutIdentity)
+			return false;
+		// Same layout object: the common case, a pointer compare. Otherwise compare the
+		// bindings (identically defined layouts are compatible).
+		if (set.matchesLayout(m_descriptorLayoutIdentity, nullptr))
+			return true;
+		const DescriptorSetLayout* layout = m_descriptorLayout.backend();
+		return layout && set.matchesLayout(m_descriptorLayoutIdentity, layout->bindings());
+	}
+
+	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
 
@@ -263,6 +294,7 @@ namespace acm::vulkan
 		if (owner && layout)
 			vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 		m_descriptorLayout.reset();
+		m_descriptorLayoutIdentity = nullptr;
 		m_colorFormat = VK_FORMAT_UNDEFINED;
 		m_depthFormat = VK_FORMAT_UNDEFINED;
 		m_sampleCount = VK_SAMPLE_COUNT_1_BIT;

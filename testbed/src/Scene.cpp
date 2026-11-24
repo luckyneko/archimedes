@@ -117,8 +117,9 @@ void Scene::update(float t)
 	const float params[4] = {t, 0.0f, 0.0f, 0.0f};
 	m_paramsBuffer.write(params, sizeof(params));
 
-	const uint32_t groups = (kGrid + kLocalSize - 1) / kLocalSize;
-	m_device->submitSync([this, groups](acm::CommandBuffer& cmd)
+	// Static, so the recording lambda uses it without a capture on every compiler.
+	static constexpr uint32_t groups = (kGrid + kLocalSize - 1) / kLocalSize;
+	m_device->submitSync([this](acm::CommandBuffer& cmd)
 						 {
 							// Bracket the dispatch with barriers so the shared SSBO is synced
 							// purely by queue-submission-order dependencies (not a wait-idle):

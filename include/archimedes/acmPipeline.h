@@ -17,10 +17,23 @@
 #include "archimedes/acmShader.h"
 #include "archimedes/acmTypes.h"
 
+#include <utility>
+
 namespace acm
 {
+	// The shader stages of a graphics pipeline. `vertex` and `fragment` are required;
+	// `geometry` is reserved and rejected until the backend supports it. The two-stage
+	// constructor lets a caller write PipelineShaders{vertex, fragment} without naming the
+	// empty geometry stage.
 	struct PipelineShaders
 	{
+		PipelineShaders() = default;
+		PipelineShaders(acm::Shader vertexShader, acm::Shader fragmentShader)
+			: vertex(std::move(vertexShader))
+			, fragment(std::move(fragmentShader))
+		{
+		}
+
 		acm::Shader vertex;
 		acm::Shader fragment;
 		acm::Shader geometry;
@@ -48,12 +61,14 @@ namespace acm
 		acm::CullMode cullMode{acm::CullMode::None};
 		acm::FrontFace frontFace{acm::FrontFace::Clockwise};
 		acm::BlendMode blend{acm::BlendMode::Opaque};
-		// Wireframe (`Line`) needs the device's fillModeNonSolid feature; `lineWidth` > 1
-		// needs wideLines. Without the feature the pipeline falls back (Fill / width 1).
+		// Wireframe (`Line`) needs the device's fillModeNonSolid feature; a `lineWidth`
+		// other than 1 needs wideLines. Without the feature the pipeline falls back (Fill /
+		// width 1) and logs a warning when it is created.
 		acm::PolygonMode polygonMode{acm::PolygonMode::Fill};
 		float lineWidth{1.0f};
 		// Per-sample shading fraction (0 = off; 1 = shade every sample). > 0 needs the
-		// sampleRateShading feature and a multisampled target; ignored otherwise.
+		// sampleRateShading feature (without it, it is ignored and a warning is logged at
+		// creation) and has no effect on a single-sampled target.
 		float minSampleShading{0.0f};
 	};
 

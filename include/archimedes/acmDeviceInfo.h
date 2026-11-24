@@ -30,12 +30,16 @@ namespace acm
 	// was actually turned on (the available subset). Extend as new features are wired.
 	struct DeviceFeatures
 	{
-		static DeviceFeatures AllKnown() { return {true, true, true, true}; }
+		static DeviceFeatures AllKnown() { return {true, true, true, true, true}; }
 
 		bool fillModeNonSolid{false};  // POLYGON_MODE_LINE / POINT — wireframe
 		bool wideLines{false};		   // lineWidth > 1.0
 		bool samplerAnisotropy{false}; // anisotropic texture filtering
 		bool sampleRateShading{false}; // per-sample shading (MSAA inside primitives)
+		// A fragment shader writing a storage buffer or storage image. Without it, every
+		// storage buffer and image a fragment shader declares must be read-only (`readonly`
+		// in GLSL); compute-stage writes need no feature.
+		bool fragmentStoresAndAtomics{false};
 	};
 
 	struct DeviceConfig

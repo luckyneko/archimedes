@@ -23,11 +23,35 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace acm::vulkan
 {
+	// One acquired swapchain frame for Device::submitFrame. Without a command buffer,
+	// renderFinished or swapChain nothing is presented: the batch only consumes the
+	// acquire semaphore and signals the fence.
+	struct FrameSubmission
+	{
+		VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
+		VkSemaphore imageAvailable{VK_NULL_HANDLE};
+		VkSemaphore renderFinished{VK_NULL_HANDLE};
+		VkFence inFlight{VK_NULL_HANDLE};
+		VkSwapchainKHR swapChain{VK_NULL_HANDLE};
+		uint32_t imageIndex{0};
+	};
+
+	// What Device::submitFrame left behind, error or not: whether a batch that signals the
+	// fence is pending (and its serial), and whether the swapchain must be rebuilt.
+	struct FrameSubmitResult
+	{
+		bool submitted{false};
+		uint64_t serial{0};
+		bool needsRecreate{false};
+	};
+
 	// Move-only logical-device backend. Owns every device-scoped resource pool,
 	// the queue submission path, deferred destruction, and the memory allocator.
 	class Device
@@ -53,8 +77,26 @@ namespace acm::vulkan
 
 		size_t memoryBlockCount() const { return m_allocator->blockCount(); }
 
+		// Messages
+		// One of the library's own warnings, delivered to the owning instance's log handler:
+		// a request that was degraded or ignored. The parts are streamed into one line, so a
+		// float reads as a caller wrote it ("lineWidth ", 2.0f gives "lineWidth 2"). Name the
+		// object, what was asked and what is used instead.
+		template <typename... Parts>
+		void warn(const Parts&... parts) const
+		{
+			std::ostringstream text;
+			(text << ... << parts);
+			warnText(text.str());
+		}
+
 		// Synchronization
-		void waitIdle();
+		// Waits the device idle under the queue mutex, then collects garbage up to the last
+		// serial submitted before the wait and returns that serial. Other threads may keep
+		// submitting once the wait returns, so later collection must not go past it.
+		uint64_t waitIdle();
+		// Never call with the queue mutex held: payload destructors run here, and some of
+		// them (a SwapChain's) wait the device idle.
 		void collectGarbage(uint64_t completedSerial);
 
 		// Native access
@@ -67,7 +109,10 @@ namespace acm::vulkan
 		// Submission
 		acm::Error copyBuffer(VkBuffer source, VkBuffer destination, VkDeviceSize size);
 		acm::Error submitOneShot(const std::function<void(VkCommandBuffer)>& record);
-		acm::Error submitFrame(VkCommandBuffer commandBuffer, VkSemaphore imageAvailable, VkSemaphore renderFinished, VkFence inFlight, VkSwapchainKHR swapChain, uint32_t imageIndex, bool& needsRecreate, uint64_t& submittedSerial);
+		// Resets the fence, submits and presents. If the frame cannot be submitted it still
+		// tries to consume the acquire semaphore and signal the fence; `result` says what
+		// is pending either way.
+		acm::Error submitFrame(const acm::vulkan::FrameSubmission& frame, acm::vulkan::FrameSubmitResult& result);
 
 		// Factories
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
@@ -80,7 +125,10 @@ namespace acm::vulkan
 		acm::ComputePipeline createComputePipeline(const acm::Shader& compute, const acm::DescriptorSetLayout& layout);
 		acm::RenderTarget createRenderTarget(VkImage image, acm::Format format, acm::Extent2D extent, bool depth, acm::SampleCount samples);
 		acm::RenderTarget createRenderTarget(const acm::Texture& texture, const acm::RenderTargetConfig& config);
-		bool invalidateRenderTarget(acm::RenderTarget& target);
+		// Ends a swapchain image's target before its swapchain is destroyed, once the device
+		// has finished with it: the view of the borrowed image is destroyed now and every
+		// copied wrapper goes stale; the rest of the payload leaves through deferred collection.
+		void retireSwapChainTarget(acm::RenderTarget& target);
 		acm::SwapChain createSwapChain(const acm::Surface& surface, acm::SurfaceFormat format, acm::PresentMode presentMode, const acm::SwapChainConfig& config);
 		acm::CommandPool createCommandPool();
 		acm::CommandBuffer allocateCommandBuffer(const acm::CommandPool& pool);
@@ -92,6 +140,7 @@ namespace acm::vulkan
 		static const char* missingRequiredFeature(const acm::DeviceFeatures& available, const acm::DeviceFeatures& required);
 		static acm::DeviceFeatures requestedFeatures(const acm::DeviceFeatures& available, const acm::DeviceConfig& config);
 		static acm::Error constructionError(acm::Error error, const char* fallback);
+		void warnText(const std::string& text) const;
 		VkResult queueSubmit(VkCommandBuffer commandBuffer, const VkSemaphoreSubmitInfo* waitSemaphore, const VkSemaphoreSubmitInfo* signalSemaphore, VkFence fence, uint64_t& submittedSerial);
 		template <typename T, typename Constructor>
 		auto emplaceResource(acm::ResourcePool<T>& pool, Constructor&& construct)

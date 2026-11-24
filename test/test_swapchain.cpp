@@ -21,7 +21,7 @@
 
 TEST_CASE("SwapChain (headless) clamps the requested extent", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	acm::Surface surface = instance.createHeadlessSurface(acm::Extent2D{800, 600});

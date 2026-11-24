@@ -27,6 +27,7 @@ target_include_directories(testbed PRIVATE src ${PROJECT_SOURCE_DIR}/private)
 # for the per-window render threads.
 find_package(Threads REQUIRED)
 target_link_libraries(testbed PRIVATE archimedes glfw Vulkan::Loader Threads::Threads)
+acm_warnings(testbed)
 
 # Compile shaders to <bindir>/shaders/*.spv and tell the app where to find them.
 vk_target_shaders(testbed

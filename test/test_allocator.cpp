@@ -22,7 +22,7 @@
 
 TEST_CASE("buffers share pooled memory blocks", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	uint32_t queueIndex = 0;
@@ -48,4 +48,38 @@ TEST_CASE("buffers share pooled memory blocks", "[acm][gpu]")
 	// 200 separate allocations.
 	REQUIRE(device.memoryBlockCount() >= 1);
 	REQUIRE(device.memoryBlockCount() <= 2);
+}
+
+// Vulkan forbids a buffer (linear) and an optimal-tiling image (non-linear) from sharing
+// a bufferImageGranularity page, so the allocator keeps the two in separate blocks. A
+// small texture would fit in the block a small vertex buffer opened, so a second block
+// appearing is the observable proof it went elsewhere; further buffers and textures then
+// pool into their own kind's block rather than opening more.
+TEST_CASE("buffers and textures never share a memory block", "[acm][gpu]")
+{
+	acm::Instance instance = acmtest::createInstance();
+	acmtest::requireInstance(instance);
+
+	uint32_t queueIndex = 0;
+	const acm::DeviceInfo* gpu = acmtest::selectGraphicsDevice(instance, queueIndex);
+
+	acm::Device device = instance.createDevice(*gpu, queueIndex);
+	REQUIRE(device.valid());
+	REQUIRE(device.memoryBlockCount() == 0);
+
+	const acm::Extent2D extent{16, 16};
+
+	acm::Buffer vertices = device.createBuffer(1024, acm::BufferUsage::Vertex);
+	REQUIRE(vertices.valid());
+	REQUIRE(device.memoryBlockCount() == 1);
+
+	acm::Texture texture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	REQUIRE(texture.valid());
+	REQUIRE(device.memoryBlockCount() == 2);
+
+	acm::Buffer moreVertices = device.createBuffer(1024, acm::BufferUsage::Vertex);
+	acm::Texture anotherTexture = device.createTexture(acm::Format::B8G8R8A8_Unorm, extent);
+	REQUIRE(moreVertices.valid());
+	REQUIRE(anotherTexture.valid());
+	REQUIRE(device.memoryBlockCount() == 2);
 }

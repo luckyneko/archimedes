@@ -19,7 +19,8 @@ namespace acm::vulkan
 		VkDeviceMemory memory{VK_NULL_HANDLE};
 		VkDeviceSize size{0};
 		uint32_t memoryType{0};
-		void* mapped{nullptr}; // persistent map for host-visible blocks
+		AllocationKind kind{AllocationKind::NonLinear}; // never mixed within a block
+		void* mapped{nullptr};							// persistent map for host-visible blocks
 		struct Region
 		{
 			VkDeviceSize offset;
@@ -27,19 +28,19 @@ namespace acm::vulkan
 		};
 		std::vector<Region> freeRegions;
 
-		// First-fit: find a free region with room for `size` at `alignment`, carve
+		// First-fit: find a free region with room for `requestSize` at `alignment`, carve
 		// it out, and return its offset. False if nothing fits.
-		bool tryAllocate(VkDeviceSize size, VkDeviceSize alignment, VkDeviceSize& outOffset)
+		bool tryAllocate(VkDeviceSize requestSize, VkDeviceSize alignment, VkDeviceSize& outOffset)
 		{
 			for (size_t i = 0; i < freeRegions.size(); ++i)
 			{
 				const VkDeviceSize regionEnd = freeRegions[i].offset + freeRegions[i].size;
 				const VkDeviceSize aligned = MemoryAllocator::alignUp(freeRegions[i].offset, alignment);
-				if (aligned + size > regionEnd)
+				if (aligned + requestSize > regionEnd)
 					continue;
 
 				const VkDeviceSize before = freeRegions[i].offset;
-				const VkDeviceSize allocEnd = aligned + size;
+				const VkDeviceSize allocEnd = aligned + requestSize;
 				freeRegions.erase(freeRegions.begin() + i);
 				// Re-insert the leftovers (alignment gap before, tail after), keeping
 				// the list sorted by offset.
@@ -53,13 +54,13 @@ namespace acm::vulkan
 			return false;
 		}
 
-		void freeRange(VkDeviceSize offset, VkDeviceSize size)
+		void freeRange(VkDeviceSize offset, VkDeviceSize rangeSize)
 		{
 			// Insert sorted by offset, then merge with any touching neighbours.
 			size_t i = 0;
 			while (i < freeRegions.size() && freeRegions[i].offset < offset)
 				++i;
-			freeRegions.insert(freeRegions.begin() + i, {offset, size});
+			freeRegions.insert(freeRegions.begin() + i, {offset, rangeSize});
 
 			// Coalesce with previous, then with next.
 			if (i > 0 && freeRegions[i - 1].offset + freeRegions[i - 1].size == freeRegions[i].offset)
@@ -103,7 +104,7 @@ namespace acm::vulkan
 	// Allocation
 	// -----------------------------------------------------------------------------
 
-	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props)
+	Allocation MemoryAllocator::allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags props, AllocationKind kind)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		const uint32_t memoryType = findMemoryType(req.memoryTypeBits, props);
@@ -125,10 +126,12 @@ namespace acm::vulkan
 			return a;
 		};
 
-		// Reuse an existing block of the right memory type if it has room.
+		// Reuse an existing block of the right memory type and kind if it has room.
+		// Keeping linear and non-linear resources in separate blocks satisfies
+		// bufferImageGranularity without padding between neighbours.
 		for (auto& block : m_blocks)
 		{
-			if (block->memoryType != memoryType)
+			if (block->memoryType != memoryType || block->kind != kind)
 				continue;
 			VkDeviceSize offset = 0;
 			if (block->tryAllocate(req.size, req.alignment, offset))
@@ -150,8 +153,12 @@ namespace acm::vulkan
 		block->memory = memory;
 		block->size = blockSize;
 		block->memoryType = memoryType;
-		if (hostVisible)
-			vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped);
+		block->kind = kind;
+		if (hostVisible && vkMapMemory(m_device, memory, 0, VK_WHOLE_SIZE, 0, &block->mapped) != VK_SUCCESS)
+		{
+			vkFreeMemory(m_device, memory, nullptr);
+			return {};
+		}
 		block->freeRegions.push_back({0, blockSize});
 
 		VkDeviceSize offset = 0;

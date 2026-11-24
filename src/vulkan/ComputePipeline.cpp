@@ -8,6 +8,7 @@
 
 #include "archimedes/vulkan/ComputePipeline.h"
 
+#include "archimedes/vulkan/DescriptorSet.h"
 #include "archimedes/vulkan/DescriptorSetLayout.h"
 #include "archimedes/vulkan/Device.h"
 #include "archimedes/vulkan/Shader.h"
@@ -70,7 +71,11 @@ namespace acm::vulkan
 			return;
 		}
 
-		m_descriptorLayout = layout;
+		if (layout.valid())
+		{
+			m_descriptorLayout = layout;
+			m_descriptorLayoutIdentity = m_descriptorLayout.backend();
+		}
 	}
 
 	ComputePipeline::~ComputePipeline()
@@ -90,6 +95,7 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_descriptorLayout = std::move(other.m_descriptorLayout);
+		m_descriptorLayoutIdentity = std::exchange(other.m_descriptorLayoutIdentity, nullptr);
 		m_layout = std::exchange(other.m_layout, VK_NULL_HANDLE);
 		m_pipeline = std::exchange(other.m_pipeline, VK_NULL_HANDLE);
 		m_error = std::move(other.m_error);
@@ -111,6 +117,22 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Descriptors
+	// -----------------------------------------------------------------------------
+
+	bool ComputePipeline::acceptsDescriptorSet(const DescriptorSet& set) const
+	{
+		if (!m_descriptorLayoutIdentity)
+			return false;
+		// Same layout object: a pointer compare. Otherwise compare the bindings
+		// (identically defined layouts are compatible).
+		if (set.matchesLayout(m_descriptorLayoutIdentity, nullptr))
+			return true;
+		const DescriptorSetLayout* layout = m_descriptorLayout.backend();
+		return layout && set.matchesLayout(m_descriptorLayoutIdentity, layout->bindings());
+	}
+
+	// -----------------------------------------------------------------------------
 	// Internals
 	// -----------------------------------------------------------------------------
 
@@ -124,6 +146,7 @@ namespace acm::vulkan
 		if (owner && layout)
 			vkDestroyPipelineLayout(owner->vkDevice(), layout, nullptr);
 		m_descriptorLayout.reset();
+		m_descriptorLayoutIdentity = nullptr;
 	}
 
 } // namespace acm::vulkan

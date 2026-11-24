@@ -19,11 +19,13 @@
 
 TEST_CASE("InstanceConfig has production-safe defaults", "[acm][unit]")
 {
-	constexpr acm::InstanceConfig config;
-	STATIC_REQUIRE(config.portability);
-	STATIC_REQUIRE_FALSE(config.validation);
-	STATIC_REQUIRE_FALSE(config.debug);
-	STATIC_REQUIRE(config.cpuDriver);
+	// Not constexpr: the config carries its log handler.
+	const acm::InstanceConfig config;
+	REQUIRE(config.portability);
+	REQUIRE_FALSE(config.validation);
+	REQUIRE_FALSE(config.debug);
+	REQUIRE(config.cpuDriver);
+	REQUIRE(config.logHandler);
 }
 
 TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
@@ -31,7 +33,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 	acm::InstanceConfig config;
 	config.validation = true;
 	config.debug = true;
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
+	acm::Instance instance = acmtest::createInstance(config);
 	acmtest::requireInstance(instance);
 
 	REQUIRE(acm::interop::instance(instance) != VK_NULL_HANDLE);
@@ -59,7 +61,7 @@ TEST_CASE("Instance creates and enumerates GPUs", "[acm][gpu]")
 
 TEST_CASE("Instance transfers ownership on move", "[acm][gpu]")
 {
-	acm::Instance a("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance a = acmtest::createInstance();
 	acmtest::requireInstance(a);
 
 	acm::Instance b = std::move(a);

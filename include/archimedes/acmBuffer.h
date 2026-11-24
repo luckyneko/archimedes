@@ -45,8 +45,11 @@ namespace acm
 		size_t size() const;
 		void* map(); // host-visible buffers only; returns a pointer to the (coherent) mapping (else nullptr)
 		void unmap();
-		// Uploads up to size() bytes. Host-visible: map + memcpy + unmap. Device-local:
-		// a staging buffer + one-shot copy that waits idle, so it is a load-time call.
+		// Writes `size` bytes from `data` to the start of the buffer. Returns an error,
+		// writing nothing, when `data` is null or `size` exceeds size(); a smaller write
+		// leaves the rest of the buffer untouched. Host-visible: a memcpy into the
+		// persistent mapping. Device-local: a staging buffer + one-shot copy that waits
+		// idle, so it is a load-time call.
 		acm::Error write(const void* data, size_t size);
 
 	private:

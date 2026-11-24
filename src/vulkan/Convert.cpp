@@ -99,6 +99,93 @@ namespace acm::vulkan
 		}
 	}
 
+	uint32_t bytesPerPixel(acm::Format format)
+	{
+		switch (format)
+		{
+			case acm::Format::R8G8B8A8_Unorm:
+			case acm::Format::R8G8B8A8_Srgb:
+			case acm::Format::B8G8R8A8_Unorm:
+			case acm::Format::B8G8R8A8_Srgb:
+			case acm::Format::A2B10G10R10_Unorm_Pack32:
+			case acm::Format::D32_Sfloat:
+			case acm::Format::D24_Unorm_S8_Uint:
+			case acm::Format::R32_Sfloat:
+				return 4;
+			case acm::Format::R16G16B16A16_Sfloat:
+			case acm::Format::R32G32_Sfloat:
+				return 8;
+			case acm::Format::R32G32B32_Sfloat:
+				return 12;
+			case acm::Format::R32G32B32A32_Sfloat:
+				return 16;
+			case acm::Format::Undefined:
+				return 0;
+		}
+		assert(false && "acm::vulkan::bytesPerPixel: invalid acm::Format");
+		return 0;
+	}
+
+	const char* formatName(acm::Format format)
+	{
+		switch (format)
+		{
+			case acm::Format::Undefined:
+				return "Undefined";
+			case acm::Format::R8G8B8A8_Unorm:
+				return "R8G8B8A8_Unorm";
+			case acm::Format::R8G8B8A8_Srgb:
+				return "R8G8B8A8_Srgb";
+			case acm::Format::B8G8R8A8_Unorm:
+				return "B8G8R8A8_Unorm";
+			case acm::Format::B8G8R8A8_Srgb:
+				return "B8G8R8A8_Srgb";
+			case acm::Format::A2B10G10R10_Unorm_Pack32:
+				return "A2B10G10R10_Unorm_Pack32";
+			case acm::Format::R16G16B16A16_Sfloat:
+				return "R16G16B16A16_Sfloat";
+			case acm::Format::D32_Sfloat:
+				return "D32_Sfloat";
+			case acm::Format::D24_Unorm_S8_Uint:
+				return "D24_Unorm_S8_Uint";
+			case acm::Format::R32_Sfloat:
+				return "R32_Sfloat";
+			case acm::Format::R32G32_Sfloat:
+				return "R32G32_Sfloat";
+			case acm::Format::R32G32B32_Sfloat:
+				return "R32G32B32_Sfloat";
+			case acm::Format::R32G32B32A32_Sfloat:
+				return "R32G32B32A32_Sfloat";
+		}
+		return "an unknown format";
+	}
+
+	bool isDepthFormat(acm::Format format)
+	{
+		return format == acm::Format::D32_Sfloat || format == acm::Format::D24_Unorm_S8_Uint;
+	}
+
+	// -----------------------------------------------------------------------------
+	// Multisampling
+	// -----------------------------------------------------------------------------
+
+	uint32_t sampleCountValue(acm::SampleCount count)
+	{
+		switch (count)
+		{
+			case acm::SampleCount::One:
+				return 1;
+			case acm::SampleCount::Two:
+				return 2;
+			case acm::SampleCount::Four:
+				return 4;
+			case acm::SampleCount::Eight:
+				return 8;
+		}
+		assert(false && "acm::vulkan::sampleCountValue: invalid acm::SampleCount");
+		return 1;
+	}
+
 	// -----------------------------------------------------------------------------
 	// Surface Presentation
 	// -----------------------------------------------------------------------------
@@ -188,6 +275,30 @@ namespace acm::vulkan
 	}
 
 	// -----------------------------------------------------------------------------
+	// Messages
+	// -----------------------------------------------------------------------------
+
+	acm::LogSeverity toLogSeverity(VkDebugUtilsMessageSeverityFlagBitsEXT severity)
+	{
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+			return acm::LogSeverity::Error;
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+			return acm::LogSeverity::Warning;
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+			return acm::LogSeverity::Info;
+		return acm::LogSeverity::Verbose;
+	}
+
+	acm::LogCategory toLogCategory(VkDebugUtilsMessageTypeFlagsEXT type)
+	{
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+			return acm::LogCategory::Validation;
+		if (type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+			return acm::LogCategory::Performance;
+		return acm::LogCategory::Vulkan;
+	}
+
+	// -----------------------------------------------------------------------------
 	// Buffers
 	// -----------------------------------------------------------------------------
 
@@ -214,6 +325,26 @@ namespace acm::vulkan
 		return 0;
 	}
 
+	const char* bufferUsageName(acm::BufferUsage usage)
+	{
+		switch (usage)
+		{
+			case acm::BufferUsage::Vertex:
+				return "Vertex";
+			case acm::BufferUsage::Index:
+				return "Index";
+			case acm::BufferUsage::Uniform:
+				return "Uniform";
+			case acm::BufferUsage::TransferDst:
+				return "TransferDst";
+			case acm::BufferUsage::Staging:
+				return "Staging";
+			case acm::BufferUsage::Storage:
+				return "Storage";
+		}
+		return "an unknown usage";
+	}
+
 	// -----------------------------------------------------------------------------
 	// Descriptors
 	// -----------------------------------------------------------------------------
@@ -237,6 +368,26 @@ namespace acm::vulkan
 		}
 		assert(false && "acm::vulkan::toVk: invalid acm::DescriptorType");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	}
+
+	const char* descriptorTypeName(acm::DescriptorType type)
+	{
+		switch (type)
+		{
+			case acm::DescriptorType::UniformBuffer:
+				return "UniformBuffer";
+			case acm::DescriptorType::CombinedImageSampler:
+				return "CombinedImageSampler";
+			case acm::DescriptorType::StorageBuffer:
+				return "StorageBuffer";
+			case acm::DescriptorType::UniformBufferDynamic:
+				return "UniformBufferDynamic";
+			case acm::DescriptorType::StorageImage:
+				return "StorageImage";
+			case acm::DescriptorType::SampledImage:
+				return "SampledImage";
+		}
+		return "an unknown type";
 	}
 
 	// -----------------------------------------------------------------------------

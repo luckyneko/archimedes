@@ -38,6 +38,9 @@ namespace
 								   { return PoolValue(value); });
 		return std::move(result.resource);
 	}
+
+	// Live slots held across a collection benchmark: a device with a populated scene.
+	constexpr uint32_t LiveSlotCount = 4096;
 } // namespace
 
 TEST_CASE("resource_pool", "[bench][fast][cpu]")
@@ -58,6 +61,19 @@ TEST_CASE("resource_pool", "[bench][fast][cpu]")
 		return sum;
 	};
 
+	// The per-recorded-command cost: public wrappers call access() for every handle a
+	// command names, without copying the handle.
+	BENCHMARK("acm(ref-access-10k)")
+	{
+		uint32_t sum = 0;
+		for (uint32_t i = 0; i < 10000; ++i)
+		{
+			if (PoolValue* value = resource.access())
+				sum += value->value();
+		}
+		return sum;
+	};
+
 	BENCHMARK_ADVANCED("acm(pool-emplace)")(Catch::Benchmark::Chronometer meter)
 	{
 		std::vector<acm::ResourceRef<PoolValue>> refs(static_cast<size_t>(meter.runs()));
@@ -71,5 +87,44 @@ TEST_CASE("resource_pool", "[bench][fast][cpu]")
 	};
 
 	resource.reset();
+	pool.collectGarbage();
+}
+
+TEST_CASE("resource_pool_collect", "[bench][fast][cpu]")
+{
+	// vulkan::Device sweeps every pool once per rendered frame, so a sweep over a pool
+	// full of live resources should cost what died, not what lives.
+	acm::ResourcePool<PoolValue> pool;
+	std::vector<acm::ResourceRef<PoolValue>> live;
+	live.reserve(LiveSlotCount);
+	for (uint32_t i = 0; i < LiveSlotCount; ++i)
+		live.push_back(emplaceValue(pool, i));
+	REQUIRE(live.back().valid());
+
+	BENCHMARK("acm(collect-none-dead-4k-live)")
+	{
+		uint32_t collected = 0;
+		pool.collectGarbage([&collected](PoolValue&&)
+							{ ++collected; });
+		return collected;
+	};
+
+	BENCHMARK_ADVANCED("acm(release-collect-1-dead-4k-live)")(Catch::Benchmark::Chronometer meter)
+	{
+		std::vector<acm::ResourceRef<PoolValue>> dying;
+		dying.reserve(static_cast<size_t>(meter.runs()));
+		for (int i = 0; i < meter.runs(); ++i)
+			dying.push_back(emplaceValue(pool, static_cast<uint32_t>(i)));
+		meter.measure([&](int i)
+					  {
+			uint32_t collected = 0;
+			dying[static_cast<size_t>(i)].reset();
+			pool.collectGarbage([&collected](PoolValue&&)
+								{ ++collected; });
+			return collected; });
+	};
+
+	for (acm::ResourceRef<PoolValue>& ref : live)
+		ref.reset();
 	pool.collectGarbage();
 }

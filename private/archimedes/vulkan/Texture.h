@@ -44,6 +44,8 @@ namespace acm::vulkan
 		acm::Format format() const;
 		acm::Extent2D extent() const;
 		uint32_t mipLevels() const;
+		// Whether the image has STORAGE usage: created with TextureConfig::storage (color only).
+		bool storage() const { return m_storage; }
 		VkImage vkImage() const;
 		VkImageView vkImageView() const;
 
@@ -57,7 +59,7 @@ namespace acm::vulkan
 	private:
 		// Internals
 		void release();
-		static bool isDepthFormat(acm::Format format);
+		static bool supportsMipGeneration(VkPhysicalDevice physicalDevice, VkFormat format);
 		static uint32_t computeMipLevels(acm::Extent2D extent);
 		static void transition(VkCommandBuffer commandBuffer, VkImage image, uint32_t baseMip, uint32_t levelCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 sourceAccess, VkAccessFlags2 destinationAccess, VkPipelineStageFlags2 sourceStage, VkPipelineStageFlags2 destinationStage);
 
@@ -65,6 +67,7 @@ namespace acm::vulkan
 		acm::Format m_format{acm::Format::Undefined};
 		acm::Extent2D m_extent;
 		uint32_t m_mipLevels{1};
+		bool m_storage{false};
 		VkImage m_image{VK_NULL_HANDLE};
 		acm::vulkan::Allocation m_allocation;
 		VkImageView m_imageView{VK_NULL_HANDLE};

@@ -15,6 +15,11 @@ namespace acm
 	template <typename T>
 	class ResourcePool;
 
+	// A counted reference to one lifetime of a ResourceSlot: a stable slot pointer plus
+	// the slot ID it was issued for. valid() / access() are a lock-free generation check
+	// (see ResourceSlot); copies retain and destruction releases with one
+	// compare-exchange each. Distinct copies may be used from different threads at once;
+	// one ResourceRef object is not itself synchronized.
 	template <typename T>
 	class ResourceRef
 	{

@@ -38,8 +38,14 @@ namespace acm
 		acm::backend::SwapChain* backend() const;
 
 		// Images
-		// Returns false for a zero-sized/minimized surface; callers should skip the
-		// frame and retry once the surface has a drawable extent.
+		// Rebuilds the swapchain and its render targets at the surface's current extent
+		// (Renderer::render does this itself on out-of-date / suboptimal). It waits the
+		// device idle first and collects garbage, like Device::waitIdle: safe while other
+		// threads submit through other swapchains (they stall until the wait ends), but not
+		// concurrently with a render() over this swapchain, and never from inside
+		// acm::interop::withQueue (deadlock). Returns false for a zero-sized/minimized
+		// surface; callers should skip the frame and retry once the surface has a drawable
+		// extent.
 		bool recreate();
 		acm::SurfaceFormat format() const;
 		acm::Extent2D extent() const;

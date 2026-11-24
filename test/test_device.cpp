@@ -12,6 +12,8 @@
 #include <archimedes/archimedes.h>
 
 #include <catch2/catch_all.hpp>
+#include <utility>
+#include <vector>
 
 // Integration: creates a logical device on the first graphics-capable queue.
 // Headless - no surface/window needed. SKIPs without a live driver.
@@ -21,7 +23,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	acm::InstanceConfig config;
 	config.validation = true;
 	config.debug = true;
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0}, config);
+	acm::Instance instance = acmtest::createInstance(config);
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -35,6 +37,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 	REQUIRE(device.enabledFeatures().wideLines == chosen.features.wideLines);
 	REQUIRE(device.enabledFeatures().samplerAnisotropy == chosen.features.samplerAnisotropy);
 	REQUIRE(device.enabledFeatures().sampleRateShading == chosen.features.sampleRateShading);
+	REQUIRE(device.enabledFeatures().fragmentStoresAndAtomics == chosen.features.fragmentStoresAndAtomics);
 
 	VkQueue queue = acm::interop::queue(device);
 	REQUIRE(queue != VK_NULL_HANDLE);
@@ -46,7 +49,7 @@ TEST_CASE("Device creates on a graphics queue", "[acm][gpu]")
 
 TEST_CASE("Device feature config controls optional and required features", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -60,6 +63,7 @@ TEST_CASE("Device feature config controls optional and required features", "[acm
 	REQUIRE_FALSE(device.enabledFeatures().wideLines);
 	REQUIRE_FALSE(device.enabledFeatures().samplerAnisotropy);
 	REQUIRE_FALSE(device.enabledFeatures().sampleRateShading);
+	REQUIRE_FALSE(device.enabledFeatures().fragmentStoresAndAtomics);
 
 	acm::DeviceConfig requiredOnly;
 	requiredOnly.optionalFeatures = {};
@@ -102,7 +106,7 @@ TEST_CASE("Device feature config controls optional and required features", "[acm
 
 TEST_CASE("Device creation fails when a required feature is unavailable", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
@@ -136,4 +140,68 @@ TEST_CASE("Device creation fails when a required feature is unavailable", "[acm]
 	acm::Device device = instance.createDevice(option, config);
 	REQUIRE_FALSE(device.valid());
 	REQUIRE_THAT(device.error().message(), Catch::Matchers::ContainsSubstring(missingName));
+}
+
+namespace
+{
+	// Every Device call on a device with no backend answers a neutral value or an error,
+	// and builds only invalid children.
+	void requireInertDevice(acm::Device& device)
+	{
+		REQUIRE_FALSE(device.valid());
+		REQUIRE(device.backend() == nullptr);
+
+		REQUIRE(device.deviceInfo().name.empty());
+		REQUIRE(device.deviceInfo().queues.empty());
+		REQUIRE(device.queueFamily() == 0);
+		const acm::DeviceFeatures& features = device.enabledFeatures();
+		REQUIRE_FALSE(features.fillModeNonSolid);
+		REQUIRE_FALSE(features.wideLines);
+		REQUIRE_FALSE(features.samplerAnisotropy);
+		REQUIRE_FALSE(features.sampleRateShading);
+		REQUIRE_FALSE(features.fragmentStoresAndAtomics);
+		REQUIRE(device.maxSampleCount() == acm::SampleCount::One);
+		REQUIRE(device.minUniformBufferOffsetAlignment() == 1);
+		REQUIRE(device.memoryBlockCount() == 0);
+		device.waitIdle();
+
+		bool recorded = false;
+		REQUIRE(device.submitSync([&](acm::CommandBuffer&)
+								  { recorded = true; }));
+		REQUIRE_FALSE(recorded);
+		REQUIRE(device.submitSync(acm::CommandBuffer{}));
+
+		REQUIRE_FALSE(device.createCommandPool().valid());
+		REQUIRE_FALSE(device.createBuffer(16, acm::BufferUsage::Uniform).valid());
+		REQUIRE_FALSE(device.createTexture(acm::Format::B8G8R8A8_Unorm, acm::Extent2D{4, 4}).valid());
+		REQUIRE_FALSE(device.createSampler().valid());
+		REQUIRE_FALSE(device.createShader(std::vector<char>(4, 0)).valid());
+		REQUIRE_FALSE(device.createDescriptorSetLayout(1).valid());
+		REQUIRE_FALSE(device.createDescriptorSet(acm::DescriptorSetLayout{}).valid());
+		REQUIRE_FALSE(device.createRenderTarget(acm::Texture{}).valid());
+		REQUIRE_FALSE(device.createSwapChain(acm::Surface{}, acm::SurfaceOption{}).valid());
+		REQUIRE_FALSE(device.createRenderer(acm::SwapChain{}).valid());
+	}
+} // namespace
+
+TEST_CASE("a default-constructed Device is safe to call", "[acm][handle]")
+{
+	acm::Device device;
+	requireInertDevice(device);
+}
+
+TEST_CASE("a reset or moved-from Device is safe to call", "[acm][gpu]")
+{
+	acm::Instance instance = acmtest::createInstance();
+	acmtest::requireInstance(instance);
+	const acm::DeviceOption option = acmtest::selectGraphicsOption(instance);
+
+	acm::Device device = instance.createDevice(option);
+	REQUIRE(device.valid());
+	acm::Device moved = std::move(device);
+	REQUIRE(moved.valid());
+	requireInertDevice(device);
+
+	moved.reset();
+	requireInertDevice(moved);
 }

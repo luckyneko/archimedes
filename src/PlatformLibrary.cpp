@@ -32,6 +32,17 @@ namespace acm
 #endif
 	}
 
+	std::string PlatformLibrary::fileName(const std::string& name)
+	{
+#if defined(_WIN32)
+		return name + ".dll";
+#elif defined(__APPLE__)
+		return "lib" + name + ".dylib";
+#else
+		return "lib" + name + ".so";
+#endif
+	}
+
 	void PlatformLibrary::reset()
 	{
 		if (!m_handle)

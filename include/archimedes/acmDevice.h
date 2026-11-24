@@ -24,6 +24,10 @@ namespace acm
 {
 	// Unique owning root for device resources. Factories allocate children in stable
 	// typed resource pools; every child wrapper must be reset before the Device.
+	// An invalid Device (default-constructed, moved-from, reset, or failed creation) is
+	// safe to call: factories return invalid children, capability queries return neutral
+	// values (empty DeviceInfo, no features, SampleCount::One, alignment 1, no memory
+	// blocks), waitIdle() does nothing, and submitSync returns an error.
 	class Device
 	{
 	public:
@@ -66,7 +70,8 @@ namespace acm
 		acm::Texture createTexture(acm::Format format, acm::Extent2D extent, const acm::TextureConfig& config = {});
 		acm::Buffer createBuffer(size_t size, acm::BufferUsage usage);
 		// maxAnisotropy > 1 enables anisotropic filtering (needs the samplerAnisotropy
-		// feature; clamped to the device limit, disabled with a warning if unsupported).
+		// feature; clamped to the device limit; without the feature the sampler is
+		// isotropic and its instance's log handler receives a warning, acmLog.h).
 		acm::Sampler createSampler(float maxAnisotropy = 1.0f);
 		// Convenience: N fragment-stage combined-image-samplers (bindings 0..n-1).
 		acm::DescriptorSetLayout createDescriptorSetLayout(uint32_t samplerCount);
@@ -80,7 +85,8 @@ namespace acm
 		// using, e.g., wireframe.
 		const acm::DeviceFeatures& enabledFeatures() const;
 		// The highest MSAA sample count usable for color+depth rendering targets here. A
-		// SampleCount request beyond this is clamped down to it.
+		// SampleCount the device does not support is clamped down to the highest supported
+		// count below it, and the render target or swapchain asking for it logs a warning.
 		acm::SampleCount maxSampleCount() const;
 		// Required alignment (bytes) for a dynamic uniform buffer offset — size each
 		// per-object slice packed into one buffer to a multiple of this.
@@ -89,20 +95,29 @@ namespace acm
 		size_t memoryBlockCount() const; // live native memory blocks in the pool
 
 		// Synchronization
-		// Blocks until the device is idle (all queues drained). Like the queue, host
-		// access must be externally synchronized — call it only when no other thread
-		// is submitting (e.g. the testbed's fork-join calls it on the main thread while
-		// both render threads are parked, to fence a shared-resource update against
-		// in-flight reads).
+		// Blocks until the device is idle (all queues drained), then collects garbage:
+		// resources whose last wrapper was dropped are destroyed once the GPU finished the
+		// submissions made before the wait. Safe to call while other threads submit (a
+		// Renderer::render on another thread, another submitSync): it holds the device's
+		// queue mutex for the wait, so those threads stall until it returns. Use it to fence
+		// a shared-resource update against in-flight reads. Never call it from inside
+		// acm::interop::withQueue, which already holds that mutex: it would deadlock.
 		void waitIdle();
 
 		// Records `record` into a transient command buffer, submits it to the queue, and
 		// waits the queue idle before returning — synchronous one-shot GPU work (a compute
-		// dispatch, a transfer). It stalls the queue, so it is a load-time / per-frame-at-
-		// most tool, not a hot path, and is externally synchronized like waitIdle (locks
-		// the device mutex around submit + wait; don't call it while another thread
-		// submits). The callback records into an already-begun command buffer.
+		// dispatch, a transfer) — then collects garbage like waitIdle. It stalls the queue,
+		// so it is a load-time / per-frame-at-most tool, not a hot path. Safe to call while
+		// other threads submit: the queue mutex is held around submit + wait, so they stall
+		// until it returns. Never call it from inside acm::interop::withQueue (deadlock).
+		// The callback records into an already-begun command buffer. If any of its
+		// recording calls was rejected, nothing is submitted and the first rejection
+		// (CommandBuffer::error()) is returned. Resources the callback records must stay
+		// alive until submitSync returns (see acmCommandBuffer.h, Lifetime).
 		acm::Error submitSync(const std::function<void(acm::CommandBuffer& cmd)>& record);
+		// Submits an ended command buffer as recorded, with the same waiting, locking and
+		// garbage collection as above; a rejected recording call is not in it, so check
+		// commandBuffer.error() first when that matters.
 		acm::Error submitSync(const acm::CommandBuffer& commandBuffer);
 
 	private:

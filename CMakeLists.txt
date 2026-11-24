@@ -18,6 +18,8 @@ option(ARCHIMEDES_BUILD_TESTING "Build the unit/integration tests" ${NOT_SUBPROJ
 option(ARCHIMEDES_BUILD_BENCHMARK "Build the benchmark executable" ${NOT_SUBPROJECT})
 option(ARCHIMEDES_FORMAT "Provide clang-format format / format-check targets" ${NOT_SUBPROJECT})
 set(ARCHIMEDES_MOLTENVK_LOG_LEVEL "1" CACHE STRING "MoltenVK MVK_CONFIG_LOG_LEVEL default for Archimedes-run executables: 0 none, 1 errors, 2 warnings, 3 info, 4 debug")
+set(ARCHIMEDES_SANITIZE "" CACHE STRING "Sanitizers for the library, tests and benchmarks (not vendored deps), Clang/GCC: empty, or a comma list of thread, address, undefined, leak")
+option(ARCHIMEDES_WARNINGS_AS_ERRORS "Treat compiler warnings in archimedes' own targets (not vendored deps) as errors (/WX, -Werror)" ${NOT_SUBPROJECT})
 
 # Disable building in-source
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -42,6 +44,12 @@ endif()
 include(acmVulkan)
 acm_require_vulkan_headers()
 
+# acm_sanitize(<target>) applies ARCHIMEDES_SANITIZE to archimedes' own targets only.
+include(acmSanitize)
+# acm_warnings(<target>) turns on compiler warnings (and ARCHIMEDES_WARNINGS_AS_ERRORS)
+# for archimedes' own targets only.
+include(acmWarnings)
+
 set(SOURCE_FILES
     src/acmBuffer.cpp
     src/acmCommandBuffer.cpp
@@ -51,6 +59,7 @@ set(SOURCE_FILES
     src/acmDescriptorSetLayout.cpp
     src/acmDevice.cpp
     src/acmInstance.cpp
+    src/acmLog.cpp
     src/acmPipeline.cpp
     src/acmRenderer.cpp
     src/acmRenderTarget.cpp
@@ -86,7 +95,7 @@ set(SOURCE_FILES
 )
 
 # A static library only needs the Vulkan *headers* to compile; the loader is a
-# link-time concern of an eventual executable. See cmake/addVulkan.cmake.
+# link-time concern of an eventual executable. See cmake/acmVulkan.cmake.
 # CMAKE_DL_LIBS (libdl on older glibc, empty elsewhere) backs the directly loaded CPU
 # driver (dlopen/dlsym).
 set(LIBRARIES
@@ -98,7 +107,9 @@ add_library(${PROJECT_NAME} STATIC ${SOURCE_FILES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME} PUBLIC ${LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC include PRIVATE private)
-target_compile_definitions(${PROJECT_NAME} PRIVATE ${DEFINES} ACM_MOLTENVK_LOG_LEVEL="${ARCHIMEDES_MOLTENVK_LOG_LEVEL}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE ACM_MOLTENVK_LOG_LEVEL="${ARCHIMEDES_MOLTENVK_LOG_LEVEL}")
+acm_warnings(${PROJECT_NAME})
+acm_sanitize(${PROJECT_NAME})
 
 if(ARCHIMEDES_BUILD_TESTBED)
     add_subdirectory(testbed)

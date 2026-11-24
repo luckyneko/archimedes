@@ -52,6 +52,12 @@ namespace acm::vulkan
 		bool beginRendering(VkCommandBuffer commandBuffer, float r, float g, float b, float a) const;
 		void endRendering(VkCommandBuffer commandBuffer) const;
 
+		// Retirement
+		// Destroys the view of a borrowed swapchain image, so the swapchain can be destroyed
+		// before this payload is collected; the target is invalid afterwards. The device must
+		// have finished every use of the view. No-op for a texture target.
+		void releaseBorrowedImage();
+
 	private:
 		// Internals
 		struct Attachment
@@ -64,7 +70,6 @@ namespace acm::vulkan
 		void release();
 		bool createTransientAttachments(acm::vulkan::Device& owner);
 		bool createAttachment(acm::vulkan::Device& owner, Attachment& attachment, VkFormat format, acm::Extent2D extent, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect);
-		VkImage colorAttachmentImage() const;
 		VkImageView colorAttachmentView() const;
 		VkImage depthAttachmentImage() const;
 		VkImageView depthAttachmentView() const;

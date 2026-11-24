@@ -6,6 +6,7 @@
  *  (See accompanying file LICENSE)
  */
 
+#include "archimedes/Platform.h"
 #include "test_spirv.h"
 #include "vk_test_helpers.h"
 
@@ -14,6 +15,7 @@
 #include <catch2/catch_all.hpp>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -41,8 +43,8 @@ namespace
 		explicit EnvGuard(const char* name)
 			: name(name)
 		{
-			if (const char* value = std::getenv(name))
-				saved = value;
+			if (const std::optional<std::string> value = acm::environmentVariable(name))
+				saved = *value;
 			else
 				had = false;
 		}
@@ -133,17 +135,16 @@ TEST_CASE("useStagedVulkanRuntime caps the CPU driver's threads without overridi
 	setEnv(name, nullptr);
 
 	acm::useStagedVulkanRuntime();
-	REQUIRE(std::getenv(name) == nullptr); // 0 keeps the driver's default
+	REQUIRE_FALSE(acm::environmentVariable(name)); // 0 keeps the driver's default
 
 	acm::RuntimeConfig config;
 	config.cpuDeviceThreads = 1000;
 	acm::useStagedVulkanRuntime(config);
-	REQUIRE(std::getenv(name) != nullptr);
-	REQUIRE(std::string(std::getenv(name)) == "256"); // clamped to the scheduler's limit
+	REQUIRE(acm::environmentVariable(name) == std::optional<std::string>("256")); // clamped to the scheduler's limit
 
 	config.cpuDeviceThreads = 3;
 	acm::useStagedVulkanRuntime(config);
-	REQUIRE(std::string(std::getenv(name)) == "256"); // a value already set wins
+	REQUIRE(acm::environmentVariable(name) == std::optional<std::string>("256")); // a value already set wins
 }
 
 TEST_CASE("The CPU driver loads directly, without driver environment variables", "[acm][gpu]")
@@ -160,7 +161,7 @@ TEST_CASE("The CPU driver loads directly, without driver environment variables",
 	setEnv("VK_ADD_DRIVER_FILES", nullptr);
 	setEnv("VK_ICD_FILENAMES", "acm-no-such-driver.json");
 
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	REQUIRE(instance.valid());
 	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();
 	REQUIRE_FALSE(options.empty());
@@ -180,17 +181,17 @@ TEST_CASE("InstanceConfig::cpuDriver off leaves the CPU driver unloaded", "[acm]
 
 	// Counted against a default instance, so a system-installed SwiftShader cancels out. With
 	// no other driver (a GPU-less runner) the opted-out instance may not exist at all.
-	acm::Instance withDriver("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance withDriver = acmtest::createInstance();
 	acmtest::requireInstance(withDriver);
 	acm::InstanceConfig config;
 	config.cpuDriver = false;
-	acm::Instance withoutDriver("acm-tests", acm::Version{0, 1, 0}, config);
+	acm::Instance withoutDriver = acmtest::createInstance(config);
 	REQUIRE(devicesNamed(withDriver, "SwiftShader") == devicesNamed(withoutDriver, "SwiftShader") + 1);
 }
 
 TEST_CASE("Device options put hardware first by default and the CPU device first on request", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const std::vector<acm::DeviceOption> defaults = instance.graphicsOptions();
@@ -206,7 +207,7 @@ TEST_CASE("Device options put hardware first by default and the CPU device first
 
 TEST_CASE("One compute shader gives identical results on a hardware device and the CPU device", "[acm][gpu]")
 {
-	acm::Instance instance("acm-tests", acm::Version{0, 1, 0});
+	acm::Instance instance = acmtest::createInstance();
 	acmtest::requireInstance(instance);
 
 	const std::vector<acm::DeviceOption> options = instance.graphicsOptions();

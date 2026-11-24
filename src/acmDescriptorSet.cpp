@@ -62,49 +62,39 @@ namespace acm
 	// Writes
 	// -----------------------------------------------------------------------------
 
-	void DescriptorSet::setTexture(uint32_t binding, const Texture& texture, const Sampler& sampler, uint32_t arrayElement)
+	Error DescriptorSet::setTexture(uint32_t binding, const Texture& texture, const Sampler& sampler, uint32_t arrayElement)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (texture.backend() && sampler.backend())
-				resource->setTexture(binding, *texture.backend(), *sampler.backend(), arrayElement);
-		}
+			return resource->setTexture(binding, texture, sampler, arrayElement);
+		return Error("setTexture: invalid descriptor set");
 	}
 
-	void DescriptorSet::setBuffer(uint32_t binding, const Buffer& buffer, uint32_t arrayElement)
+	Error DescriptorSet::setBuffer(uint32_t binding, const Buffer& buffer, uint32_t arrayElement)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (buffer.backend())
-				resource->setBuffer(binding, *buffer.backend(), arrayElement);
-		}
+			return resource->setBuffer(binding, buffer, arrayElement);
+		return Error("setBuffer: invalid descriptor set");
 	}
 
-	void DescriptorSet::setDynamicBuffer(uint32_t binding, const Buffer& buffer, size_t elementSize, uint32_t arrayElement)
+	Error DescriptorSet::setDynamicBuffer(uint32_t binding, const Buffer& buffer, size_t elementSize, uint32_t arrayElement)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (buffer.backend())
-				resource->setDynamicBuffer(binding, *buffer.backend(), elementSize, arrayElement);
-		}
+			return resource->setDynamicBuffer(binding, buffer, elementSize, arrayElement);
+		return Error("setDynamicBuffer: invalid descriptor set");
 	}
 
-	void DescriptorSet::setStorageImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	Error DescriptorSet::setStorageImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (texture.backend())
-				resource->setStorageImage(binding, *texture.backend(), arrayElement);
-		}
+			return resource->setStorageImage(binding, texture, arrayElement);
+		return Error("setStorageImage: invalid descriptor set");
 	}
 
-	void DescriptorSet::setSampledImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
+	Error DescriptorSet::setSampledImage(uint32_t binding, const Texture& texture, uint32_t arrayElement)
 	{
 		if (auto* resource = m_resource.access())
-		{
-			if (texture.backend())
-				resource->setSampledImage(binding, *texture.backend(), arrayElement);
-		}
+			return resource->setSampledImage(binding, texture, arrayElement);
+		return Error("setSampledImage: invalid descriptor set");
 	}
 
 	// -----------------------------------------------------------------------------

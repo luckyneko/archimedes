@@ -12,7 +12,6 @@
 #include "archimedes/vulkan/Convert.h"
 #include "archimedes/vulkan/Device.h"
 
-#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -32,12 +31,14 @@ namespace acm::vulkan
 		}
 		m_owner = &owner;
 		m_size = size;
+		m_usage = usage;
+		m_vkUsage = toVk(usage);
 		m_hostVisible = isHostVisible(usage);
 
 		VkBufferCreateInfo bufferInfo = {};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.size = size;
-		bufferInfo.usage = toVk(usage);
+		bufferInfo.usage = m_vkUsage;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		if (vkCreateBuffer(owner.vkDevice(), &bufferInfo, nullptr, &m_buffer) != VK_SUCCESS)
 		{
@@ -50,13 +51,14 @@ namespace acm::vulkan
 													 : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		VkMemoryRequirements requirements;
 		vkGetBufferMemoryRequirements(owner.vkDevice(), m_buffer, &requirements);
-		m_allocation = owner.allocator().allocate(requirements, properties);
+		m_allocation = owner.allocator().allocate(requirements, properties, AllocationKind::Linear);
 		if (!m_allocation.valid())
 		{
 			m_error = acm::Error("failed to allocate buffer memory");
 			return;
 		}
-		vkBindBufferMemory(owner.vkDevice(), m_buffer, m_allocation.memory, m_allocation.offset);
+		if (vkBindBufferMemory(owner.vkDevice(), m_buffer, m_allocation.memory, m_allocation.offset) != VK_SUCCESS)
+			m_error = acm::Error("failed to bind buffer memory");
 	}
 
 	Buffer::~Buffer()
@@ -76,6 +78,8 @@ namespace acm::vulkan
 		release();
 		m_owner = std::exchange(other.m_owner, nullptr);
 		m_size = std::exchange(other.m_size, 0);
+		m_usage = std::exchange(other.m_usage, acm::BufferUsage::Uniform);
+		m_vkUsage = std::exchange(other.m_vkUsage, VkBufferUsageFlags(0));
 		m_hostVisible = std::exchange(other.m_hostVisible, true);
 		m_buffer = std::exchange(other.m_buffer, VK_NULL_HANDLE);
 		m_allocation = std::exchange(other.m_allocation, {});
@@ -104,21 +108,26 @@ namespace acm::vulkan
 
 	acm::Error Buffer::write(const void* data, size_t size)
 	{
-		const size_t bytes = std::min(size, m_size);
+		if (!data)
+			return acm::Error("Buffer::write: data is null");
+		if (size > m_size)
+			return acm::Error("Buffer::write: size exceeds the buffer");
+		if (size == 0)
+			return {};
 		if (m_hostVisible)
 		{
 			if (!m_allocation.mapped)
 				return acm::Error("Buffer::write: map failed");
-			std::memcpy(m_allocation.mapped, data, bytes);
+			std::memcpy(m_allocation.mapped, data, size);
 			return {};
 		}
 
-		acm::Buffer staging = owner().createBuffer(bytes, acm::BufferUsage::Staging);
+		acm::Buffer staging = owner().createBuffer(size, acm::BufferUsage::Staging);
 		if (!staging.valid())
 			return acm::Error("Buffer::write: failed to create staging buffer");
-		if (acm::Error error = staging.backend()->write(data, bytes))
+		if (acm::Error error = staging.backend()->write(data, size))
 			return error;
-		return owner().copyBuffer(staging.backend()->vkBuffer(), m_buffer, VkDeviceSize(bytes));
+		return owner().copyBuffer(staging.backend()->vkBuffer(), m_buffer, VkDeviceSize(size));
 	}
 
 	// -----------------------------------------------------------------------------

@@ -55,7 +55,8 @@ def candidate_execs(exec_path: str) -> List[str]:
 def resolve_exec(exec_path: str) -> Optional[str]:
     for cand in candidate_execs(exec_path):
         if os.path.isfile(cand):
-            return cand
+            # Absolute: Windows cannot launch a relative path written with forward slashes.
+            return os.path.abspath(cand)
     return None
 
 
